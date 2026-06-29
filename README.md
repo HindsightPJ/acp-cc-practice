@@ -8,9 +8,7 @@ v1.0
 
 本项目仅供个人学习与备考练习使用。
 
-- 仓库包含一份**加密题库** `data/questions.enc`（Fernet 对称加密，AES-128-CBC + HMAC-SHA256），**不含明文题库，也不含主密钥 K**
-- 主密钥 K 永不离开作者机器，客户端只能通过作者签发的**注册码**解出 K（Ed25519 签名 + AES-256-GCM 绑定机器码）
-- 仓库同时提供 20 题明文试用 `data/questions_trial.json`，无需授权即可体验
+- 仓库包含一份**加密题库** `data/questions.enc`，同时提供 20 题明文试用 `data/questions_trial.json`，无需授权即可体验
 - 题库源文件（`.docx` / `.doc`）受版权保护，不分发、不入库
 - 所有题目版权归原版权方所有，使用者需自行获取合法题库授权
 - 如版权方认为本项目存在侵权，请联系仓库所有者删除
@@ -43,7 +41,6 @@ acp-cc-practice/
 ├── quiz_engine.py           # 题库引擎：题目队列、作答、统计、报告
 ├── data_manager.py          # 题库加载（trial/full 两段式）+ 进度持久化
 ├── requirements.txt         # 依赖（python-docx + cryptography）
-├── acp-cc-practice.spec     # PyInstaller 打包配置（console=False，无 cmd 窗口）
 ├── .env.example             # .env 模板（作者密钥，本地保留）
 ├── .gitignore
 ├── license/                 # 客户端授权模块
@@ -78,9 +75,9 @@ acp-cc-practice/
 
 ### 环境要求
 
-- Python 3.10+（授权模块用了 `str | None` 原生语法）
 - Windows 桌面环境（授权机制依赖三维度机器指纹；macOS/Linux 降级试用 20 题）
-- 依赖：`pip install -r requirements.txt`
+- 最终用户：无需安装 Python，直接下载 exe 运行
+- 开发者：Python 3.10+，`pip install -r requirements.txt`
 
 ### 两种使用方式
 
@@ -111,7 +108,11 @@ acp-cc-practice/
 3. 准备明文 `questions.json`，运行 `python author_tools/encrypt_questions.py` 生成加密题库
 4. 启动 `python main.py`，用 `python author_tools/generate_license.py` 为自己签发注册码
 
-### 安装与运行
+### 下载与运行（最终用户）
+
+从 GitHub Releases 下载 `acp-cc-practice.exe`，双击即可运行，无需安装 Python 环境。
+
+### 从源码运行（开发者）
 
 ```bash
 # 1. 安装依赖
@@ -119,13 +120,6 @@ pip install -r requirements.txt
 
 # 2. 启动
 python main.py
-```
-
-### 打包为 exe（作者侧）
-
-```bash
-python -m PyInstaller acp-cc-practice.spec --clean --noconfirm
-# 产物在 dist/acp-cc-practice.exe（无 cmd 窗口）
 ```
 
 ## 数据文件
@@ -177,7 +171,6 @@ acp-cc-practice/
 ├── .gitignore
 ├── .env.example
 ├── README.md
-├── acp-cc-practice.spec          # 打包配置（console=False）
 ├── main.py
 ├── data_manager.py
 ├── quiz_engine.py
@@ -209,6 +202,8 @@ acp-cc-practice/
     ├── review_mode.py
     └── wrong_book.py
 ```
+
+**发布产物**：`dist/acp-cc-practice.exe`（约 15.5 MB，无 cmd 窗口）— 打包好的可执行文件，可直接分发给最终用户，无需安装 Python 环境。作为 GitHub Release 二进制附件发布，不纳入源码仓库。
 
 **不入库的文件**：`.env`、`data/progress.json`、`data/license.dat`、`data/app.log`、`data/questions.json`、`author_tools/issued_licenses.json`、`build/`、`dist/`、`__pycache__/`、`.pytest_cache/`
 
