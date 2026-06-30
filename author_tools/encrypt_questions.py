@@ -15,6 +15,8 @@ import sys
 from cryptography.fernet import Fernet
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # acp-cc-practice/
+sys.path.insert(0, BASE_DIR)
+from env_utils import load_env  # pylint: disable=wrong-import-position
 ENV_FILE = os.path.join(BASE_DIR, '.env')
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 QUESTIONS_JSON = os.path.join(DATA_DIR, 'questions.json')
@@ -27,20 +29,17 @@ META_VERSION = "1.0"
 
 
 def load_master_key() -> str:
-    """从 .env 读取 QUESTIONS_MASTER_KEY。"""
+    """从 .env 读取 QUESTIONS_MASTER_KEY（TD-05: 改用统一 load_env）。"""
     if not os.path.exists(ENV_FILE):
         print(f"[错误] 找不到 .env: {ENV_FILE}", file=sys.stderr)
         print("请先运行 keygen.py 生成密钥。", file=sys.stderr)
         sys.exit(1)
-    with open(ENV_FILE, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('QUESTIONS_MASTER_KEY='):
-                key = line.split('=', 1)[1].strip()
-                if key:
-                    return key
-    print("[错误] .env 中未找到 QUESTIONS_MASTER_KEY", file=sys.stderr)
-    sys.exit(1)
+    env = load_env(ENV_FILE)
+    key = env.get('QUESTIONS_MASTER_KEY')
+    if not key:
+        print("[错误] .env 中未找到 QUESTIONS_MASTER_KEY", file=sys.stderr)
+        sys.exit(1)
+    return key
 
 
 def load_questions() -> list:

@@ -3,6 +3,7 @@ import os
 import json
 import re
 import logging
+from env_utils import load_env
 
 logger = logging.getLogger(__name__)
 
@@ -210,19 +211,9 @@ class DataManager:
             raise DataLoadError(f"题库密文损坏或密钥不匹配: {e}")
 
     def _load_encryption_key(self) -> Optional[str]:
-        """从 .env 读取 QUESTIONS_KEY。"""
-        env_path = os.path.join(self.base_dir, '.env')
-        if not os.path.exists(env_path):
-            return None
-        try:
-            with open(env_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith('QUESTIONS_KEY='):
-                        return line.split('=', 1)[1].strip()
-        except OSError:
-            pass
-        return None
+        """从 .env 读取 QUESTIONS_KEY（TD-05: 改用统一 load_env）。"""
+        env = load_env(os.path.join(self.base_dir, '.env'))
+        return env.get('QUESTIONS_KEY')
 
     def save_progress(self, progress_data: Dict[str, Any]) -> None:
         """保存学习进度（原子写入：先写临时文件，再 os.replace 替换）"""

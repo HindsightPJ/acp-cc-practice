@@ -214,7 +214,7 @@
 | TD-02 | P0 | 待修复 | — |
 | TD-03 | P1 | ✅ 已修复 | 抽取到 license/crypto_utils.py |
 | TD-04 | P1 | ✅ 已修复 | 抽取 _show_fatal_error 辅助函数 |
-| TD-05 | P1 | 待修复 | — |
+| TD-05 | P1 | ✅ 已修复 | 抽取到 env_utils.py |
 | TD-06 | P1 | 待修复 | — |
 | TD-07 | P2 | 待修复 | — |
 | TD-08 | P2 | 待修复 | — |

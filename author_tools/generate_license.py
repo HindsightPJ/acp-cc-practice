@@ -28,6 +28,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # acp-cc-practice/
 sys.path.insert(0, BASE_DIR)
 from license.crypto_utils import derive_dk
+from env_utils import load_env  # pylint: disable=wrong-import-position
 ENV_FILE = os.path.join(BASE_DIR, '.env')
 ISSUED_LICENSES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'issued_licenses.json')
 
@@ -36,19 +37,17 @@ NONCE_LEN = 12
 
 
 def load_author_keys() -> dict:
-    """从 .env 读取 K + Ed25519 私钥。"""
+    """从 .env 读取 K + Ed25519 私钥（TD-05: 改用统一 load_env）。"""
     if not os.path.exists(ENV_FILE):
         print(f"[错误] 找不到 .env: {ENV_FILE}", file=sys.stderr)
         print("请先运行 keygen.py。", file=sys.stderr)
         sys.exit(1)
+    env = load_env(ENV_FILE)
     keys = {}
-    with open(ENV_FILE, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('QUESTIONS_MASTER_KEY='):
-                keys['k'] = line.split('=', 1)[1].strip()
-            elif line.startswith('ED25519_PRIVATE_KEY='):
-                keys['private_hex'] = line.split('=', 1)[1].strip()
+    if 'QUESTIONS_MASTER_KEY' in env:
+        keys['k'] = env['QUESTIONS_MASTER_KEY']
+    if 'ED25519_PRIVATE_KEY' in env:
+        keys['private_hex'] = env['ED25519_PRIVATE_KEY']
     if 'k' not in keys or 'private_hex' not in keys:
         print("[错误] .env 缺少 QUESTIONS_MASTER_KEY 或 ED25519_PRIVATE_KEY", file=sys.stderr)
         sys.exit(1)
