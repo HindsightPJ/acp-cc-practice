@@ -57,22 +57,27 @@
 - **风险**：`data_manager._load_encryption_key` 不支持引号和行内注释，用户误写 `QUESTIONS_KEY="xxx"` 会保留引号导致解密失败
 - **修复**：合并为公共函数 `load_env(path) -> dict`
 
-### TD-06: 基类方法被完全覆盖未调 `super()`
+### TD-06: 基类方法被完全覆盖未调 `super()` ✅ 已修复
 
-- **位置**：`ui/practice_mode.py:171-214` ↔ `ui/base_mode.py:80-110`
-- **问题**：`_bind_keyboard` / `_on_global_click` / `_on_key_press` 在子类完全覆盖基类，未调用 `super()`，基类实现成为死代码
-- **修复**：要么删除基类死代码，要么子类调用 `super()` 复用公共逻辑
+- **位置**：`ui/practice_mode.py` ↔ `ui/base_mode.py` ↔ `ui/exam_mode.py` ↔ `ui/review_mode.py`
+- **问题**：`_bind_keyboard` / `_on_global_click` / `_on_key_press` 在 3 个子类完全覆盖基类，未调用 `super()`，基类实现成为死代码
+- **修复**（已完成）：
+  - 删除 `PracticeMode` / `ExamMode` / `ReviewMode` 中与基类完全相同的 `_bind_keyboard` 和 `_on_global_click`（纯复制粘贴死代码）
+  - `PracticeMode._on_key_press` 和 `ReviewMode._on_key_press` 末尾改用 `return super()._on_key_press(event)` 复用基类导航键逻辑
+  - `ExamMode._on_key_press` 保留原样（Left → `exam_prev_question()` 与基类不同）
+  - 净减少 38 行代码，118 项测试通过
 
 ---
 
 ## P2 — 安全与稳健性
 
-### TD-07: 机器指纹维度偏弱
+### TD-07: 机器指纹维度偏弱 ✅ 已修复
 
-- **位置**：`license/fingerprint.py:86-91`
+- **位置**：`license/fingerprint.py`
 - **问题**：`ComputerName` 用户可在系统设置中随意修改，是三个维度中最弱的；当前组合 `SHA-256(MachineGuid | VolumeSerial | ComputerName)` 中 ComputerName 占 1/3 权重过高
 - **风险**：用户改计算机名会导致注册码失效（误伤合法用户）
-- **修复**：增加 BIOS 序列号或主板序列号（通过 WMI），降低 ComputerName 权重
+- **修复**（已完成）：新增 `get_bios_serial()` 通过 `wmic bios get SerialNumber` 采集 BIOS 序列号作为第 4 维度；`compute_machine_code` 增加 `bios_serial` 参数；机器码变为 `SHA-256(guid|volume|name|bios)`；BIOS 获取失败时用空字符串（不阻断）；过滤 OEM 常见占位符；ComputerName 权重从 1/3 降到 1/4；新增 7 个 BIOS 相关测试
+- **注意**：破坏性更改——机器码算法变化，已签发的注册码需重新签发
 
 ### TD-08: `save_license` 非原子写入
 
@@ -219,8 +224,8 @@
 | TD-03 | P1 | ✅ 已修复 | 抽取到 license/crypto_utils.py |
 | TD-04 | P1 | ✅ 已修复 | 抽取 _show_fatal_error 辅助函数 |
 | TD-05 | P1 | ✅ 已修复 | 抽取到 env_utils.py |
-| TD-06 | P1 | 待修复 | — |
-| TD-07 | P2 | 待修复 | — |
+| TD-06 | P1 | ✅ 已修复 | 删除 3 子类死代码 + super() 复用导航键 |
+| TD-07 | P2 | ✅ 已修复 | 新增 BIOS 序列号第 4 维度（破坏性，需重签注册码） |
 | TD-08 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 |
 | TD-09 | P2 | 待修复 | — |
 | TD-10 | P2 | 待修复 | — |

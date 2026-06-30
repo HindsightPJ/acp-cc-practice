@@ -3,13 +3,15 @@
 平台：Windows
 非 Windows：抛 UnsupportedOSError，由调用方降级为试用模式。
 
-机器码 = SHA-256(MachineGuid + "|" + VolumeSerial(C:) + "|" + ComputerName).hex()
-三维度组合，单一维度克隆（如磁盘镜像）不足以绕过。
+机器码 = SHA-256(MachineGuid + "|" + VolumeSerial(C:) + "|" + ComputerName + "|" + BiosSerial).hex()
+四维度组合（TD-07: 新增 BIOS 序列号），单一维度克隆（如磁盘镜像）不足以绕过。
+BIOS 序列号获取失败时用空字符串，其他三维度仍有效。
 此值会显示给用户复制，并作为 PBKDF2 的 password 输入。
 """
 import hashlib
 import os
 import socket
+import subprocess
 import sys
 import logging
 from typing import Optional
@@ -92,26 +94,71 @@ def get_computer_name() -> str:
     return os.environ.get('COMPUTERNAME') or socket.gethostname()
 
 
-def compute_machine_code(machine_guid: str, volume_serial: str, computer_name: str) -> str:
-    """计算机器码 = SHA-256(guid|volume|name).hex()。
+# BIOS 序列号的常见占位符（不同 OEM 厂商使用不同占位符，需过滤）
+_BIOS_PLACEHOLDERS = frozenset({
+    'default string',
+    'to be filled by o.e.m.',
+    'to be filled by o.e.m./system product name',
+    'none',
+    'system serial number',
+    'system product name',
+    'not defined',
+    'unknown',
+    '0',
+})
+
+
+def get_bios_serial() -> str:
+    """读取 BIOS 序列号（TD-07: 通过 wmic 增强指纹维度）。
+
+    失败时返回空字符串，不阻断机器码生成（其他三维度仍有效）。
+    过滤 OEM 常见占位符（"Default string" 等）。
+
+    Returns:
+        BIOS 序列号字符串，或空字符串（获取失败/占位符/非 Windows）
+    """
+    if sys.platform != 'win32':
+        return ''
+    try:
+        result = subprocess.run(
+            ['wmic', 'bios', 'get', 'SerialNumber', '/value'],
+            capture_output=True, text=True, timeout=3,
+            creationflags=0x08000000,  # CREATE_NO_WINDOW，避免弹出黑框
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith('SerialNumber='):
+                serial = line.split('=', 1)[1].strip()
+                if serial and serial.lower() not in _BIOS_PLACEHOLDERS:
+                    return serial
+        return ''
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return ''
+
+
+def compute_machine_code(machine_guid: str, volume_serial: str,
+                          computer_name: str, bios_serial: str = '') -> str:
+    """计算机器码 = SHA-256(guid|volume|name|bios).hex()。
 
     Args:
         machine_guid: 从注册表读到的 MachineGuid
         volume_serial: C 盘卷序列号（8 字符大写 hex）
         computer_name: 计算机名
+        bios_serial: BIOS 序列号（TD-07: 第 4 维度，获取失败时为空字符串）
 
     Returns:
         64 字符小写 hex 字符串
     """
-    raw = f"{machine_guid}|{volume_serial}|{computer_name}"
+    raw = f"{machine_guid}|{volume_serial}|{computer_name}|{bios_serial}"
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
 def get_machine_code_or_none() -> Optional[str]:  # TD-13: 统一为 Optional[str]
     """获取本机机器码，失败返回 None（用于降级试用）。
 
-    采集三个维度：MachineGuid + C盘卷序列号 + 计算机名。
-    任一维度获取失败，整体降级返回 None。
+    采集四个维度：MachineGuid + C盘卷序列号 + 计算机名 + BIOS序列号。
+    前 3 个维度任一获取失败，整体降级返回 None。
+    BIOS 序列号获取失败时用空字符串（不阻断，其他维度仍有效）。
 
     Returns:
         机器码字符串，或 None
@@ -120,7 +167,8 @@ def get_machine_code_or_none() -> Optional[str]:  # TD-13: 统一为 Optional[st
         guid = get_machine_guid()
         volume = get_volume_serial()
         name = get_computer_name()
-        return compute_machine_code(guid, volume, name)
+        bios = get_bios_serial()  # 失败时返回 ''，不抛异常
+        return compute_machine_code(guid, volume, name, bios)
     except (UnsupportedOSError, OSError) as e:
         logger.warning("采集机器指纹失败，降级试用模式: %s", e)
         return None
