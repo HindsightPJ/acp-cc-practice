@@ -345,7 +345,7 @@ class PracticeMode(BaseMode):
 
         self.submit_btn.configure(state=tk.DISABLED, bg=BTN_DISABLED, text="已提交")
 
-        stats = self.engine.stats
+        stats = self.engine.get_stats()  # TD-15: 通过显式接口访问
         accuracy = (stats['correct'] / stats['total'] * 100) if stats['total'] > 0 else 0
         self.stats_label.configure(
             text=f"正确 {stats['correct']}  |  错误 {stats['wrong']}  |  正确率 {accuracy:.0f}%")

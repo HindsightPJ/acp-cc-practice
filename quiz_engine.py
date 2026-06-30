@@ -98,6 +98,14 @@ class QuizEngine:
             'stats': self.stats
         }
 
+    def get_stats(self) -> Dict[str, int]:
+        """获取统计信息（TD-15: 提供显式接口，避免 UI 直接访问内部属性）。
+
+        Returns:
+            {'correct': int, 'wrong': int, 'total': int} 的副本
+        """
+        return dict(self.stats)
+
     def get_wrong_answers(self) -> List[Dict[str, Any]]:
         """获取所有错误答案的题目。
 

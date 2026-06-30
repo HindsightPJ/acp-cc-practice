@@ -135,11 +135,19 @@
 - **位置**：`quiz_engine.py:15` `start_practice_mode(shuffle, category)` 的 `category` 参数从未在函数体内使用
 - **修复**：删除参数或实现分类筛选功能
 
-### TD-15: UI 与业务层耦合
+### TD-15: UI 与业务层耦合 ⏳ 部分修复
 
 - **位置**：`ui/practice_mode.py:345-348` 直接访问 `engine.stats` 字典字段
 - **问题**：无显式接口契约，`QuizEngine` 内部结构变更会直接影响 UI
 - **修复**：`QuizEngine` 提供TypedDict 或 dataclass 作为返回类型
+- **已完成（2026-06-30）**：`engine.stats` 已解耦
+  - 新增 `QuizEngine.get_stats()` 返回副本，`practice_mode.py` 改用此方法
+  - 新增 3 个测试（初始/累积/副本隔离），134 项测试通过
+- **剩余耦合点**（待后续修复）：
+  - `engine.current_index`：exam_mode.py(6处)、base_mode.py(2处) 直接读写
+  - `engine.questions_queue`：exam_mode.py(2处)、review_mode.py(6处) 直接读写
+  - `review_mode.py:33` 直接赋值 `engine.questions_queue = list(questions)`（最危险）
+  - 建议新增 `get_current_index()`/`set_current_index()`/`get_questions_queue()`/`set_questions_queue()` 方法
 
 ---
 
@@ -239,7 +247,7 @@
 | TD-12 | P3 | ⊝ 评估保留 | 344 行但无方法超 70 行；无 UI 测试，风险>收益 |
 | TD-13 | P3 | ✅ 已修复 | 统一为 Optional[str] |
 | TD-14 | P3 | ✅ 已修复 | 移除 category 参数 |
-| TD-15 | P3 | 待修复 | — |
+| TD-15 | P3 | ⏳ 部分修复 | stats 已解耦（get_stats+3测试）；current_index/questions_queue 待解耦 |
 | TD-16 | P4 | 待修复 | — |
 | TD-17 | P4 | 待修复 | — |
 | TD-18 | P4 | 待修复 | — |

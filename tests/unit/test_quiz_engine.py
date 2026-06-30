@@ -411,6 +411,38 @@ def test_get_progress_includes_stats(engine):
     assert progress['stats']['correct'] == 1
 
 
+# ---------- get_stats 测试（TD-15）----------
+
+def test_get_stats_initial(engine):
+    """初始状态 stats 应全为 0。"""
+    engine.start_practice_mode(shuffle=False)
+    stats = engine.get_stats()
+    assert stats == {'correct': 0, 'wrong': 0, 'total': 0}
+
+
+def test_get_stats_after_answers(engine):
+    """作答后 stats 应正确累积。"""
+    engine.start_practice_mode(shuffle=False)
+    engine.submit_answer('A')  # 第 1 题答案 A → 正确
+    engine.next_question()
+    engine.submit_answer('X')  # 第 2 题答案 X → 错误
+    stats = engine.get_stats()
+    assert stats['total'] == 2
+    assert stats['correct'] == 1
+    assert stats['wrong'] == 1
+
+
+def test_get_stats_returns_copy(engine):
+    """get_stats 应返回副本，修改返回值不影响内部状态（TD-15 接口契约）。"""
+    engine.start_practice_mode(shuffle=False)
+    engine.submit_answer('A')
+    stats = engine.get_stats()
+    stats['correct'] = 999  # 篡改返回值
+    # 内部状态不应受影响
+    fresh_stats = engine.get_stats()
+    assert fresh_stats['correct'] == 1
+
+
 # ---------- get_wrong_answers 测试 ----------
 
 def test_get_wrong_answers_empty(engine):
