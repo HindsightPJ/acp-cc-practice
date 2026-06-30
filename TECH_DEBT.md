@@ -238,6 +238,6 @@
 | TD-22 | P5 | 待修复 | — |
 | TD-23 | P5 | 待修复 | — |
 | TD-24 | P5 | ✅ 已修复 | 上界约束 + requirements-dev.txt |
-| TD-25 | P5 | 待修复 | — |
+| TD-25 | P5 | ✅ 已修复 | 新增 pyproject.toml |
 | TD-26 | P6 | 待修复 | — |
 | TD-27 | P6 | 待修复 | — |

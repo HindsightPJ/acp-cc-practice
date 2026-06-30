@@ -1,0 +1,19 @@
+# 项目元数据（TD-25: 添加 pyproject.toml）
+[project]
+name = "acp-cc-practice"
+version = "1.0"
+description = "ACP CC 题库练习软件"
+requires-python = ">=3.10"
+dependencies = [
+    "python-docx>=0.8.11,<2.0",
+    "cryptography>=41.0.0,<50",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0,<10.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
