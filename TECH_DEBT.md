@@ -215,7 +215,7 @@
 | ID | 优先级 | 状态 | 修复提交 |
 |----|--------|------|----------|
 | TD-01 | P0 | ✅ 已修复 | test_quiz_engine.py 59 用例 |
-| TD-02 | P0 | 待修复 | — |
+| TD-02 | P0 | ✅ 已修复 | 13 个 parse_docx 测试 + 正则 bug 修复 |
 | TD-03 | P1 | ✅ 已修复 | 抽取到 license/crypto_utils.py |
 | TD-04 | P1 | ✅ 已修复 | 抽取 _show_fatal_error 辅助函数 |
 | TD-05 | P1 | ✅ 已修复 | 抽取到 env_utils.py |

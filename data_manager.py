@@ -61,11 +61,11 @@ class DataManager:
                 continue
 
             # 检测题目编号 (如 "1." 或 "1、" 或 "1．")
-            if re.match(r'^\d+[\.\、\.]', text):
+            if re.match(r'^\d+[\.\、．]', text):
                 if current_question:
                     questions.append(current_question)
 
-                match = re.match(r'^(\d+)[\.\、\.]\s*(.*)$', text)
+                match = re.match(r'^(\d+)[\.\、．]\s*(.*)$', text)
                 current_question = {
                     'number': int(match.group(1)),
                     'content': match.group(2).strip(),
