@@ -1,0 +1,3 @@
+# 开发依赖（TD-24: 补充 pytest）
+-r requirements.txt
+pytest>=7.0.0,<10.0

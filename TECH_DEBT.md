@@ -179,7 +179,9 @@
 - **问题**：未签名，Windows SmartScreen 会拦截未签名 EXE
 - **修复**：购买代码签名证书或使用 sigstore
 
-### TD-24: 依赖未锁定版本
+### TD-24: 依赖未锁定版本 ✅ 已修复
+
+- **完成**：requirements.txt 改为上界约束（cryptography>=41.0.0,<50 等）；新增 requirements-dev.txt 含 pytest>=7.0.0,<10.0；99 项测试通过
 
 - **位置**：`requirements.txt`
 - **问题**：仅用 `>=`，`cryptography` 大版本升级可能导致 API 失效
@@ -233,7 +235,7 @@
 | TD-21 | P5 | 待修复 | — |
 | TD-22 | P5 | 待修复 | — |
 | TD-23 | P5 | 待修复 | — |
-| TD-24 | P5 | 待修复 | — |
+| TD-24 | P5 | ✅ 已修复 | 上界约束 + requirements-dev.txt |
 | TD-25 | P5 | 待修复 | — |
 | TD-26 | P6 | 待修复 | — |
 | TD-27 | P6 | 待修复 | — |
