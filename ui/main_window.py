@@ -25,6 +25,8 @@ from .practice_mode import PracticeMode
 from .exam_mode import ExamMode
 from .review_mode import ReviewMode
 from .wrong_book import WrongBook
+from license import LicenseStatus, LicenseError
+from license.verifier import verify, LicenseVerifier
 
 
 SIDEBAR_WIDTH = 200
@@ -83,6 +85,40 @@ class MasteryRing(tk.Canvas):
         self.create_text(size // 2, size // 2 + 14,
                          text="就绪度",
                          fill=INK_TEXT_MUTED, font=font_ui(9))
+
+
+_LICENSE_ERROR_MESSAGES = {
+    None: "授权失败，请检查注册码。",
+    'invalid_signature': "注册码无效，请联系作者。",
+    'wrong_machine': "注册码不属于本机，请确认机器码后重新申请。",
+    'corrupt_questions': "题库密文损坏，请联系作者。",
+    'corrupt_license': "注册码文件损坏。",
+}
+
+
+def _get_license_error_message(err) -> str:
+    """根据 LicenseError 枚举返回用户可读消息（TD-11: 从 _show_license_dialog 抽取）。"""
+    err_key = err.value if err else None
+    return _LICENSE_ERROR_MESSAGES.get(err_key, "授权失败。")
+
+
+def _verify_and_save_license(code: str, license_dir: str):
+    """验证注册码并持久化（TD-11: 从 _show_license_dialog 抽取）。
+
+    Args:
+        code: 用户输入的注册码
+        license_dir: license.dat 保存目录
+
+    Returns:
+        (success, message, should_close_dialog)
+    """
+    status, k, err = verify(code)
+    if status == LicenseStatus.AUTHORIZED and k:
+        verifier = LicenseVerifier(data_dir=license_dir)
+        if verifier.save_license(code):
+            return (True, "授权成功！请重启程序加载完整题库。", True)
+        return (False, "注册码验证成功，但保存到本地失败。\n请检查程序目录写入权限。", False)
+    return (False, _get_license_error_message(err), False)
 
 
 class MainWindow(tk.Tk):
@@ -231,7 +267,6 @@ class MainWindow(tk.Tk):
         self.mode_title.pack(side=tk.LEFT, pady=12)
 
         # 授权状态 + 题库总量显示
-        from license import LicenseStatus
         total = self.meta.get('total', len(self.questions))
         if self.license_status == LicenseStatus.AUTHORIZED:
             status_text = f"题库共 {total} 题 · 已授权"
@@ -264,11 +299,9 @@ class MainWindow(tk.Tk):
             self.activate_btn.pack(side=tk.RIGHT, padx=8, pady=12)
 
     def _show_license_dialog(self):
-        """弹出注册码输入对话框。"""
+        """弹出注册码输入对话框（TD-11: 已拆分纯逻辑到模块级函数）。"""
         from license.fingerprint import get_machine_code_or_none
-        from license.verifier import verify, LicenseVerifier
-        from license import LicenseStatus
-        from tkinter import simpledialog, messagebox
+        from tkinter import messagebox
 
         machine_code = get_machine_code_or_none()
         if machine_code is None:
@@ -311,30 +344,15 @@ class MainWindow(tk.Tk):
             if not code:
                 messagebox.showwarning("提示", "请输入注册码", parent=dialog)
                 return
-            status, k, err = verify(code)
-            if status == LicenseStatus.AUTHORIZED and k:
-                # 持久化（用与 main.py 一致的 license_dir，打包后写到 exe 同级 data/）
-                verifier = LicenseVerifier(data_dir=self.license_dir)
-                if verifier.save_license(code):
-                    messagebox.showinfo("成功", "授权成功！请重启程序加载完整题库。",
-                                        parent=dialog)
-                    dialog.destroy()
-                else:
-                    messagebox.showerror(
-                        "错误",
-                        "注册码验证成功，但保存到本地失败。\n请检查程序目录写入权限。",
-                        parent=dialog)
+            # TD-11: 验证 + 保存逻辑抽取到模块级 _verify_and_save_license
+            success, message, should_close = _verify_and_save_license(
+                code, self.license_dir)
+            if success:
+                messagebox.showinfo("成功", message, parent=dialog)
             else:
-                err_map = {
-                    None: "授权失败，请检查注册码。",
-                    'invalid_signature': "注册码无效，请联系作者。",
-                    'wrong_machine': "注册码不属于本机，请确认机器码后重新申请。",
-                    'corrupt_questions': "题库密文损坏，请联系作者。",
-                    'corrupt_license': "注册码文件损坏。",
-                }
-                err_key = err.value if err else None
-                messagebox.showerror("失败", err_map.get(err_key, "授权失败。"),
-                                     parent=dialog)
+                messagebox.showerror("失败", message, parent=dialog)
+            if should_close:
+                dialog.destroy()
 
         btn_frame = tk.Frame(dialog, bg=BG_PAGE)
         btn_frame.pack(fill='x', padx=15, pady=(0, 15))
