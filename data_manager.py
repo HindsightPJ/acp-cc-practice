@@ -125,6 +125,7 @@ class DataManager:
         """
         # 1. 优先读加密文件
         if os.path.exists(self.questions_enc_file):
+            from cryptography.fernet import InvalidToken  # TD-10: 精确捕获解密异常
             try:
                 key = self._load_encryption_key()
                 if key:
@@ -133,8 +134,10 @@ class DataManager:
                         ciphertext = f.read()
                     plaintext = Fernet(key.encode()).decrypt(ciphertext)
                     return json.loads(plaintext.decode('utf-8'))
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                # 密钥错误 / 文件损坏 / 解密失败 → fallback，不阻断
+            except (ValueError, OSError, json.JSONDecodeError, UnicodeDecodeError, InvalidToken) as e:
+                # TD-10: 收窄异常捕获——密钥格式错误(ValueError) / 文件IO(OSError) /
+                # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
+                # → fallback，不阻断
                 logger.warning("解密 questions.enc 失败，fallback 到明文: %s", e)
 
         # 2. fallback 明文 questions.json
@@ -200,14 +203,16 @@ class DataManager:
         """
         if not os.path.exists(self.questions_enc_file):
             raise DataLoadError("题库密文缺失，请重新下载程序")
+        from cryptography.fernet import Fernet, InvalidToken  # TD-10: 精确捕获
         try:
-            from cryptography.fernet import Fernet
             fernet = Fernet(key.encode())
             with open(self.questions_enc_file, 'rb') as f:
                 ciphertext = f.read()
             plaintext = fernet.decrypt(ciphertext)
             return json.loads(plaintext.decode('utf-8'))
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except (ValueError, OSError, json.JSONDecodeError, UnicodeDecodeError, InvalidToken) as e:
+            # TD-10: 收窄异常捕获——密钥格式错误(ValueError) / 文件IO(OSError) /
+            # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
             raise DataLoadError(f"题库密文损坏或密钥不匹配: {e}")
 
     def _load_encryption_key(self) -> Optional[str]:

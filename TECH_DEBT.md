@@ -92,11 +92,11 @@
 - **问题**：写 `issued_licenses.json` 非原子，且 `record_issued` 失败未向上抛异常
 - **修复**（已完成）：`record_issued` 改用 tmp + `os.replace` 原子写入模式（与 `data_manager.save_progress` 和 `verifier.save_license` 一致）；写入失败时清理 tmp 文件并上抛 `OSError`/`PermissionError`；新增 `test_record_issued_atomic_write_failure` 测试验证失败路径
 
-### TD-10: `except Exception` 捕获过宽
+### TD-10: `except Exception` 捕获过宽 ✅ 已修复
 
-- **位置**：`data_manager.py:135`、`data_manager.py:209`
+- **位置**：`data_manager.py` `load_or_parse_questions` + `load_full_questions`
 - **问题**：使用 `except Exception` 捕获过宽，注释里有 `# pylint: disable=broad-exception-caught` 自我承认
-- **修复**：细化为具体异常类型（`InvalidToken`、`JSONDecodeError`、`OSError` 等）
+- **修复**（已完成）：两处 `except Exception` 细化为 `(ValueError, OSError, json.JSONDecodeError, UnicodeDecodeError, InvalidToken)`——覆盖密钥格式错误 / 文件IO / 解密失败 / JSON损坏 / 编码错误；移除 `# pylint: disable=broad-exception-caught` 注释；延迟导入 `InvalidToken` 保持与原有 `Fernet` 延迟导入风格一致
 
 ---
 
@@ -228,7 +228,7 @@
 | TD-07 | P2 | ✅ 已修复 | 新增 BIOS 序列号第 4 维度（破坏性，需重签注册码） |
 | TD-08 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 |
 | TD-09 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 + 失败上抛异常 |
-| TD-10 | P2 | 待修复 | — |
+| TD-10 | P2 | ✅ 已修复 | 细化为 (ValueError, OSError, InvalidToken, JSONDecodeError, UnicodeDecodeError) |
 | TD-11 | P3 | ⏳ 部分修复 | _setup_mode_ui 已拆分；另 2 个待补测试 |
 | TD-12 | P3 | 待修复 | — |
 | TD-13 | P3 | ✅ 已修复 | 统一为 Optional[str] |
