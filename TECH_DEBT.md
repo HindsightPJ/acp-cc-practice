@@ -153,18 +153,18 @@
 
 ## P4 — 测试基础设施
 
-### TD-16: `requirements.txt` 未列开发依赖
+### TD-16: `requirements.txt` 未列开发依赖 ✅ 已修复
 
 - **问题**：`pytest` 未列为开发依赖，新贡献者不知如何跑测试
 - **修复**：拆分 `requirements-dev.txt` 或使用 `pyproject.toml` extras
 
-### TD-17: 无测试配置
+### TD-17: 无测试配置 ✅ 已修复
 
 - **问题**：无 `pytest.ini` / `pyproject.toml` 配置测试路径、标记
 - **问题**：测试文件头部依赖 `sys.path.insert` 这种脆弱方式导入
 - **修复**：添加 `pyproject.toml` 配置 pytest
 
-### TD-18: 无覆盖率报告
+### TD-18: 无覆盖率报告 ✅ 已修复
 
 - **问题**：无 `pytest-cov` 配置，无法量化测试覆盖
 - **修复**：添加 `pytest-cov` + 配置最低覆盖率阈值
@@ -248,9 +248,9 @@
 | TD-13 | P3 | ✅ 已修复 | 统一为 Optional[str] |
 | TD-14 | P3 | ✅ 已修复 | 移除 category 参数 |
 | TD-15 | P3 | ⏳ 部分修复 | stats 已解耦（get_stats+3测试）；current_index/questions_queue 待解耦 |
-| TD-16 | P4 | 待修复 | — |
-| TD-17 | P4 | 待修复 | — |
-| TD-18 | P4 | 待修复 | — |
+| TD-16 | P4 | ✅ 已修复 | requirements-dev.txt 补充 pytest-cov |
+| TD-17 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.pytest.ini_options] |
+| TD-18 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.coverage.*]，整体覆盖率 74% |
 | TD-19 | P4 | 待修复 | — |
 | TD-20 | P4 | 待修复 | — |
 | TD-21 | P5 | 待修复 | — |

@@ -1,3 +1,4 @@
-# 开发依赖（TD-24: 补充 pytest）
+# 开发依赖（TD-16: 补充 pytest + pytest-cov）
 -r requirements.txt
 pytest>=7.0.0,<10.0
+pytest-cov>=4.0.0,<7.0
