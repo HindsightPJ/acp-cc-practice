@@ -3,7 +3,7 @@
 > 本文档记录 v1.0 发布时已知的代码质量问题与限制。
 > 按风险等级和修复 ROI 排序，作为后续迭代的依据。
 >
-> 最后更新：2026-06-30 v1.0+（P0-P2 全部修复）
+> 最后更新：2026-06-30 v1.0（P5-P6 收尾）+（P0-P2 全部修复）
 
 ---
 
@@ -188,10 +188,11 @@
 
 ## P5 — 构建与发布
 
-### TD-21: 无 `version_info`
+### TD-21: 无 `version_info` ✅ 已修复
 
 - **位置**：`acp-cc-practice.spec`
 - **问题**：Windows 右键属性看不到版本号、公司、产品名
+- **完成**：`acp-cc-practice.spec` 顶部添加 `VSVersionInfo` 块（CompanyName=HindsightPJ, FileDescription=ACP 云计算练习软件, FileVersion=1.0.0, ProductName=ACP 云计算练习, ProductVersion=1.0.0, LegalCopyright=© 2026 HindsightPJ）；EXE() 调用添加 `version=version_info` 参数
 - **修复**：添加 `VSVersionInfo` 块
 
 ### TD-22: 无图标
@@ -222,14 +223,16 @@
 
 ## P6 — 文档
 
-### TD-26: 无架构文档
+### TD-26: 无架构文档 ✅ 已修复
 
 - **问题**：无 ADR（Architecture Decision Records）记录设计决策
+- **完成**：新增 `docs/architecture.md`，含项目概述、分层结构图（UI/业务/数据/授权/作者工具）、授权协议（密钥体系表、机器指纹、注册码生成与验证流程、安全模型）、数据流（题库加载、进度持久化）、打包说明
 - **修复**：添加 `docs/architecture.md` 记录分层、授权协议、数据流
 
-### TD-27: 无贡献指南
+### TD-27: 无贡献指南 ✅ 已修复
 
 - **问题**：无 `CONTRIBUTING.md`
+- **完成**：新增 `CONTRIBUTING.md`，含开发环境搭建（依赖安装、运行测试）、项目结构树、代码风格、提交规范、技术债修复流程、CI 说明
 - **修复**：添加贡献指南
 
 ---
@@ -258,10 +261,10 @@
 | TD-18 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.coverage.*]，整体覆盖率 74% |
 | TD-19 | P4 | ⏳ 部分修复 | 10 个 import 冒烟测试；完整实例化测试需 xvfb 待后续 |
 | TD-20 | P4 | ✅ 已修复 | .github/workflows/ci.yml（Ubuntu + Python 3.10/3.11/3.12） |
-| TD-21 | P5 | 待修复 | — |
+| TD-21 | P5 | ✅ 已修复 | spec 添加 VSVersionInfo（右键属性可见版本/公司/产品名） |
 | TD-22 | P5 | 待修复 | — |
 | TD-23 | P5 | 待修复 | — |
 | TD-24 | P5 | ✅ 已修复 | 上界约束 + requirements-dev.txt |
 | TD-25 | P5 | ✅ 已修复 | 新增 pyproject.toml |
-| TD-26 | P6 | 待修复 | — |
-| TD-27 | P6 | 待修复 | — |
+| TD-26 | P6 | ✅ 已修复 | 新增 docs/architecture.md |
+| TD-27 | P6 | ✅ 已修复 | 新增 CONTRIBUTING.md |

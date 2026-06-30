@@ -51,3 +51,5 @@ desktop.ini
 
 # 测试缓存
 .pytest_cache/
+.coverage
+.coverage.*
