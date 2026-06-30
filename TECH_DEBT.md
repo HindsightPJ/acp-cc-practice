@@ -36,7 +36,9 @@
 - **风险**：两边漂移会导致验证静默失败
 - **修复**：抽取到 `license/crypto_utils.py` 共享模块
 
-### TD-04: `main.py` 错误退出模式重复 4 次
+### TD-04: `main.py` 错误退出模式重复 4 次 ✅ 已修复
+
+- **完成**：抽取 `_show_fatal_error(title, message)` 辅助函数，替换 main() 中 4 处重复的 tk.Tk + messagebox + sys.exit(1) 模式；99 项测试通过
 
 - **位置**：`main.py:68-74`、`77-80`、`83-86`、`104-107`
 - **问题**：
@@ -211,7 +213,7 @@
 | TD-01 | P0 | ✅ 已修复 | test_quiz_engine.py 59 用例 |
 | TD-02 | P0 | 待修复 | — |
 | TD-03 | P1 | ✅ 已修复 | 抽取到 license/crypto_utils.py |
-| TD-04 | P1 | 待修复 | — |
+| TD-04 | P1 | ✅ 已修复 | 抽取 _show_fatal_error 辅助函数 |
 | TD-05 | P1 | 待修复 | — |
 | TD-06 | P1 | 待修复 | — |
 | TD-07 | P2 | 待修复 | — |

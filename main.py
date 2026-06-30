@@ -43,6 +43,18 @@ def _setup_logging(user_data_dir: str) -> None:
     )
 
 
+def _show_fatal_error(title: str, message: str) -> None:
+    """显示错误对话框后退出程序（TD-04 修复：消除 main() 中 4 处重复模式）。
+
+    在 main() 的多处错误路径上使用，集中创建 tk.Tk + messagebox + sys.exit(1)。
+    调用方自行决定是否在调用前记录日志（logger.error / logger.exception）。
+    """
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showerror(title, message)
+    sys.exit(1)
+
+
 def main():
     base_dir = _resolve_base_dir()
     user_data_dir = _resolve_user_data_dir()
@@ -65,25 +77,13 @@ def main():
                 questions = data_manager.load_trial_questions()
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error("加载试用题库失败: %s", e)
-                root = tk.Tk()
-                root.withdraw()
-                messagebox.showerror(
-                    "错误",
-                    "试用题库缺失，请重新下载程序。",
-                )
-                sys.exit(1)
+                _show_fatal_error("错误", "试用题库缺失，请重新下载程序。")
     except Exception as e:
         logger.exception("题库数据加载失败")
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showerror("错误", f"题库数据加载失败:\n\n{str(e)}")
-        sys.exit(1)
+        _show_fatal_error("错误", f"题库数据加载失败:\n\n{str(e)}")
 
     if not questions:
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showerror("错误", "未能解析出任何题目！")
-        sys.exit(1)
+        _show_fatal_error("错误", "未能解析出任何题目！")
 
     # 3. 加载元数据（用于 UI 显示总量）
     meta = data_manager.load_meta()
@@ -101,10 +101,7 @@ def main():
         app.mainloop()
     except Exception as e:
         logger.exception("程序启动失败")
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showerror("启动错误", f"程序启动失败:\n\n{str(e)}")
-        sys.exit(1)
+        _show_fatal_error("启动错误", f"程序启动失败:\n\n{str(e)}")
 
 
 if __name__ == '__main__':
