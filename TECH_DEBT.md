@@ -169,10 +169,15 @@
 - **问题**：无 `pytest-cov` 配置，无法量化测试覆盖
 - **修复**：添加 `pytest-cov` + 配置最低覆盖率阈值
 
-### TD-19: 无 UI 冒烟测试
+### TD-19: 无 UI 冒烟测试 ⏳ 部分修复
 
 - **问题**：无 `MainWindow` 能否实例化的 smoke test
 - **修复**：添加 headless 冒烟测试（mock Tkinter）
+- **已完成（2026-06-30）**：新增 `tests/unit/test_ui_smoke.py` 10 个测试
+  - 覆盖所有 ui 子模块的 import（theme/base_mode/practice_mode/exam_mode/review_mode/wrong_book/option_row/main_window）
+  - 验证类定义存在 + 继承关系正确（MainWindow→tk.Tk, MasteryRing→tk.Canvas）
+  - 验证 TD-11 抽取的模块级函数可调用
+- **剩余**：完整 MainWindow 实例化测试需要虚拟 display（xvfb），留待后续
 
 ### TD-20: 无 CI 配置 ✅ 已修复
 
@@ -251,7 +256,7 @@
 | TD-16 | P4 | ✅ 已修复 | requirements-dev.txt 补充 pytest-cov |
 | TD-17 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.pytest.ini_options] |
 | TD-18 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.coverage.*]，整体覆盖率 74% |
-| TD-19 | P4 | 待修复 | — |
+| TD-19 | P4 | ⏳ 部分修复 | 10 个 import 冒烟测试；完整实例化测试需 xvfb 待后续 |
 | TD-20 | P4 | ✅ 已修复 | .github/workflows/ci.yml（Ubuntu + Python 3.10/3.11/3.12） |
 | TD-21 | P5 | 待修复 | — |
 | TD-22 | P5 | 待修复 | — |
