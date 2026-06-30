@@ -102,7 +102,7 @@
 
 ## P3 — 代码质量
 
-### TD-11: 函数过长
+### TD-11: 函数过长 ✅ 已修复
 
 | 函数 | 位置 | 行数 | 建议 |
 |------|------|------|------|
@@ -229,7 +229,7 @@
 | TD-08 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 |
 | TD-09 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 + 失败上抛异常 |
 | TD-10 | P2 | ✅ 已修复 | 细化为 (ValueError, OSError, InvalidToken, JSONDecodeError, UnicodeDecodeError) |
-| TD-11 | P3 | ⏳ 部分修复 | _setup_mode_ui + _show_license_dialog 已拆分（12 测试）；parse_docx 待拆分 |
+| TD-11 | P3 | ✅ 已修复 | 3 个长函数全部拆分（_setup_mode_ui + _show_license_dialog + parse_docx） |
 | TD-12 | P3 | 待修复 | — |
 | TD-13 | P3 | ✅ 已修复 | 统一为 Optional[str] |
 | TD-14 | P3 | ✅ 已修复 | 移除 category 参数 |

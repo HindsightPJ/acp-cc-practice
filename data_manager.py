@@ -23,6 +23,61 @@ class DataSaveError(Exception):
     pass
 
 
+# ---------- parse_docx 辅助函数（TD-11: 从 parse_docx 抽取）----------
+
+def _parse_question_header(text: str):
+    """从题目行解析 (number, content)，非题目行返回 None。"""
+    if not re.match(r'^\d+[\.\、．]', text):
+        return None
+    match = re.match(r'^(\d+)[\.\、．]\s*(.*)$', text)
+    if match:
+        return (int(match.group(1)), match.group(2).strip())
+    return None
+
+
+def _is_option_line(text: str) -> bool:
+    """检测是否为选项行。"""
+    return bool(re.match(r'^[•·]?\s*[A-F][\.\、\.]', text))
+
+
+def _parse_option(text: str):
+    """从选项行解析 (letter, text)，解析失败返回 None。"""
+    match = re.match(r'^[•·]\s*([A-F])[\.\、\.]\s*(.+)$', text)
+    if not match:
+        match = re.match(r'^([A-F])[\.\、\.]\s+(.+)$', text)
+    if not match:
+        match = re.match(r'^([A-F])[\.\、\.]\t(.+)$', text)
+    if match:
+        return (match.group(1).upper(), match.group(2))
+    return None
+
+
+def _is_answer_line(text: str) -> bool:
+    """检测是否为答案行。"""
+    return '正确答案' in text or '答案' in text
+
+
+def _parse_answer(text: str):
+    """从答案行解析 answer 字符串（如 'ABC'），解析失败返回 None。"""
+    answer_match = re.search(r'([A-F]+)', text)
+    if answer_match:
+        return answer_match.group(1).upper()
+    return None
+
+
+def _is_explanation_line(text: str) -> bool:
+    """检测是否为解析行。"""
+    return '解析' in text or '解释' in text
+
+
+def _parse_explanation(text: str):
+    """从解析行解析 explanation，解析失败返回 None。"""
+    explanation_match = re.match(r'(?:解析|解释)[：:]\s*(.+)$', text)
+    if explanation_match:
+        return explanation_match.group(1)
+    return None
+
+
 class DataManager:
     def __init__(self, base_dir: str, user_data_dir: str = None) -> None:
         """初始化数据管理器。
@@ -47,7 +102,7 @@ class DataManager:
             os.makedirs(self.user_data_dir, exist_ok=True)
 
     def parse_docx(self, docx_path: str) -> List[Dict[str, Any]]:
-        """解析Word文档，提取所有题目"""
+        """解析Word文档，提取所有题目（TD-11: 检测/解析逻辑已抽取到模块级函数）。"""
         if Document is None:
             raise ImportError("请先安装python-docx库: pip install python-docx")
 
@@ -61,14 +116,13 @@ class DataManager:
                 continue
 
             # 检测题目编号 (如 "1." 或 "1、" 或 "1．")
-            if re.match(r'^\d+[\.\、．]', text):
+            header = _parse_question_header(text)
+            if header:
                 if current_question:
                     questions.append(current_question)
-
-                match = re.match(r'^(\d+)[\.\、．]\s*(.*)$', text)
                 current_question = {
-                    'number': int(match.group(1)),
-                    'content': match.group(2).strip(),
+                    'number': header[0],
+                    'content': header[1],
                     'options': [],
                     'answer': None,
                     'type': 'single',
@@ -76,35 +130,30 @@ class DataManager:
                 }
 
             # 如果当前题目内容为空，且该段落不是选项/答案/解析，则作为题目内容
-            elif current_question and not current_question['content'] and not re.match(r'^[•·]?\s*[A-F][\.\、\.]', text) and '正确答案' not in text and '答案' not in text and '解析' not in text and '解释' not in text:
+            elif current_question and not current_question['content'] and not _is_option_line(text) and not _is_answer_line(text) and not _is_explanation_line(text):
                 current_question['content'] = text
 
             # 检测选项 (A. B. C. D. E. F.) - 支持bullet前缀和Tab分隔格式
-            elif current_question and re.match(r'^[•·]?\s*[A-F][\.\、\.]', text):
-                match = re.match(r'^[•·]\s*([A-F])[\.\、\.]\s*(.+)$', text)
-                if not match:
-                    match = re.match(r'^([A-F])[\.\、\.]\s+(.+)$', text)
-                if not match:
-                    match = re.match(r'^([A-F])[\.\、\.]\t(.+)$', text)
-                if match:
+            elif current_question and _is_option_line(text):
+                option = _parse_option(text)
+                if option:
                     current_question['options'].append({
-                        'letter': match.group(1).upper(),
-                        'text': match.group(2)
+                        'letter': option[0],
+                        'text': option[1]
                     })
 
             # 检测正确答案（支持多选，如ABC、ABCD）
-            elif current_question and ('正确答案' in text or '答案' in text):
-                answer_match = re.search(r'([A-F]+)', text)
-                if answer_match:
-                    answer = answer_match.group(1).upper()
+            elif current_question and _is_answer_line(text):
+                answer = _parse_answer(text)
+                if answer:
                     current_question['answer'] = answer
                     current_question['type'] = 'multiple' if len(answer) > 1 else 'single'
 
             # 检测解析
-            elif current_question and ('解析' in text or '解释' in text):
-                explanation_match = re.match(r'(?:解析|解释)[：:]\s*(.+)$', text)
-                if explanation_match:
-                    current_question['explanation'] = explanation_match.group(1)
+            elif current_question and _is_explanation_line(text):
+                explanation = _parse_explanation(text)
+                if explanation:
+                    current_question['explanation'] = explanation
 
         if current_question:
             questions.append(current_question)
