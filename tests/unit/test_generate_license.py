@@ -77,3 +77,12 @@ def test_record_issued_appends_multiple(setup_env):
     assert len(records) == 2
     assert records[0]['machine_code'] == 'a' * 64
     assert records[1]['machine_code'] == 'b' * 64
+
+def test_record_issued_atomic_write_failure(setup_env, monkeypatch, tmp_path):
+    """TD-09: 写入失败时应抛异常且不留 tmp 文件。"""
+    bad_path = str(tmp_path / 'nonexistent_dir' / 'issued.json')
+    monkeypatch.setattr(generate_license, 'ISSUED_LICENSES', bad_path)
+    with pytest.raises(OSError):
+        generate_license.record_issued('a' * 64, "test")
+    # tmp 文件不应残留
+    assert not os.path.exists(bad_path + '.tmp')

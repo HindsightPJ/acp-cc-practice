@@ -85,7 +85,11 @@ def generate_license_for_machine_code(machine_code: str) -> str:
 
 
 def record_issued(machine_code: str, note: str) -> None:
-    """记录签发到 issued_licenses.json（同 machine_code 覆盖旧记录，去重）。"""
+    """记录签发到 issued_licenses.json（同 machine_code 覆盖旧记录，去重）。
+
+    TD-09: 改用原子写入（tmp + os.replace），防止断电导致文件损坏。
+    写入失败时上抛异常，让调用方知道记录未保存。
+    """
     records = []
     if os.path.exists(ISSUED_LICENSES):
         try:
@@ -102,8 +106,19 @@ def record_issued(machine_code: str, note: str) -> None:
         'note': note,
     })
 
-    with open(ISSUED_LICENSES, 'w', encoding='utf-8') as f:
-        json.dump(records, f, ensure_ascii=False, indent=2)
+    # TD-09: 原子写入——先写临时文件，再 os.replace 替换
+    tmp_file = ISSUED_LICENSES + '.tmp'
+    try:
+        with open(tmp_file, 'w', encoding='utf-8') as f:
+            json.dump(records, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_file, ISSUED_LICENSES)
+    except (OSError, PermissionError):
+        if os.path.exists(tmp_file):
+            try:
+                os.remove(tmp_file)
+            except OSError:
+                pass
+        raise
 
 
 def main() -> int:

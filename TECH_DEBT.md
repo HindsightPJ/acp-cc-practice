@@ -86,11 +86,11 @@
 - **风险**：断电可能导致 `license.dat` 损坏
 - **修复**：复用 tmp + `os.replace` 模式
 
-### TD-09: `generate_license.py` 写记录非原子
+### TD-09: `generate_license.py` 写记录非原子 ✅ 已修复
 
-- **位置**：`author_tools/generate_license.py:117-118`
+- **位置**：`author_tools/generate_license.py` `record_issued`
 - **问题**：写 `issued_licenses.json` 非原子，且 `record_issued` 失败未向上抛异常
-- **修复**：原子写入 + 异常上抛
+- **修复**（已完成）：`record_issued` 改用 tmp + `os.replace` 原子写入模式（与 `data_manager.save_progress` 和 `verifier.save_license` 一致）；写入失败时清理 tmp 文件并上抛 `OSError`/`PermissionError`；新增 `test_record_issued_atomic_write_failure` 测试验证失败路径
 
 ### TD-10: `except Exception` 捕获过宽
 
@@ -227,7 +227,7 @@
 | TD-06 | P1 | ✅ 已修复 | 删除 3 子类死代码 + super() 复用导航键 |
 | TD-07 | P2 | ✅ 已修复 | 新增 BIOS 序列号第 4 维度（破坏性，需重签注册码） |
 | TD-08 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 |
-| TD-09 | P2 | 待修复 | — |
+| TD-09 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 + 失败上抛异常 |
 | TD-10 | P2 | 待修复 | — |
 | TD-11 | P3 | ⏳ 部分修复 | _setup_mode_ui 已拆分；另 2 个待补测试 |
 | TD-12 | P3 | 待修复 | — |
