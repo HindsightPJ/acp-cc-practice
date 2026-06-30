@@ -117,7 +117,9 @@
 - **问题**：风格不统一；`ui/` 目录几乎无类型注解
 - **修复**：统一为 `Optional[str]` 或在 `pyproject.toml` 声明 `python_requires=">=3.10"` 后统一用 PEP 604
 
-### TD-14: 死参数
+### TD-14: 死参数 category ✅ 已修复
+
+- **完成**：从 start_practice_mode 签名移除未使用的 category 参数；删除对应的死参数测试；98 项测试通过
 
 - **位置**：`quiz_engine.py:15` `start_practice_mode(shuffle, category)` 的 `category` 参数从未在函数体内使用
 - **修复**：删除参数或实现分类筛选功能
@@ -225,7 +227,7 @@
 | TD-11 | P3 | 待修复 | — |
 | TD-12 | P3 | 待修复 | — |
 | TD-13 | P3 | 待修复 | — |
-| TD-14 | P3 | 待修复 | — |
+| TD-14 | P3 | ✅ 已修复 | 移除 category 参数 |
 | TD-15 | P3 | 待修复 | — |
 | TD-16 | P4 | 待修复 | — |
 | TD-17 | P4 | 待修复 | — |

@@ -140,12 +140,6 @@ def test_start_practice_mode_resets_state(engine):
     assert engine.current_index == 0
 
 
-def test_start_practice_mode_category_dead_param(engine):
-    """category 参数当前未实现筛选（TD-14），传值不应影响 queue。"""
-    engine.start_practice_mode(shuffle=False, category='some_category')
-    assert len(engine.questions_queue) == 10  # 未筛选
-
-
 def test_start_practice_mode_empty_questions():
     """空题库启动练习模式不应报错。"""
     eng = QuizEngine([])

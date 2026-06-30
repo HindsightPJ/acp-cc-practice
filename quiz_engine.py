@@ -12,7 +12,7 @@ class QuizEngine:
         self.stats: Dict[str, int] = {'correct': 0, 'wrong': 0, 'total': 0}
         self.exam_start_time: Optional[datetime] = None
 
-    def start_practice_mode(self, shuffle: bool = False, category: Optional[str] = None) -> None:
+    def start_practice_mode(self, shuffle: bool = False) -> None:
         """启动练习模式"""
         self.questions_queue = list(self.all_questions)
         if shuffle:
