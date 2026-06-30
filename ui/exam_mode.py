@@ -272,7 +272,7 @@ class ExamMode(BaseMode):
         self.nav_canvas.config(scrollregion=self.nav_canvas.bbox(tk.ALL))
 
     def _update_nav_buttons(self):
-        current = self.engine.current_index
+        current = self.engine.get_current_index()  # TD-15: 显式接口
         for i, btn in enumerate(self.nav_buttons):
             if i == current:
                 bg = ACCENT
@@ -292,7 +292,7 @@ class ExamMode(BaseMode):
             btn.configure(text=text, bg=bg, fg=fg)
 
     def toggle_mark_current(self):
-        idx = self.engine.current_index
+        idx = self.engine.get_current_index()  # TD-15: 显式接口
         if idx in self.exam_marked:
             self.exam_marked.remove(idx)
         else:
@@ -300,8 +300,8 @@ class ExamMode(BaseMode):
         self._update_nav_buttons()
 
     def jump_to_question(self, idx):
-        if 0 <= idx < len(self.engine.questions_queue):
-            self.engine.current_index = idx
+        if 0 <= idx < self.engine.queue_length():  # TD-15: 显式接口
+            self.engine.set_current_index(idx)  # TD-15: 显式接口
             self.load_exam_question()
 
     def start_exam(self):
@@ -325,7 +325,7 @@ class ExamMode(BaseMode):
         self.start_btn.configure(state=tk.DISABLED, bg=BTN_DISABLED)
         self.exam_container.pack(fill=tk.BOTH, expand=True, padx=0, pady=5)
 
-        self._build_nav_buttons(len(self.engine.questions_queue))
+        self._build_nav_buttons(self.engine.queue_length())  # TD-15: 显式接口
         self.load_exam_question()
         self.update_timer()
 
@@ -365,7 +365,7 @@ class ExamMode(BaseMode):
         self.exam_question_text.config(state=tk.NORMAL)
         self.exam_question_text.delete(1.0, tk.END)
         self.exam_question_text.insert(tk.END,
-                                       f"{self.engine.current_index + 1}. {question.get('content')}")
+                                       f"{self.engine.get_current_index() + 1}. {question.get('content')}")  # TD-15: 显式接口
         self.exam_question_text.config(state=tk.DISABLED)
 
         # 显示题目类型
@@ -386,7 +386,7 @@ class ExamMode(BaseMode):
             else:
                 item['row'].pack_forget()
 
-        current_idx = self.engine.current_index
+        current_idx = self.engine.get_current_index()  # TD-15: 显式接口
         if current_idx in self.exam_answers:
             answered_letters = self.exam_answers[current_idx]
             for i, item in enumerate(self.exam_option_cards):
@@ -411,7 +411,7 @@ class ExamMode(BaseMode):
         var = item['var']
         row = item['row']
 
-        current_idx = self.engine.current_index
+        current_idx = self.engine.get_current_index()  # TD-15: 显式接口
         question = self.engine.get_current_question()
         is_multiple = question.get('type') == 'multiple'
         options_count = len(question.get('options', []))

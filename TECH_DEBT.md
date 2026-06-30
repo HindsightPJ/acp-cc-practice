@@ -3,7 +3,7 @@
 > 本文档记录 v1.0 发布时已知的代码质量问题与限制。
 > 按风险等级和修复 ROI 排序，作为后续迭代的依据。
 >
-> 最后更新：2026-06-30 v1.0（P5-P6 收尾）+（P0-P2 全部修复）
+> 最后更新：2026-06-30 v1.0（TD-15 深度解耦完成）+（P0-P2 全部修复）
 
 ---
 
@@ -135,10 +135,11 @@
 - **位置**：`quiz_engine.py:15` `start_practice_mode(shuffle, category)` 的 `category` 参数从未在函数体内使用
 - **修复**：删除参数或实现分类筛选功能
 
-### TD-15: UI 与业务层耦合 ⏳ 部分修复
+### TD-15: UI 与业务层耦合 ✅ 已修复
 
 - **位置**：`ui/practice_mode.py:345-348` 直接访问 `engine.stats` 字典字段
 - **问题**：无显式接口契约，`QuizEngine` 内部结构变更会直接影响 UI
+- **完成**：`QuizEngine` 新增 5 个显式接口——`get_current_index` / `set_current_index` / `queue_length` / `get_question_at` / `set_questions_queue`；UI 18 处直接属性访问（base_mode 2 + exam_mode 8 + review_mode 8）全部迁移到接口调用；新增 12 个单元测试（含副本隔离契约）；156 项测试全部通过
 - **修复**：`QuizEngine` 提供TypedDict 或 dataclass 作为返回类型
 - **已完成（2026-06-30）**：`engine.stats` 已解耦
   - 新增 `QuizEngine.get_stats()` 返回副本，`practice_mode.py` 改用此方法
@@ -255,7 +256,7 @@
 | TD-12 | P3 | ⊝ 评估保留 | 344 行但无方法超 70 行；无 UI 测试，风险>收益 |
 | TD-13 | P3 | ✅ 已修复 | 统一为 Optional[str] |
 | TD-14 | P3 | ✅ 已修复 | 移除 category 参数 |
-| TD-15 | P3 | ⏳ 部分修复 | stats 已解耦（get_stats+3测试）；current_index/questions_queue 待解耦 |
+| TD-15 | P3 | ✅ 已修复 | 新增 5 个接口（get_current_index/set_current_index/queue_length/get_question_at/set_questions_queue）+ UI 18 处迁移 + 12 个新测试 |
 | TD-16 | P4 | ✅ 已修复 | requirements-dev.txt 补充 pytest-cov |
 | TD-17 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.pytest.ini_options] |
 | TD-18 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.coverage.*]，整体覆盖率 74% |

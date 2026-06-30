@@ -443,6 +443,99 @@ def test_get_stats_returns_copy(engine):
     assert fresh_stats['correct'] == 1
 
 
+# ---------- TD-15: current_index / questions_queue 显式接口测试 ----------
+
+def test_get_current_index_initial(engine):
+    """start_practice_mode 后 current_index 应为 0。"""
+    engine.start_practice_mode(shuffle=False)
+    assert engine.get_current_index() == 0
+
+
+def test_get_current_index_after_next(engine):
+    """next_question 后 current_index 应递增。"""
+    engine.start_practice_mode(shuffle=False)
+    engine.next_question()
+    assert engine.get_current_index() == 1
+
+
+def test_set_current_index(engine):
+    """set_current_index 应能跳转到指定索引（与直接赋值行为一致）。"""
+    engine.start_practice_mode(shuffle=False)
+    engine.set_current_index(5)
+    assert engine.get_current_index() == 5
+
+
+def test_queue_length(engine):
+    """queue_length 应返回题目队列长度。"""
+    engine.start_practice_mode(shuffle=False)
+    assert engine.queue_length() == 10
+
+
+def test_queue_length_exam_mode(engine):
+    """考试模式下 queue_length 应反映截断后的数量。"""
+    engine.start_exam_mode(question_count=5, shuffle=False)
+    assert engine.queue_length() == 5
+
+
+def test_get_question_at_valid(engine):
+    """get_question_at 应返回指定索引的题目。"""
+    engine.start_practice_mode(shuffle=False)
+    q = engine.get_question_at(0)
+    assert q is not None
+    assert q['number'] == 1
+
+
+def test_get_question_at_out_of_range(engine):
+    """get_question_at 越界应返回 None。"""
+    engine.start_practice_mode(shuffle=False)
+    assert engine.get_question_at(-1) is None
+    assert engine.get_question_at(999) is None
+
+
+def test_get_question_at_empty_queue(engine):
+    """空队列时 get_question_at 应返回 None。"""
+    assert engine.get_question_at(0) is None
+
+
+def test_set_questions_queue_basic(engine):
+    """set_questions_queue 应替换题目队列。"""
+    engine.start_practice_mode(shuffle=False)
+    new_queue = [{'number': 100, 'content': '新题'}]
+    engine.set_questions_queue(new_queue)
+    assert engine.queue_length() == 1
+    assert engine.get_question_at(0)['number'] == 100
+
+
+def test_set_questions_queue_shallow_copy(engine):
+    """set_questions_queue 应做浅拷贝，外部修改传入 list 不影响内部。"""
+    engine.start_practice_mode(shuffle=False)
+    new_queue = [{'number': 100}, {'number': 200}]
+    engine.set_questions_queue(new_queue)
+    # 修改传入的 list
+    new_queue.append({'number': 300})
+    # 内部队列不应受影响
+    assert engine.queue_length() == 2
+
+
+def test_set_questions_queue_resets_current_index_if_out_of_range(engine):
+    """set_questions_queue 若新队列短于 current_index，应自动限制到末尾。"""
+    engine.start_practice_mode(shuffle=False)
+    engine.set_current_index(8)  # 跳到第 9 题
+    # 替换为只有 2 题的队列，current_index=8 越界
+    engine.set_questions_queue([{'number': 1}, {'number': 2}])
+    # 应被限制到最后一题（index=1）
+    assert engine.get_current_index() == 1
+
+
+def test_set_questions_queue_keeps_current_index_if_valid(engine):
+    """set_questions_queue 若 current_index 仍在新队列范围内，应保留。"""
+    engine.start_practice_mode(shuffle=False)
+    engine.set_current_index(2)
+    # 替换为 5 题的队列，current_index=2 仍有效
+    engine.set_questions_queue([{'number': i} for i in range(5)])
+    assert engine.get_current_index() == 2
+
+
 # ---------- get_wrong_answers 测试 ----------
 
 def test_get_wrong_answers_empty(engine):

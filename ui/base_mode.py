@@ -118,7 +118,7 @@ class BaseMode(ABC, ttk.Frame):
         """下一题"""
         if self.engine and self.engine.has_next():
             self.engine.next_question()
-            self.current_index = self.engine.current_index
+            self.current_index = self.engine.get_current_index()  # TD-15: 显式接口
             return self.engine.get_current_question()
         return None
 
@@ -126,7 +126,7 @@ class BaseMode(ABC, ttk.Frame):
         """上一题"""
         if self.engine and self.engine.has_prev():
             self.engine.prev_question()
-            self.current_index = self.engine.current_index
+            self.current_index = self.engine.get_current_index()  # TD-15: 显式接口
             return self.engine.get_current_question()
         return None
 

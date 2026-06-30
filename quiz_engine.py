@@ -106,6 +106,41 @@ class QuizEngine:
         """
         return dict(self.stats)
 
+    def get_current_index(self) -> int:
+        """获取当前题目索引（TD-15: 显式接口，替代 UI 直接读 engine.current_index）。"""
+        return self.current_index
+
+    def set_current_index(self, idx: int) -> None:
+        """设置当前题目索引（TD-15: 显式接口，供 UI 跳转答题用）。
+
+        不做边界检查，与原直接赋值行为一致；调用方负责边界判断。
+        """
+        self.current_index = idx
+
+    def queue_length(self) -> int:
+        """获取题目队列长度（TD-15: 显式接口，替代 len(engine.questions_queue)）。"""
+        return len(self.questions_queue)
+
+    def get_question_at(self, index: int) -> Optional[Dict[str, Any]]:
+        """获取指定索引的题目（TD-15: 显式接口，替代 engine.questions_queue[i]）。
+
+        Returns:
+            题目字典的引用；索引越界返回 None
+        """
+        if 0 <= index < len(self.questions_queue):
+            return self.questions_queue[index]
+        return None
+
+    def set_questions_queue(self, questions: List[Dict[str, Any]]) -> None:
+        """替换题目队列（TD-15: 显式接口，供 review_mode 加载错题列表用）。
+
+        内部做浅拷贝，避免外部修改传入的 list 影响内部状态。
+        若新队列短于 current_index，自动将 current_index 限制到末尾。
+        """
+        self.questions_queue = list(questions)
+        if self.current_index >= len(self.questions_queue):
+            self.current_index = max(0, len(self.questions_queue) - 1)
+
     def get_wrong_answers(self) -> List[Dict[str, Any]]:
         """获取所有错误答案的题目。
 

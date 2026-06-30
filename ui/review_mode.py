@@ -30,7 +30,7 @@ class ReviewMode(BaseMode):
         self.auto_show_answer = False
 
         self.engine = QuizEngine(questions)
-        self.engine.questions_queue = list(questions)
+        self.engine.set_questions_queue(questions)  # TD-15: 显式接口
         self.current_index = 0
         self._setup_mode_ui()
         self.load_question()
@@ -197,8 +197,8 @@ class ReviewMode(BaseMode):
             self.toggle_answer()
 
     def load_question(self):
-        if 0 <= self.current_index < len(self.engine.questions_queue):
-            question = self.engine.questions_queue[self.current_index]
+        if 0 <= self.current_index < self.engine.queue_length():
+            question = self.engine.get_question_at(self.current_index)
         else:
             return
 
@@ -242,7 +242,7 @@ class ReviewMode(BaseMode):
             self._add_after_job(job_id)
 
     def toggle_answer(self):
-        question = self.engine.questions_queue[self.current_index]
+        question = self.engine.get_question_at(self.current_index)
 
         if not self.showing_answer:
             self.showing_answer = True
@@ -276,7 +276,7 @@ class ReviewMode(BaseMode):
                 self.review_option_rows[i].reset()
 
     def next_question(self):
-        if self.current_index < len(self.engine.questions_queue) - 1:
+        if self.current_index < self.engine.queue_length() - 1:
             self.current_index += 1
             self.load_question()
 
@@ -300,7 +300,7 @@ class ReviewMode(BaseMode):
         if not self.data_manager or not self.progress:
             return
 
-        question = self.engine.questions_queue[self.current_index]
+        question = self.engine.get_question_at(self.current_index)
         q_num = question.get('number')
         favorites = self.progress.get('favorites', [])
 
@@ -317,9 +317,9 @@ class ReviewMode(BaseMode):
         """根据当前题是否已收藏，更新按钮文字与配色作为静默反馈。"""
         if not self.engine or not self.progress:
             return
-        if self.current_index >= len(self.engine.questions_queue):
+        if self.current_index >= self.engine.queue_length():
             return
-        q_num = self.engine.questions_queue[self.current_index].get('number')
+        q_num = self.engine.get_question_at(self.current_index).get('number')
         is_fav = q_num in self.progress.get('favorites', [])
         if is_fav:
             self.favorite_btn.configure(text="已收藏 ✓", fg=ACCENT, bg=ACCENT_LIGHT)
