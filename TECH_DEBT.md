@@ -110,11 +110,17 @@
 | `MainWindow._show_license_dialog` | `ui/main_window.py:266-348` | ~82 | 拆分为 UI 构建 / 机器码读取 / 验证逻辑 / 错误映射 |
 | `DataManager.parse_docx` | `data_manager.py:48-117` | ~70 | 拆分为 `_detect_question` / `_detect_option` / `_detect_answer` / `_detect_explanation` |
 
-### TD-12: God Object 倾向
+### TD-12: God Object 倾向 ⊝ 评估保留
 
-- **位置**：`ui/main_window.py` `MainWindow` 类（450 行）
+- **位置**：`ui/main_window.py` `MainWindow` 类（344 行）
 - **问题**：同时承担窗口构建、导航、授权状态、就绪度计算、license 对话框职责
 - **修复**：拆分为 `MainWindow` + `LicenseDialog` + `MasteryRing`（已部分拆分）+ `Sidebar`
+- **评估结论（2026-06-30）**：保留现状。理由：
+  1. 无方法超过 70 行（最长 `_show_license_dialog` 68 行，纯逻辑已抽取到模块级函数）
+  2. `LicenseDialog` 拆分收益低（68 行 UI 代码，强行抽类增加文件复杂度）
+  3. `Sidebar` 与 MainWindow 耦合紧密（`_active_nav`/`_nav_refs` 状态共享），拆分需传递大量回调
+  4. 无 UI 自动化测试覆盖，重构风险高于收益
+  5. 待 TD-19（UI 冒烟测试）落地后再评估
 
 ### TD-13: 类型注解不一致
 
@@ -230,7 +236,7 @@
 | TD-09 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 + 失败上抛异常 |
 | TD-10 | P2 | ✅ 已修复 | 细化为 (ValueError, OSError, InvalidToken, JSONDecodeError, UnicodeDecodeError) |
 | TD-11 | P3 | ✅ 已修复 | 3 个长函数全部拆分（_setup_mode_ui + _show_license_dialog + parse_docx） |
-| TD-12 | P3 | 待修复 | — |
+| TD-12 | P3 | ⊝ 评估保留 | 344 行但无方法超 70 行；无 UI 测试，风险>收益 |
 | TD-13 | P3 | ✅ 已修复 | 统一为 Optional[str] |
 | TD-14 | P3 | ✅ 已修复 | 移除 category 参数 |
 | TD-15 | P3 | 待修复 | — |
