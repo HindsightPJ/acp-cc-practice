@@ -96,7 +96,12 @@ class BaseMode(ABC, ttk.Frame):
             pass
 
     def _on_key_press(self, event):
-        """键盘事件处理 - 子类可覆盖"""
+        """键盘事件处理 - 子类可覆盖。
+
+        导航键（Left/Right）的默认实现映射到 prev_question/next_question。
+        子类如有特有按键，可在处理完后 `return super()._on_key_press(event)`
+        复用本方法的导航逻辑，避免重复代码（TD-06 修复）。
+        """
         key = event.char.upper() if event.char else ''
         keysym = event.keysym
 

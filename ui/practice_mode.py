@@ -187,17 +187,6 @@ class PracticeMode(BaseMode):
         exp_scrollbar.config(command=self.explanation_text.yview)
         self.explanation_text.config(state=tk.DISABLED)
 
-    def _bind_keyboard(self):
-        self.focus_set()
-        self.bind('<Key>', self._on_key_press)
-        self.bind_all('<Button-1>', self._on_global_click)
-
-    def _on_global_click(self, event):
-        try:
-            self.focus_set()
-        except tk.TclError:
-            pass
-
     def _on_key_press(self, event):
         if not self.engine.get_current_question():
             return
@@ -224,13 +213,8 @@ class PracticeMode(BaseMode):
             self.submit_answer()
             return 'break'
 
-        if keysym == 'Left':
-            self.prev_question()
-            return 'break'
-
-        if keysym == 'Right':
-            self.next_question()
-            return 'break'
+        # 导航键（Left/Right）交给基类处理（TD-06: 复用 super() 避免重复）
+        return super()._on_key_press(event)
 
     def handle_option_click(self, letter):
         if self.is_answered:

@@ -216,17 +216,6 @@ class ExamMode(BaseMode):
 
         self.nav_buttons = []
 
-    def _bind_keyboard(self):
-        self.focus_set()
-        self.bind('<Key>', self._on_key_press)
-        self.bind_all('<Button-1>', self._on_global_click)
-
-    def _on_global_click(self, event):
-        try:
-            self.focus_set()
-        except tk.TclError:
-            pass
-
     def _on_key_press(self, event):
         if not self.engine or not self.engine.get_current_question():
             return

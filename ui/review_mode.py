@@ -181,31 +181,15 @@ class ReviewMode(BaseMode):
             relief=tk.FLAT, padx=12, pady=5, cursor='hand2')
         self.favorite_btn.pack(side=tk.LEFT)
 
-    def _bind_keyboard(self):
-        self.focus_set()
-        self.bind('<Key>', self._on_key_press)
-        self.bind_all('<Button-1>', self._on_global_click)
-
-    def _on_global_click(self, event):
-        try:
-            self.focus_set()
-        except tk.TclError:
-            pass
-
     def _on_key_press(self, event):
         keysym = event.keysym
-
-        if keysym == 'Left':
-            self.prev_question()
-            return 'break'
-
-        if keysym == 'Right':
-            self.next_question()
-            return 'break'
 
         if keysym == 'space':
             self.toggle_answer()
             return 'break'
+
+        # 导航键（Left/Right）交给基类处理（TD-06: 复用 super() 避免重复）
+        return super()._on_key_press(event)
 
     def _toggle_auto_show(self):
         self.auto_show_answer = self.auto_var.get()
