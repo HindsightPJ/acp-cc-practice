@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from license import LicenseError, LicenseStatus  # pylint: disable=wrong-import-position
 from license import verifier  # pylint: disable=wrong-import-position
-from license.verifier import _derive_dk  # pylint: disable=wrong-import-position
+from license.crypto_utils import derive_dk  # pylint: disable=wrong-import-position
 
 
 def _make_license(machine_code: str, key_k: str, private_key_hex: str) -> str:
@@ -24,7 +24,7 @@ def _make_license(machine_code: str, key_k: str, private_key_hex: str) -> str:
       DK = PBKDF2(machine_code, salt, 200000)
     """
     salt = os.urandom(16)
-    dk = _derive_dk(machine_code, salt)
+    dk = derive_dk(machine_code, salt)
     nonce = os.urandom(12)
     aesgcm = AESGCM(dk)
     # GCM nonce=nonce, AAD=salt

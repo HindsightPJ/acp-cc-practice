@@ -22,16 +22,15 @@ import os
 import sys
 from datetime import datetime
 
-from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # acp-cc-practice/
+sys.path.insert(0, BASE_DIR)
+from license.crypto_utils import derive_dk
 ENV_FILE = os.path.join(BASE_DIR, '.env')
 ISSUED_LICENSES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'issued_licenses.json')
 
-PBKDF2_ITERATIONS = 200000
 SALT_LEN = 16
 NONCE_LEN = 12
 
@@ -56,16 +55,6 @@ def load_author_keys() -> dict:
     return keys
 
 
-def _derive_dk(machine_code: str, salt: bytes) -> bytes:
-    """PBKDF2 派生 DK（与 verifier._derive_dk 一致）。"""
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=PBKDF2_ITERATIONS,
-    )
-    return kdf.derive(machine_code.encode('utf-8'))
-
 
 def generate_license_for_machine_code(machine_code: str) -> str:
     """为指定机器码生成注册码。
@@ -80,7 +69,7 @@ def generate_license_for_machine_code(machine_code: str) -> str:
 
     # 派生 DK
     salt = os.urandom(SALT_LEN)
-    dk = _derive_dk(machine_code, salt)
+    dk = derive_dk(machine_code, salt)
 
     # AES-GCM 加密 K（nonce=nonce, associated_data=salt）
     nonce = os.urandom(NONCE_LEN)

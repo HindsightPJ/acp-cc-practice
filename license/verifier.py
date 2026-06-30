@@ -21,15 +21,14 @@ import os
 import logging
 from typing import Optional, Tuple
 
-from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.exceptions import InvalidTag, InvalidSignature
 
 from license import LicenseError, LicenseStatus
 from license.fingerprint import get_machine_code_or_none
 from license.public_key import ED25519_PUBLIC_KEY_HEX
+from license.crypto_utils import derive_dk
 
 logger = logging.getLogger(__name__)
 
@@ -41,19 +40,8 @@ NONCE_LEN = 12           # AES-GCM nonce（NIST 推荐的 96-bit）
 GCM_TAG_LEN = 16
 K_LEN = 44               # Fernet key 的 base64 字符串 UTF-8 编码长度
 ENCRYPTED_K_LEN = NONCE_LEN + K_LEN + GCM_TAG_LEN  # 12 + 44 + 16 = 72
-PBKDF2_ITERATIONS = 200000
 EXPECTED_RAW_LEN = SIGNATURE_LEN + SALT_LEN + ENCRYPTED_K_LEN  # 152
 
-
-def _derive_dk(machine_code: str, salt: bytes) -> bytes:
-    """从机器码 + salt 派生 32 字节 DK。"""
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=PBKDF2_ITERATIONS,
-    )
-    return kdf.derive(machine_code.encode('utf-8'))
 
 
 def verify(license_code: str) -> Tuple[LicenseStatus, Optional[str], Optional[LicenseError]]:
@@ -96,7 +84,7 @@ def verify(license_code: str) -> Tuple[LicenseStatus, Optional[str], Optional[Li
         return (LicenseStatus.FINGERPRINT_FAILED, None, None)
 
     # 5. 派生 DK
-    dk = _derive_dk(machine_code, salt)
+    dk = derive_dk(machine_code, salt)
 
     # 6. AES-GCM 解密 K
     #    encrypted_k = nonce(12) + ciphertext_with_tag(60)

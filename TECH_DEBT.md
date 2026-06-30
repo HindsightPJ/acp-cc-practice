@@ -27,7 +27,9 @@
 
 ## P1 — 代码重复（DRY 违规）
 
-### TD-03: `_derive_dk` 重复实现
+### TD-03: `_derive_dk` 重复实现 ✅ 已修复
+
+- **完成**：新增 `license/crypto_utils.py` 含 `derive_dk()` + `PBKDF2_ITERATIONS`；`verifier.py` / `generate_license.py` / `test_verifier.py` 改为导入共享模块；99 项测试全部通过
 
 - **位置**：`license/verifier.py:48-56` ↔ `author_tools/generate_license.py:59-67`
 - **问题**：PBKDF2HMAC 派生函数在客户端和作者侧完全重复实现，注释承认"必须严格一致"
@@ -208,7 +210,7 @@
 |----|--------|------|----------|
 | TD-01 | P0 | ✅ 已修复 | test_quiz_engine.py 59 用例 |
 | TD-02 | P0 | 待修复 | — |
-| TD-03 | P1 | 待修复 | — |
+| TD-03 | P1 | ✅ 已修复 | 抽取到 license/crypto_utils.py |
 | TD-04 | P1 | 待修复 | — |
 | TD-05 | P1 | 待修复 | — |
 | TD-06 | P1 | 待修复 | — |
