@@ -136,15 +136,25 @@ class LicenseVerifier:
         return (LicenseStatus.TRIAL, None, True)
 
     def save_license(self, license_code: str) -> bool:
-        """持久化注册码到 license.dat。
+        """持久化注册码到 license.dat（TD-08: 原子写入）。
+
+        采用 tmp + os.replace 模式，避免断电导致文件损坏。
+        与 data_manager.save_progress 的原子写入模式保持一致。
 
         Returns:
             True 保存成功，False 保存失败（权限等）
         """
+        tmp_file = self.license_file + '.tmp'
         try:
-            with open(self.license_file, 'w', encoding='utf-8') as f:
+            with open(tmp_file, 'w', encoding='utf-8') as f:
                 f.write(license_code)
+            os.replace(tmp_file, self.license_file)
             return True
         except (OSError, PermissionError) as e:
             logger.error("保存 license.dat 失败: %s", e)
+            if os.path.exists(tmp_file):
+                try:
+                    os.remove(tmp_file)
+                except OSError:
+                    pass
             return False
