@@ -2,7 +2,7 @@
 
 v1.0
 
-一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + Tkinter，零外部依赖（除 `python-docx` 用于解析题库、`cryptography` 用于题库加密与授权机制），开箱即用。
+一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + Tkinter，零外部依赖（除 `python-docx` 用于解析题库、`cryptography` 用于授权机制），开箱即用。
 
 ## 免责声明
 
@@ -43,17 +43,17 @@ acp-cc-practice/
 ├── requirements.txt         # 依赖（python-docx + cryptography）
 ├── .env.example             # .env 模板（作者密钥，本地保留）
 ├── .gitignore
-├── license/                 # 客户端授权模块
+├── license/                 # 授权模块
 │   ├── __init__.py          # LicenseStatus / LicenseError 枚举
-│   ├── fingerprint.py       # 采集三维度指纹 → SHA-256 机器码
-│   ├── public_key.py        # 内置 Ed25519 公钥（可公开）
-│   └── verifier.py          # 验签 + PBKDF2 派生 + AES-GCM 解 K + license.dat 持久化
+│   ├── fingerprint.py       # 采集机器指纹
+│   ├── public_key.py        # 内置公钥（可公开）
+│   └── verifier.py          # 验证注册码 + license.dat 持久化
 ├── author_tools/            # 作者侧工具（入库但不含密钥，密钥在 .env）
-│   ├── keygen.py            # 一次性生成 K + Ed25519 密钥对
-│   ├── encrypt_questions.py # 加密全库 + 切 trial 20 题 + 生成 meta
+│   ├── keygen.py            # 生成密钥
+│   ├── encrypt_questions.py # 加密题库 + 切 trial 20 题 + 生成 meta
 │   └── generate_license.py  # 输入机器码 → 签发注册码
 ├── data/                    # 数据目录
-│   ├── questions.enc        # 全库 Fernet 密文（868 题，入库）
+│   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
 │   └── questions_meta.json  # 元数据（入库）
 ├── tests/                   # 测试套件（40 个测试）
@@ -75,7 +75,7 @@ acp-cc-practice/
 
 ### 环境要求
 
-- Windows 桌面环境（授权机制依赖三维度机器指纹；macOS/Linux 降级试用 20 题）
+- Windows 桌面环境（授权机制依赖机器指纹；macOS/Linux 降级试用 20 题）
 - 最终用户：无需安装 Python，直接下载 exe 运行
 - 开发者：Python 3.10+，`pip install -r requirements.txt`
 
@@ -94,16 +94,15 @@ acp-cc-practice/
 4. **重启程序**：自动加载完整 868 题
 
 **授权机制**：
-- 注册码绑定到申请时的机器（基于三维度指纹：MachineGuid + C盘卷序列号 + 计算机名）
-- 重装系统 / 换硬盘会导致指纹变化，需重新申请
-- 注册码不可跨机器使用
-- 题库更新时无需重新申请（K 不变）
+- 注册码绑定到申请时的机器，不可跨机器使用
+- 重装系统 / 换硬盘可能导致指纹变化，需重新申请
+- 题库更新时无需重新申请
 
-#### 方式 B：使用自己的密钥重新加密题库（高级）
+#### 方式 B：从源码自行加密题库（高级）
 
 如果你有合法的题库授权，并希望使用自己的密钥：
 
-1. 运行 `python author_tools/keygen.py` 生成 K + Ed25519 密钥对 → 写入 `.env`
+1. 运行 `python author_tools/keygen.py` 生成密钥 → 写入 `.env`
 2. 把生成的公钥复制到 `license/public_key.py`
 3. 准备明文 `questions.json`，运行 `python author_tools/encrypt_questions.py` 生成加密题库
 4. 启动 `python main.py`，用 `python author_tools/generate_license.py` 为自己签发注册码
@@ -126,17 +125,17 @@ python main.py
 
 | 文件 | 位置 | 入库 | 说明 |
 |------|------|------|------|
-| `questions.enc` | `data/` | ✓ 入库 | 全库 Fernet 密文（868 题），需 K 解密，K 由注册码解出 |
+| `questions.enc` | `data/` | ✓ 入库 | 加密题库（868 题），需注册码解锁 |
 | `questions_trial.json` | `data/` | ✓ 入库 | 试用题库（前 20 题明文），无需授权即可加载 |
 | `questions_meta.json` | `data/` | ✓ 入库 | 元数据（total / trial_count / version），UI 显示总量用 |
 | `progress.json` | `data/` | ✗ 排除 | 学习进度（错题本、练习统计、考试历史、收藏），**首次使用时自动生成**，原子写入，损坏自动备份 |
 | `license.dat` | `data/` | ✗ 排除 | 用户本地注册码（机器绑定），首次授权后生成 |
 | `app.log` | `data/` | ✗ 排除 | 运行日志（WARNING 级别，排错用） |
-| `.env` | 项目根 | ✗ 排除 | 作者密钥（`QUESTIONS_MASTER_KEY` + `ED25519_*`），**本地保留，绝不入库** |
+| `.env` | 项目根 | ✗ 排除 | 作者密钥，**本地保留，绝不入库** |
 | `issued_licenses.json` | `author_tools/` | ✗ 排除 | 作者侧签发记录（含机器码与备注） |
 
 **加载顺序**：
-1. 检查 `license.dat` → 验证注册码 → 解出 K → 用 K 解密 `questions.enc`（868 题）
+1. 检查 `license.dat` → 验证注册码 → 解锁 `questions.enc`（868 题）
 2. 无授权或验证失败 → 加载 `questions_trial.json`（20 题试用）
 
 **进度持久化**：`progress.json` 在每次练习结束时自动保存到用户数据目录（打包后为 exe 同级 `data/`），重启程序不会丢失。
@@ -153,11 +152,9 @@ python main.py
 
 ## 已知限制
 
-- **授权仅支持 Windows**：机器指纹基于三维度（MachineGuid + C盘卷序列号 + 计算机名），非 Windows 平台降级试用（20 题）
-- **反编译防护仅基础**：PyInstaller 单文件打包不加密字节码，但主密钥 K 不在客户端，patch 验证函数无用——`questions.enc` 解密需要真 K
-- **离线授权无过期机制**：注册码永久有效（K 不变时），作者可轮换 K 让所有已签发注册码失效
-- **重装系统/换硬盘会失效**：指纹含卷序列号和 MachineGuid，硬件变更需重新申请注册码
-- **题库加密单向**：`questions.enc` 的主密钥 K 在作者 `.env`，若 `.env` 丢失则无法解密
+- **授权仅支持 Windows**：机器指纹基于 Windows 系统信息，非 Windows 平台降级试用（20 题）
+- **离线授权无过期机制**：注册码永久有效，作者可轮换密钥让所有已签发注册码失效
+- **重装系统/换硬盘会失效**：指纹含系统硬件信息，变更需重新申请注册码
 - **Tkinter 视觉限制**：不支持 `backdrop-filter blur`（Glassmorphism 核心），仅用 Canvas 真圆 + 柔和边框暗示玻璃感
 - **字体依赖系统安装**：Inter 字体需用户自行从 Google Fonts 下载安装，未安装时 fallback 到系统默认字体
 - 暂不支持题库分类筛选、多用户、暗色模式
@@ -170,6 +167,7 @@ python main.py
 acp-cc-practice/
 ├── .gitignore
 ├── .env.example
+├── LICENSE.md
 ├── README.md
 ├── main.py
 ├── data_manager.py
@@ -177,7 +175,7 @@ acp-cc-practice/
 ├── requirements.txt
 ├── license/
 │   ├── __init__.py
-│   ├── fingerprint.py            # 三维度指纹
+│   ├── fingerprint.py            # 机器指纹
 │   ├── public_key.py
 │   └── verifier.py
 ├── author_tools/
@@ -185,7 +183,7 @@ acp-cc-practice/
 │   ├── encrypt_questions.py
 │   └── generate_license.py
 ├── data/
-│   ├── questions.enc             # 加密全库
+│   ├── questions.enc             # 加密题库
 │   ├── questions_trial.json      # 20 题试用
 │   └── questions_meta.json       # 元数据
 ├── tests/
@@ -209,4 +207,14 @@ acp-cc-practice/
 
 ## License
 
-仅供个人学习交流使用。
+本项目采用 [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/)（署名-非商业-禁止演绎）许可证。
+
+- ✅ 允许：个人学习、备考练习、分享原链接
+- ❌ 禁止：商业使用、修改代码、二次分发
+- 详细条款见 [LICENSE.md](LICENSE.md)
+
+## 作者
+
+**逆光溯行** · [GitHub @HindsightPJ](https://github.com/HindsightPJ) · hindsight_pj@qq.com
+
+本项目是作者的第一个 GitHub 项目，基于 vibe-coding 完成。
