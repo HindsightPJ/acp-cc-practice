@@ -224,7 +224,7 @@
 | TD-08 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 |
 | TD-09 | P2 | 待修复 | — |
 | TD-10 | P2 | 待修复 | — |
-| TD-11 | P3 | 待修复 | — |
+| TD-11 | P3 | ⏳ 部分修复 | _setup_mode_ui 已拆分；另 2 个待补测试 |
 | TD-12 | P3 | 待修复 | — |
 | TD-13 | P3 | ✅ 已修复 | 统一为 Optional[str] |
 | TD-14 | P3 | ✅ 已修复 | 移除 category 参数 |

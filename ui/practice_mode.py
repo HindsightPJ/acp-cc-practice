@@ -35,10 +35,22 @@ class PracticeMode(BaseMode):
         self._bind_keyboard()
 
     def _setup_mode_ui(self):
+        """构建练习模式 UI（TD-11: 拆分为子方法以提高可读性）。"""
         self.configure(style='TFrame')
 
         toolbar, self.progress_label, self.type_label = self._create_toolbar(self)
+        self._create_toolbar_right(toolbar)
+        self._create_progress_bar()
+        self._create_question_card()
 
+        content_frame = tk.Frame(self, bg=BG_PAGE)
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        self._create_options_card(content_frame)
+        self._create_action_bar(content_frame)
+        self._create_result_card(content_frame)
+
+    def _create_toolbar_right(self, toolbar):
+        """工具栏右侧：随机出题复选框 + 重新开始按钮。"""
         toolbar_right = tk.Frame(toolbar, bg=BG_PAGE)
         toolbar_right.pack(side=tk.RIGHT)
 
@@ -59,6 +71,8 @@ class PracticeMode(BaseMode):
             relief=tk.FLAT, padx=12, pady=4, cursor='hand2')
         restart_btn.pack(side=tk.LEFT)
 
+    def _create_progress_bar(self):
+        """顶部进度条。"""
         progress_bg = tk.Frame(self, bg=BORDER, height=3)
         progress_bg.pack(fill=tk.X, pady=(0, 16))
         progress_bg.pack_propagate(False)
@@ -68,6 +82,8 @@ class PracticeMode(BaseMode):
 
         self.progress_value = tk.DoubleVar(value=0)
 
+    def _create_question_card(self):
+        """题干卡片。"""
         question_card = tk.Frame(self, bg=BG_CARD, highlightbackground=BORDER,
                                  highlightthickness=1)
         question_card.pack(fill=tk.X, pady=(0, 12))
@@ -82,9 +98,8 @@ class PracticeMode(BaseMode):
         self.question_label.pack(fill=tk.BOTH, expand=True)
         self.question_label.bind('<Configure>', self._on_question_resize)
 
-        content_frame = tk.Frame(self, bg=BG_PAGE)
-        content_frame.pack(fill=tk.BOTH, expand=True)
-
+    def _create_options_card(self, content_frame):
+        """选项卡片（6 个 OptionRow）。"""
         options_card = tk.Frame(content_frame, bg=BG_CARD, highlightbackground=BORDER,
                                 highlightthickness=1)
         options_card.pack(fill=tk.X, pady=(0, 12))
@@ -99,6 +114,8 @@ class PracticeMode(BaseMode):
             card.pack(fill=tk.X, pady=4)
             self.option_cards.append(card)
 
+    def _create_action_bar(self, content_frame):
+        """操作栏：提交/上一题/下一题 + 统计标签。"""
         action_bar = tk.Frame(content_frame, bg=BG_PAGE)
         action_bar.pack(fill=tk.X, pady=(0, 12))
 
@@ -137,6 +154,8 @@ class PracticeMode(BaseMode):
             font=font_ui_semibold(11), fg=ACCENT, bg=BG_PAGE)
         self.stats_label.pack()
 
+    def _create_result_card(self, content_frame):
+        """解析卡片：结果标签 + 带滚动条的解析文本。"""
         result_card = tk.Frame(content_frame, bg=BG_CARD, highlightbackground=BORDER,
                                highlightthickness=1)
         result_card.pack(fill=tk.BOTH, expand=True)
