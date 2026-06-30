@@ -174,7 +174,7 @@
 - **问题**：无 `MainWindow` 能否实例化的 smoke test
 - **修复**：添加 headless 冒烟测试（mock Tkinter）
 
-### TD-20: 无 CI 配置
+### TD-20: 无 CI 配置 ✅ 已修复
 
 - **问题**：无 `.github/workflows/`，推送不触发测试
 - **修复**：添加 GitHub Actions CI
@@ -252,7 +252,7 @@
 | TD-17 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.pytest.ini_options] |
 | TD-18 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.coverage.*]，整体覆盖率 74% |
 | TD-19 | P4 | 待修复 | — |
-| TD-20 | P4 | 待修复 | — |
+| TD-20 | P4 | ✅ 已修复 | .github/workflows/ci.yml（Ubuntu + Python 3.10/3.11/3.12） |
 | TD-21 | P5 | 待修复 | — |
 | TD-22 | P5 | 待修复 | — |
 | TD-23 | P5 | 待修复 | — |
