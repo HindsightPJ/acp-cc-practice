@@ -12,6 +12,7 @@ import os
 import socket
 import sys
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ def compute_machine_code(machine_guid: str, volume_serial: str, computer_name: s
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
-def get_machine_code_or_none() -> str | None:
+def get_machine_code_or_none() -> Optional[str]:  # TD-13: 统一为 Optional[str]
     """获取本机机器码，失败返回 None（用于降级试用）。
 
     采集三个维度：MachineGuid + C盘卷序列号 + 计算机名。
