@@ -601,23 +601,22 @@ class WrongBook(BaseMode):
 
         msg = f"练习完成！\n\n总题数: {total} 题\n正确: {correct} 题\n错误: {stats['wrong']} 题\n正确率: {accuracy:.1f}%"
 
-        if accuracy >= 80:
-            msg += "\n\n太棒了！你已经掌握了这些错题！"
-            # P1-4: 只移除本次练习中答对的错题，而非全部错题。
-            # 此前遍历 self.wrong_questions 全部移除，包括答错的 20%。
-            if messagebox.askyesno("恭喜", msg + "\n\n是否将本次答对的错题从错题本中移除？"):
-                correct_nums = self.practice_engine.get_correct_question_numbers()
-                self.progress['wrong_questions'] = [
-                    q_num for q_num in self.progress.get('wrong_questions', [])
-                    if q_num not in correct_nums
-                ]
+        # P1-4: 无论正确率多少，都只询问移除“本次答对”的错题，
+        # 从不自动清空全部错题，避免一次性丢失还需复习的题目。
+        if messagebox.askyesno(
+            "练习完成",
+            msg + "\n\n是否将本次答对的错题从错题本中移除？（答错的仍会保留）"
+        ):
+            correct_nums = self.practice_engine.get_correct_question_numbers()
+            self.progress['wrong_questions'] = [
+                q_num for q_num in self.progress.get('wrong_questions', [])
+                if q_num not in correct_nums
+            ]
 
-                self.data_manager.save_progress(self.progress)
-                self.wrong_questions = self._get_wrong_questions_list()
-                self._populate_tree()
-                self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
-        else:
-            messagebox.showinfo("练习完成", msg + "\n\n继续努力，多复习几遍吧！")
+            self.data_manager.save_progress(self.progress)
+            self.wrong_questions = self._get_wrong_questions_list()
+            self._populate_tree()
+            self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
 
         self._close_practice_window()
 
