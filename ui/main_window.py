@@ -2,35 +2,42 @@ import tkinter as tk
 from tkinter import ttk
 from typing import List, Dict, Any, Optional
 
-from .theme import (
-    BG_PAGE,
-    BORDER,
-    INK_TEXT_MUTED,
-    RED,
-)
+from .theme import Theme
+from .i18n import _, set_language
+
 from .practice_mode import PracticeMode
 from .exam_mode import ExamMode
 from .review_mode import ReviewMode
 from .wrong_book import WrongBook
 from .sidebar import Sidebar
 from .license_dialog import LicenseDialog
+from .settings_dialog import SettingsDialog
 from .header import Header
-from license import LicenseStatus
+from app_state import AppState
+
+theme = Theme()
 
 
 class MainWindow(tk.Tk):
-    def __init__(self, questions: List[Dict[str, Any]], data_manager,
-                 license_status=None, meta: Optional[Dict[str, Any]] = None,
-                 license_dir: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        questions: List[Dict[str, Any]],
+        data_manager,
+        license_status=None,
+        meta: Optional[Dict[str, Any]] = None,
+        license_dir: Optional[str] = None,
+    ) -> None:
         super().__init__()
 
-        self.title("ACP 云计算练习")
+        self.title(_("app_title"))
         self.geometry("1200x760")
         self.minsize(1000, 640)
 
         self.questions = questions
         self.data_manager = data_manager
-        self.progress = data_manager.load_progress()
+        # TD-30: 用 AppState 封装进度，UI 不再直接操作原始 dict
+        self.app_state = AppState(data_manager, data_manager.load_progress())
+        self.progress = self.app_state.get_raw_progress()
         self.license_status = license_status
         self.meta = meta or {}
         # license.dat 持久化目录：打包后必须写到 exe 同级 data/（非 _MEIPASS 临时目录）
@@ -38,8 +45,11 @@ class MainWindow(tk.Tk):
         self.license_dir = license_dir or data_manager.data_dir
 
         self.current_frame: Optional[tk.Frame] = None
-        self._active_nav = 'practice'
+        self._active_nav = "practice"
         self.sidebar: Optional[Sidebar] = None
+
+        # TD-34: 加载语言/暗色模式设置（需在构建 UI 前生效）
+        self._load_settings()
 
         self.configure_ui()
         self.create_widgets()
@@ -47,43 +57,52 @@ class MainWindow(tk.Tk):
         self._refresh_mastery()
 
     def configure_ui(self) -> None:
-        self.configure(bg=BG_PAGE)
+        self.configure(bg=theme.BG_PAGE)
 
         style = ttk.Style()
-        style.theme_use('clam')
-        style.configure('TFrame', background=BG_PAGE)
-        style.configure('TSeparator', background=BORDER)
+        style.theme_use("clam")
+        style.configure("TFrame", background=theme.BG_PAGE)
+        style.configure("TSeparator", background=theme.BORDER)
+
+    def _load_settings(self) -> None:
+        """从 AppState 加载语言与暗色模式设置，并在构建 UI 前生效。"""
+        lang = self.app_state.get_setting("language", "zh")
+        dark_mode = self.app_state.get_setting("dark_mode", False)
+        set_language(lang)
+        theme.set_dark_mode(bool(dark_mode))
 
     # -------------------------------------------------------------- 布局
     def create_widgets(self) -> None:
         # 整体：左侧栏 + 右内容区
-        body = tk.Frame(self, bg=BG_PAGE)
+        body = tk.Frame(self, bg=theme.BG_PAGE)
         body.pack(fill=tk.BOTH, expand=True)
 
         nav_defs = [
-            ('practice', '练习', self.show_practice_mode),
-            ('exam', '考试', self.show_exam_mode),
-            ('review', '背题', self.show_review_mode),
-            ('wrong', '错题本', self.show_wrong_book),
+            ("practice", _("mode_practice"), self.show_practice_mode),
+            ("exam", _("mode_exam"), self.show_exam_mode),
+            ("review", _("mode_review"), self.show_review_mode),
+            ("wrong", _("mode_wrong"), self.show_wrong_book),
         ]
         self.sidebar = Sidebar(
-            body, nav_defs,
+            body,
+            nav_defs,
             on_nav_clicked=self._on_nav_clicked,
+            on_settings_click=self._show_settings_dialog,
         )
         self.sidebar.pack(side=tk.LEFT, fill=tk.Y)
 
-        content_wrapper = tk.Frame(body, bg=BG_PAGE)
+        content_wrapper = tk.Frame(body, bg=theme.BG_PAGE)
         content_wrapper.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # 顶部细 header（模式名 + 全局统计）
-        total = self.meta.get('total', len(self.questions))
+        total = self.meta.get("total", len(self.questions))
         self.header = Header(
             content_wrapper,
             license_status=self.license_status,
             total_count=total,
             trial_count=len(self.questions),
             on_activate_click=self._show_license_dialog,
-            mode_title='练习',
+            mode_title=_("mode_practice"),
         )
         self.header.pack(fill=tk.X, side=tk.TOP)
         # 保持对内部标签的引用，兼容现有测试与外部访问
@@ -91,12 +110,17 @@ class MainWindow(tk.Tk):
         self.license_status_label = self.header.license_status_label
         self._stats_label = self.header.stats_label
 
-        self.content_area = tk.Frame(content_wrapper, bg=BG_PAGE)
+        self.content_area = tk.Frame(content_wrapper, bg=theme.BG_PAGE)
         self.content_area.pack(fill=tk.BOTH, expand=True, padx=24, pady=16)
 
     def _show_license_dialog(self) -> None:
         """弹出注册码输入对话框（逻辑已拆分到 LicenseDialog）。"""
         dialog = LicenseDialog(self, self.license_dir)
+        dialog.show()
+
+    def _show_settings_dialog(self) -> None:
+        """弹出设置对话框（语言 / 暗色模式）。"""
+        dialog = SettingsDialog(self, self.app_state)
         dialog.show()
 
     # -------------------------------------------------------------- 交互
@@ -111,11 +135,11 @@ class MainWindow(tk.Tk):
         self.sidebar.set_active_nav(self._active_nav)
 
     def _update_stats_display(self) -> None:
-        practice_stats = self.progress.get('practice_stats', {})
-        correct = practice_stats.get('correct', 0)
-        total_practiced = practice_stats.get('total', 0)
+        practice_stats = self.app_state.get_practice_stats()
+        correct = practice_stats.get("correct", 0)
+        total_practiced = practice_stats.get("total", 0)
         accuracy = (correct / total_practiced * 100) if total_practiced > 0 else 0
-        wrong_count = len(self.progress.get('wrong_questions', []))
+        wrong_count = len(self.app_state.get_wrong_questions())
         self.header.update_stats(total_practiced, accuracy, wrong_count)
 
     def _refresh_mastery(self) -> None:
@@ -126,9 +150,9 @@ class MainWindow(tk.Tk):
         两个值都在 [0, 1]，乘积也在 [0, 1]。
         """
         total_pool = len(self.questions) if self.questions else 0
-        practice_stats = self.progress.get('practice_stats', {})
-        total_practiced = practice_stats.get('total', 0)
-        correct = practice_stats.get('correct', 0)
+        practice_stats = self.app_state.get_practice_stats()
+        total_practiced = practice_stats.get("total", 0)
+        correct = practice_stats.get("correct", 0)
 
         coverage = (total_practiced / total_pool) if total_pool > 0 else 0
         accuracy = (correct / total_practiced) if total_practiced > 0 else 0
@@ -136,12 +160,13 @@ class MainWindow(tk.Tk):
         coverage = min(coverage, 1.0)
         mastery = coverage * accuracy
 
-        wrong_count = len(self.progress.get('wrong_questions', []))
+        wrong_count = len(self.app_state.get_wrong_questions())
         if self.sidebar is not None:
             self.sidebar.set_mastery(mastery)
             self.sidebar.set_wrong_indicator(
                 text=f"错题本 {wrong_count} 题" if wrong_count else "错题本为空",
-                fg=RED if wrong_count > 0 else INK_TEXT_MUTED)
+                fg=theme.RED if wrong_count > 0 else theme.INK_TEXT_MUTED,
+            )
 
         self._update_stats_display()
 
@@ -161,21 +186,33 @@ class MainWindow(tk.Tk):
         self._refresh_mastery()
 
     def show_practice_mode(self) -> None:
-        self.header.set_mode_title("练习")
-        self._switch_to('practice', lambda: PracticeMode(
-            self.content_area, self.questions, self.data_manager, self.progress))
+        self.header.set_mode_title(_("mode_practice"))
+        self._switch_to(
+            "practice",
+            lambda: PracticeMode(
+                self.content_area, self.questions, self.data_manager, self.app_state
+            ),
+        )
 
     def show_exam_mode(self) -> None:
-        self.header.set_mode_title("考试")
-        self._switch_to('exam', lambda: ExamMode(
-            self.content_area, self.questions, self.data_manager, self.progress))
+        self.header.set_mode_title(_("mode_exam"))
+        self._switch_to(
+            "exam",
+            lambda: ExamMode(self.content_area, self.questions, self.data_manager, self.app_state),
+        )
 
     def show_review_mode(self) -> None:
-        self.header.set_mode_title("背题")
-        self._switch_to('review', lambda: ReviewMode(
-            self.content_area, self.questions, self.data_manager, self.progress))
+        self.header.set_mode_title(_("mode_review"))
+        self._switch_to(
+            "review",
+            lambda: ReviewMode(
+                self.content_area, self.questions, self.data_manager, self.app_state
+            ),
+        )
 
     def show_wrong_book(self) -> None:
-        self.header.set_mode_title("错题本")
-        self._switch_to('wrong', lambda: WrongBook(
-            self.content_area, self.questions, self.data_manager, self.progress))
+        self.header.set_mode_title(_("mode_wrong"))
+        self._switch_to(
+            "wrong",
+            lambda: WrongBook(self.content_area, self.questions, self.data_manager, self.app_state),
+        )

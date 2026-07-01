@@ -8,8 +8,8 @@
 BIOS 序列号获取失败时用空字符串，其他三维度仍有效。
 此值会显示给用户复制，并作为 PBKDF2 的 password 输入。
 """
+
 import hashlib
-import os
 import socket
 import subprocess
 import sys
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 class UnsupportedOSError(Exception):
     """当前平台不支持采集机器指纹。"""
+
     pass
 
 
@@ -34,24 +35,25 @@ def get_machine_guid() -> str:
         UnsupportedOSError: 非 Windows 平台
         OSError: 注册表读取失败
     """
-    if sys.platform != 'win32':
+    if sys.platform != "win32":
         raise UnsupportedOSError(f"当前平台 {sys.platform} 不支持授权，仅支持 Windows")
 
     import winreg  # pylint: disable=import-outside-toplevel
+
     key = winreg.OpenKey(
         winreg.HKEY_LOCAL_MACHINE,
-        r'SOFTWARE\Microsoft\Cryptography',
+        r"SOFTWARE\Microsoft\Cryptography",
         0,
         winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
     )
     try:
-        value, _ = winreg.QueryValueEx(key, 'MachineGuid')
+        value, _ = winreg.QueryValueEx(key, "MachineGuid")
         return cast(str, value)
     finally:
         winreg.CloseKey(key)
 
 
-def get_volume_serial(drive: str = 'C:\\') -> str:
+def get_volume_serial(drive: str = "C:\\") -> str:
     """读取 Windows 磁盘卷序列号。
 
     Args:
@@ -64,10 +66,11 @@ def get_volume_serial(drive: str = 'C:\\') -> str:
         UnsupportedOSError: 非 Windows 平台
         OSError: GetVolumeInformationW 调用失败
     """
-    if sys.platform != 'win32':
+    if sys.platform != "win32":
         raise UnsupportedOSError(f"当前平台 {sys.platform} 不支持授权，仅支持 Windows")
 
     import ctypes  # pylint: disable=import-outside-toplevel
+
     volume_serial = ctypes.c_uint32(0)
     max_component = ctypes.c_uint32(0)
     fs_flags = ctypes.c_uint32(0)
@@ -75,11 +78,13 @@ def get_volume_serial(drive: str = 'C:\\') -> str:
 
     success = ctypes.windll.kernel32.GetVolumeInformationW(
         ctypes.c_wchar_p(drive),
-        None, 0,
+        None,
+        0,
         ctypes.byref(volume_serial),
         ctypes.byref(max_component),
         ctypes.byref(fs_flags),
-        fs_name, 256,
+        fs_name,
+        256,
     )
     if not success:
         raise OSError(f"GetVolumeInformationW 失败，驱动器 {drive}")
@@ -96,17 +101,19 @@ def get_computer_name() -> str:
 
 
 # BIOS 序列号的常见占位符（不同 OEM 厂商使用不同占位符，需过滤）
-_BIOS_PLACEHOLDERS = frozenset({
-    'default string',
-    'to be filled by o.e.m.',
-    'to be filled by o.e.m./system product name',
-    'none',
-    'system serial number',
-    'system product name',
-    'not defined',
-    'unknown',
-    '0',
-})
+_BIOS_PLACEHOLDERS = frozenset(
+    {
+        "default string",
+        "to be filled by o.e.m.",
+        "to be filled by o.e.m./system product name",
+        "none",
+        "system serial number",
+        "system product name",
+        "not defined",
+        "unknown",
+        "0",
+    }
+)
 
 
 def get_bios_serial() -> str:
@@ -121,25 +128,27 @@ def get_bios_serial() -> str:
     Returns:
         BIOS 序列号字符串，或空字符串（获取失败/占位符/非 Windows）
     """
-    if sys.platform != 'win32':
-        return ''
+    if sys.platform != "win32":
+        return ""
     try:
         result = subprocess.run(
-            ['powershell', '-NoProfile', '-Command',
-             '(Get-CimInstance Win32_BIOS).SerialNumber'],
-            capture_output=True, text=True, timeout=5,
+            ["powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_BIOS).SerialNumber"],
+            capture_output=True,
+            text=True,
+            timeout=5,
             creationflags=0x08000000,  # CREATE_NO_WINDOW，避免弹出黑框
         )
         serial = result.stdout.strip()
         if serial and serial.lower() not in _BIOS_PLACEHOLDERS:
             return serial
-        return ''
+        return ""
     except (OSError, subprocess.SubprocessError, ValueError):
-        return ''
+        return ""
 
 
-def compute_machine_code(machine_guid: str, volume_serial: str,
-                          computer_name: str, bios_serial: str = '') -> str:
+def compute_machine_code(
+    machine_guid: str, volume_serial: str, computer_name: str, bios_serial: str = ""
+) -> str:
     """计算机器码 = SHA-256(guid|volume|name|bios).hex()。
 
     Args:
@@ -152,7 +161,7 @@ def compute_machine_code(machine_guid: str, volume_serial: str,
         64 字符小写 hex 字符串
     """
     raw = f"{machine_guid}|{volume_serial}|{computer_name}|{bios_serial}"
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def get_machine_code_or_none() -> Optional[str]:  # TD-13: 统一为 Optional[str]

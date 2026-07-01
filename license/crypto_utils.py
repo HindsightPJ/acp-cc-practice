@@ -3,6 +3,7 @@
 集中放置 license/verifier.py 与 author_tools/generate_license.py 共用的
 密码学常量与函数，防止两边实现漂移（TD-03 修复）。
 """
+
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
@@ -29,4 +30,4 @@ def derive_dk(machine_code: str, salt: bytes) -> bytes:
         salt=salt,
         iterations=PBKDF2_ITERATIONS,
     )
-    return kdf.derive(machine_code.encode('utf-8'))
+    return kdf.derive(machine_code.encode("utf-8"))

@@ -3,6 +3,7 @@
 data_manager.py / author_tools/encrypt_questions.py / author_tools/generate_license.py
 共用此模块，避免行为漂移（引号、注释处理不一致）。
 """
+
 import os
 from typing import Dict
 
@@ -26,15 +27,15 @@ def load_env(path: str) -> Dict[str, str]:
         return {}
     result: Dict[str, str] = {}
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             for raw_line in f:
                 line = raw_line.strip()
                 # 跳过空行和独立注释行
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
-                if '=' not in line:
+                if "=" not in line:
                     continue
-                key, _, value = line.partition('=')
+                key, _, value = line.partition("=")
                 key = key.strip()
                 value = value.strip()
                 if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
@@ -42,8 +43,8 @@ def load_env(path: str) -> Dict[str, str]:
                     value = value[1:-1]
                 else:
                     # 无引号：行内注释仅当 # 前有空格时生效
-                    if ' #' in value:
-                        value = value.split(' #', 1)[0].rstrip()
+                    if " #" in value:
+                        value = value.split(" #", 1)[0].rstrip()
                 if key:
                     result[key] = value
     except OSError:

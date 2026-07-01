@@ -44,18 +44,18 @@ class QuizEngine:
             return None
 
         # 多选题：排序后比较，确保顺序不影响判断
-        selected_sorted = ''.join(sorted(selected_letter.upper()))
-        answer_sorted = ''.join(sorted(current.get('answer', '')))
+        selected_sorted = "".join(sorted(selected_letter.upper()))
+        answer_sorted = "".join(sorted(current.get("answer", "")))
         # 空答案不应判为正确
         is_correct = bool(answer_sorted) and (selected_sorted == answer_sorted)
 
         result: Dict[str, Any] = {
-            'queue_index': self.current_index,
-            'question_number': current.get('number'),
-            'selected': selected_letter.upper(),
-            'correct_answer': current.get('answer'),
-            'is_correct': is_correct,
-            'question_content': current.get('content', '')[:50] + '...'
+            "queue_index": self.current_index,
+            "question_number": current.get("number"),
+            "selected": selected_letter.upper(),
+            "correct_answer": current.get("answer"),
+            "is_correct": is_correct,
+            "question_content": current.get("content", "")[:50] + "...",
         }
 
         self.answers_record[self.current_index] = result
@@ -84,17 +84,19 @@ class QuizEngine:
     def get_progress(self) -> Dict[str, Any]:
         """获取进度信息（TD-15: stats 返回副本，避免 UI 意外修改内部状态）。"""
         return {
-            'current': self.current_index + 1,
-            'total': len(self.questions_queue),
-            'percentage': ((self.current_index + 1) / len(self.questions_queue)) * 100 if self.questions_queue else 0,
-            'stats': self.get_stats()
+            "current": self.current_index + 1,
+            "total": len(self.questions_queue),
+            "percentage": ((self.current_index + 1) / len(self.questions_queue)) * 100
+            if self.questions_queue
+            else 0,
+            "stats": self.get_stats(),
         }
 
     def get_stats(self) -> Dict[str, int]:
         """获取统计信息（从 answers_record 重新计算，确保跳跃答题不重复计数）。"""
         total = len(self.answers_record)
-        correct = sum(1 for r in self.answers_record.values() if r.get('is_correct'))
-        return {'correct': correct, 'wrong': total - correct, 'total': total}
+        correct = sum(1 for r in self.answers_record.values() if r.get("is_correct"))
+        return {"correct": correct, "wrong": total - correct, "total": total}
 
     def get_current_index(self) -> int:
         """获取当前题目索引（TD-15: 显式接口，替代 UI 直接读 engine.current_index）。"""
@@ -139,9 +141,9 @@ class QuizEngine:
         """
         wrong = []
         for r in self.answers_record.values():
-            if r.get('is_correct'):
+            if r.get("is_correct"):
                 continue
-            idx = r.get('queue_index')
+            idx = r.get("queue_index")
             if idx is None or not (0 <= idx < len(self.questions_queue)):
                 continue
             wrong.append(self.questions_queue[idx])
@@ -154,12 +156,14 @@ class QuizEngine:
             答对的题号集合（question_number 字段值），未作答或答错的不包含在内
         """
         return {
-            r['question_number']
+            r["question_number"]
             for r in self.answers_record.values()
-            if r.get('is_correct') and r.get('question_number') is not None
+            if r.get("is_correct") and r.get("question_number") is not None
         }
 
-    def record_exam_answer(self, queue_index: int, selected_letter: str) -> Optional[Dict[str, Any]]:
+    def record_exam_answer(
+        self, queue_index: int, selected_letter: str
+    ) -> Optional[Dict[str, Any]]:
         """记录考试模式下的答题结果（支持跳跃答题，覆盖更新而非追加）。
 
         与 submit_answer 不同，本方法不推进 current_index，仅把指定题号
@@ -171,18 +175,18 @@ class QuizEngine:
             return None
 
         question = self.questions_queue[queue_index]
-        selected_sorted = ''.join(sorted(selected_letter.upper()))
-        answer_sorted = ''.join(sorted(question.get('answer', '')))
+        selected_sorted = "".join(sorted(selected_letter.upper()))
+        answer_sorted = "".join(sorted(question.get("answer", "")))
         # 空答案不应判为正确
         is_correct = bool(answer_sorted) and (selected_sorted == answer_sorted)
 
         result: Dict[str, Any] = {
-            'queue_index': queue_index,
-            'question_number': question.get('number'),
-            'selected': selected_letter.upper(),
-            'correct_answer': question.get('answer'),
-            'is_correct': is_correct,
-            'question_content': question.get('content', '')[:50] + '...'
+            "queue_index": queue_index,
+            "question_number": question.get("number"),
+            "selected": selected_letter.upper(),
+            "correct_answer": question.get("answer"),
+            "is_correct": is_correct,
+            "question_content": question.get("content", "")[:50] + "...",
         }
 
         self.answers_record[queue_index] = result
@@ -212,12 +216,12 @@ class QuizEngine:
 
         stats = self.get_stats()
         return {
-            'total_questions': len(self.questions_queue),
-            'correct': stats['correct'],
-            'wrong': stats['wrong'],
-            'accuracy': (stats['correct'] / stats['total'] * 100) if stats['total'] > 0 else 0,
-            'time_used': f"{minutes}分{seconds}秒",
-            'wrong_questions': self.get_wrong_answers()
+            "total_questions": len(self.questions_queue),
+            "correct": stats["correct"],
+            "wrong": stats["wrong"],
+            "accuracy": (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0,
+            "time_used": f"{minutes}分{seconds}秒",
+            "wrong_questions": self.get_wrong_answers(),
         }
 
     def get_review_questions(self) -> List[Dict[str, Any]]:

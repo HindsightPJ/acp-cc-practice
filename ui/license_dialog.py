@@ -1,26 +1,22 @@
 """注册码输入对话框组件。"""
+
 import tkinter as tk
 from tkinter import messagebox
 from typing import Optional, Callable, Tuple
 
-from license import LicenseStatus, LicenseError
+from license import LicenseStatus
 from license.verifier import verify, LicenseVerifier
-from .theme import (
-    BG_PAGE, BG_INPUT, BG_CARD,
-    BORDER,
-    TEXT_PRIMARY, TEXT_MUTED,
-    ACCENT, ACCENT_HOVER,
-    BTN_NORMAL, BTN_NORMAL_FG,
-    font_ui, font_ui_semibold, font_mono,
-)
+from .theme import Theme, font_ui, font_ui_semibold, font_mono
+
+theme = Theme()
 
 
 _LICENSE_ERROR_MESSAGES = {
     None: "授权失败，请检查注册码。",
-    'invalid_signature': "注册码无效，请联系作者。",
-    'wrong_machine': "注册码不属于本机，请确认机器码后重新申请。",
-    'corrupt_questions': "题库密文损坏，请联系作者。",
-    'corrupt_license': "注册码文件损坏。",
+    "invalid_signature": "注册码无效，请联系作者。",
+    "wrong_machine": "注册码不属于本机，请确认机器码后重新申请。",
+    "corrupt_questions": "题库密文损坏，请联系作者。",
+    "corrupt_license": "注册码文件损坏。",
 }
 
 
@@ -55,8 +51,12 @@ class LicenseDialog:
     负责 UI 构建与验证交互；验证逻辑委托给传入的 verify_and_save callback。
     """
 
-    def __init__(self, parent, license_dir: str,
-                 verify_and_save: Optional[Callable[[str, str], Tuple[bool, str, bool]]] = None) -> None:
+    def __init__(
+        self,
+        parent,
+        license_dir: str,
+        verify_and_save: Optional[Callable[[str, str], Tuple[bool, str, bool]]] = None,
+    ) -> None:
         """初始化对话框。
 
         Args:
@@ -90,50 +90,85 @@ class LicenseDialog:
         self.dialog.grab_set()
 
         # 机器码显示
-        tk.Label(self.dialog, text="本机机器码：",
-                 font=font_ui_semibold(11),
-                 fg=TEXT_PRIMARY, bg=BG_PAGE).pack(anchor='w', padx=15, pady=(15, 5))
-        code_entry = tk.Text(self.dialog, height=3, wrap='char',
-                             font=font_mono(9),
-                             bg=BG_INPUT, fg=TEXT_PRIMARY,
-                             relief='flat', bd=0,
-                             highlightbackground=BORDER, highlightthickness=1)
-        code_entry.insert('1.0', machine_code)
-        code_entry.config(state='disabled')
-        code_entry.pack(fill='x', padx=15, pady=(0, 10))
+        tk.Label(
+            self.dialog,
+            text="本机机器码：",
+            font=font_ui_semibold(11),
+            fg=theme.TEXT_PRIMARY,
+            bg=theme.BG_PAGE,
+        ).pack(anchor="w", padx=15, pady=(15, 5))
+        code_entry = tk.Text(
+            self.dialog,
+            height=3,
+            wrap="char",
+            font=font_mono(9),
+            bg=theme.BG_INPUT,
+            fg=theme.TEXT_PRIMARY,
+            relief="flat",
+            bd=0,
+            highlightbackground=theme.BORDER,
+            highlightthickness=1,
+        )
+        code_entry.insert("1.0", machine_code)
+        code_entry.config(state="disabled")
+        code_entry.pack(fill="x", padx=15, pady=(0, 10))
 
-        tk.Label(self.dialog, text="把此机器码发给作者，收到注册码后粘贴到下方：",
-                 font=font_ui(9),
-                 fg=TEXT_MUTED, bg=BG_PAGE).pack(anchor='w', padx=15)
+        tk.Label(
+            self.dialog,
+            text="把此机器码发给作者，收到注册码后粘贴到下方：",
+            font=font_ui(9),
+            fg=theme.TEXT_MUTED,
+            bg=theme.BG_PAGE,
+        ).pack(anchor="w", padx=15)
 
         # 注册码输入框
-        self._license_entry = tk.Text(self.dialog, height=8, wrap='char',
-                                      font=font_mono(9),
-                                      bg=BG_INPUT, fg=TEXT_PRIMARY,
-                                      relief='flat', bd=0,
-                                      highlightbackground=BORDER, highlightthickness=1)
-        self._license_entry.pack(fill='both', expand=True, padx=15, pady=10)
+        self._license_entry = tk.Text(
+            self.dialog,
+            height=8,
+            wrap="char",
+            font=font_mono(9),
+            bg=theme.BG_INPUT,
+            fg=theme.TEXT_PRIMARY,
+            relief="flat",
+            bd=0,
+            highlightbackground=theme.BORDER,
+            highlightthickness=1,
+        )
+        self._license_entry.pack(fill="both", expand=True, padx=15, pady=10)
 
-        btn_frame = tk.Frame(self.dialog, bg=BG_PAGE)
-        btn_frame.pack(fill='x', padx=15, pady=(0, 15))
-        tk.Button(btn_frame, text="验证", command=self._on_verify,
-                  bg=ACCENT, fg='white', relief='flat', padx=20,
-                  cursor='hand2',
-                  activebackground=ACCENT_HOVER, activeforeground='white').pack(side='right')
-        tk.Button(btn_frame, text="取消", command=self.close,
-                  relief='flat', padx=20,
-                  bg=BTN_NORMAL, fg=BTN_NORMAL_FG,
-                  cursor='hand2').pack(side='right', padx=5)
+        btn_frame = tk.Frame(self.dialog, bg=theme.BG_PAGE)
+        btn_frame.pack(fill="x", padx=15, pady=(0, 15))
+        tk.Button(
+            btn_frame,
+            text="验证",
+            command=self._on_verify,
+            bg=theme.ACCENT,
+            fg="white",
+            relief="flat",
+            padx=20,
+            cursor="hand2",
+            activebackground=theme.ACCENT_HOVER,
+            activeforeground="white",
+        ).pack(side="right")
+        tk.Button(
+            btn_frame,
+            text="取消",
+            command=self.close,
+            relief="flat",
+            padx=20,
+            bg=theme.BTN_NORMAL,
+            fg=theme.BTN_NORMAL_FG,
+            cursor="hand2",
+        ).pack(side="right", padx=5)
 
     def _on_verify(self) -> None:
         if self._license_entry is None or self.dialog is None:
             return
-        code = self._license_entry.get('1.0', 'end').strip()
+        code = self._license_entry.get("1.0", "end").strip()
         if not code:
             messagebox.showwarning("提示", "请输入注册码", parent=self.dialog)
             return
-        success, message, should_close = self.verify_and_save(
-            code, self.license_dir)
+        success, message, should_close = self.verify_and_save(code, self.license_dir)
         if success:
             messagebox.showinfo("成功", message, parent=self.dialog)
         else:

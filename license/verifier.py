@@ -16,6 +16,7 @@
   6. K = AES-256-GCM-Decrypt(nonce, ciphertext_with_tag, aad=salt)
      （GCM tag 验证指纹：机器码错误 → DK 错误 → tag 不匹配 → WRONG_MACHINE）
 """
+
 import base64
 import os
 import logging
@@ -36,12 +37,11 @@ logger = logging.getLogger(__name__)
 # 注册码各部分字节长度
 SIGNATURE_LEN = 64
 SALT_LEN = 16
-NONCE_LEN = 12           # AES-GCM nonce（NIST 推荐的 96-bit）
+NONCE_LEN = 12  # AES-GCM nonce（NIST 推荐的 96-bit）
 GCM_TAG_LEN = 16
-K_LEN = 44               # Fernet key 的 base64 字符串 UTF-8 编码长度
+K_LEN = 44  # Fernet key 的 base64 字符串 UTF-8 编码长度
 ENCRYPTED_K_LEN = NONCE_LEN + K_LEN + GCM_TAG_LEN  # 12 + 44 + 16 = 72
 EXPECTED_RAW_LEN = SIGNATURE_LEN + SALT_LEN + ENCRYPTED_K_LEN  # 152
-
 
 
 def verify(license_code: str) -> Tuple[LicenseStatus, Optional[str], Optional[LicenseError]]:
@@ -67,8 +67,8 @@ def verify(license_code: str) -> Tuple[LicenseStatus, Optional[str], Optional[Li
     if len(raw) != EXPECTED_RAW_LEN:
         return (LicenseStatus.TRIAL, None, LicenseError.CORRUPT_LICENSE_FILE)
     signature = raw[:SIGNATURE_LEN]
-    salt = raw[SIGNATURE_LEN:SIGNATURE_LEN + SALT_LEN]
-    encrypted_k = raw[SIGNATURE_LEN + SALT_LEN:]
+    salt = raw[SIGNATURE_LEN : SIGNATURE_LEN + SALT_LEN]
+    encrypted_k = raw[SIGNATURE_LEN + SALT_LEN :]
 
     # 3. Ed25519 验签
     try:
@@ -98,7 +98,7 @@ def verify(license_code: str) -> Tuple[LicenseStatus, Optional[str], Optional[Li
         return (LicenseStatus.TRIAL, None, LicenseError.WRONG_MACHINE)
 
     try:
-        k = k_bytes.decode('utf-8')
+        k = k_bytes.decode("utf-8")
     except UnicodeDecodeError:
         return (LicenseStatus.TRIAL, None, LicenseError.CORRUPT_LICENSE_FILE)
     return (LicenseStatus.AUTHORIZED, k, None)
@@ -108,7 +108,7 @@ class LicenseVerifier:
     """注册码验证器，封装 license.dat 持久化逻辑。"""
 
     def __init__(self, data_dir: str) -> None:
-        self.license_file: str = os.path.join(data_dir, 'license.dat')
+        self.license_file: str = os.path.join(data_dir, "license.dat")
 
     def check_local_license(self) -> Tuple[LicenseStatus, Optional[str], bool]:
         """检查本地 license.dat。
@@ -126,7 +126,7 @@ class LicenseVerifier:
             return (LicenseStatus.TRIAL, None, False)
 
         try:
-            with open(self.license_file, 'r', encoding='utf-8') as f:
+            with open(self.license_file, "r", encoding="utf-8") as f:
                 license_code = f.read().strip()
         except OSError as e:
             logger.warning("读取 license.dat 失败: %s", e)
@@ -151,7 +151,8 @@ class LicenseVerifier:
         与 data_manager._backup_corrupt_progress 行为一致。
         """
         import time
-        timestamp = time.strftime('%Y%m%d-%H%M%S')
+
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
         backup_path = f"{self.license_file}.corrupt-{timestamp}"
         try:
             os.replace(self.license_file, backup_path)
@@ -168,8 +169,8 @@ class LicenseVerifier:
         Returns:
             True 保存成功，False 保存失败（权限等）
         """
-        tmp_file = self.license_file + '.tmp'
-        bak_file = self.license_file + '.bak'
+        tmp_file = self.license_file + ".tmp"
+        bak_file = self.license_file + ".bak"
         try:
             # P1-6: 写入前备份现有 license.dat（与 progress.json 一致）
             if os.path.exists(self.license_file):
@@ -177,7 +178,7 @@ class LicenseVerifier:
                     os.replace(self.license_file, bak_file)
                 except OSError:
                     pass  # 备份失败不阻塞主流程
-            with open(tmp_file, 'w', encoding='utf-8') as f:
+            with open(tmp_file, "w", encoding="utf-8") as f:
                 f.write(license_code)
             os.replace(tmp_file, self.license_file)
             return True

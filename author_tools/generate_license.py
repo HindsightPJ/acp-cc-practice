@@ -16,6 +16,7 @@
     DK = PBKDF2(machine_code, salt, 600000)
     注册码 = base64( signature(64) || salt(16) || encrypted_K(72) ) = 152 字节
 """
+
 import base64
 import json
 import os
@@ -29,8 +30,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # acp-cc
 sys.path.insert(0, BASE_DIR)
 from license.crypto_utils import derive_dk
 from env_utils import load_env  # pylint: disable=wrong-import-position
-ENV_FILE = os.path.join(BASE_DIR, '.env')
-ISSUED_LICENSES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'issued_licenses.json')
+
+ENV_FILE = os.path.join(BASE_DIR, ".env")
+ISSUED_LICENSES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "issued_licenses.json")
 
 SALT_LEN = 16
 NONCE_LEN = 12
@@ -44,15 +46,14 @@ def load_author_keys() -> dict:
         sys.exit(1)
     env = load_env(ENV_FILE)
     keys = {}
-    if 'QUESTIONS_MASTER_KEY' in env:
-        keys['k'] = env['QUESTIONS_MASTER_KEY']
-    if 'ED25519_PRIVATE_KEY' in env:
-        keys['private_hex'] = env['ED25519_PRIVATE_KEY']
-    if 'k' not in keys or 'private_hex' not in keys:
+    if "QUESTIONS_MASTER_KEY" in env:
+        keys["k"] = env["QUESTIONS_MASTER_KEY"]
+    if "ED25519_PRIVATE_KEY" in env:
+        keys["private_hex"] = env["ED25519_PRIVATE_KEY"]
+    if "k" not in keys or "private_hex" not in keys:
         print("[错误] .env 缺少 QUESTIONS_MASTER_KEY 或 ED25519_PRIVATE_KEY", file=sys.stderr)
         sys.exit(1)
     return keys
-
 
 
 def generate_license_for_machine_code(machine_code: str) -> str:
@@ -73,15 +74,15 @@ def generate_license_for_machine_code(machine_code: str) -> str:
     # AES-GCM 加密 K（nonce=nonce, associated_data=salt）
     nonce = os.urandom(NONCE_LEN)
     aesgcm = AESGCM(dk)
-    encrypted_k = nonce + aesgcm.encrypt(nonce, keys['k'].encode('utf-8'), salt)
+    encrypted_k = nonce + aesgcm.encrypt(nonce, keys["k"].encode("utf-8"), salt)
 
     # Ed25519 签名 (salt || encrypted_K)
-    private_bytes = bytes.fromhex(keys['private_hex'])
+    private_bytes = bytes.fromhex(keys["private_hex"])
     priv = Ed25519PrivateKey.from_private_bytes(private_bytes)
     signature = priv.sign(salt + encrypted_k)
 
     # base64 编码
-    return base64.b64encode(signature + salt + encrypted_k).decode('utf-8')
+    return base64.b64encode(signature + salt + encrypted_k).decode("utf-8")
 
 
 def record_issued(machine_code: str, note: str) -> None:
@@ -96,17 +97,17 @@ def record_issued(machine_code: str, note: str) -> None:
     records = []
     if os.path.exists(ISSUED_LICENSES):
         try:
-            with open(ISSUED_LICENSES, 'r', encoding='utf-8') as f:
+            with open(ISSUED_LICENSES, "r", encoding="utf-8") as f:
                 records = json.load(f)
         except json.JSONDecodeError:
             # P1-4: 损坏时备份为 .corrupt-{timestamp} 再重置，避免静默丢失所有签发记录
             import time
-            timestamp = time.strftime('%Y%m%d-%H%M%S')
+
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
             corrupt_path = f"{ISSUED_LICENSES}.corrupt-{timestamp}"
             try:
                 os.replace(ISSUED_LICENSES, corrupt_path)
-                print(f"[警告] issued_licenses.json 损坏，已备份到 {corrupt_path}",
-                      file=sys.stderr)
+                print(f"[警告] issued_licenses.json 损坏，已备份到 {corrupt_path}", file=sys.stderr)
             except OSError:
                 pass  # 备份失败不阻塞主流程
             records = []
@@ -114,17 +115,19 @@ def record_issued(machine_code: str, note: str) -> None:
             records = []
 
     # 去重：同 machine_code 覆盖旧记录
-    records = [r for r in records if r.get('machine_code') != machine_code]
-    records.append({
-        'machine_code': machine_code,
-        'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'note': note,
-    })
+    records = [r for r in records if r.get("machine_code") != machine_code]
+    records.append(
+        {
+            "machine_code": machine_code,
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "note": note,
+        }
+    )
 
     # TD-09: 原子写入——先写临时文件，再 os.replace 替换
-    tmp_file = ISSUED_LICENSES + '.tmp'
+    tmp_file = ISSUED_LICENSES + ".tmp"
     try:
-        with open(tmp_file, 'w', encoding='utf-8') as f:
+        with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(records, f, ensure_ascii=False, indent=2)
         os.replace(tmp_file, ISSUED_LICENSES)
     except (OSError, PermissionError):
@@ -141,7 +144,7 @@ def main() -> int:
     print()
     machine_code = input("请输入被授权人的机器码（64 字符 hex）: ").strip()
     # 兼容从 GUI 复制时可能带入的空白/不可见字符
-    machine_code = ''.join(c for c in machine_code if c in '0123456789abcdefABCDEF')
+    machine_code = "".join(c for c in machine_code if c in "0123456789abcdefABCDEF")
     if len(machine_code) != 64:
         print()
         print(f"[错误] 机器码格式不正确：应为 64 字符 hex，实际收到 {len(machine_code)} 字符。")
@@ -163,6 +166,7 @@ def main() -> int:
         # ValueError: 密钥格式错误 / Ed25519 字节解码失败
         # json.JSONDecodeError: issued_licenses.json 损坏
         import traceback
+
         print()
         print("[错误] 生成注册码时发生异常：")
         traceback.print_exc()
@@ -181,5 +185,5 @@ def main() -> int:
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
