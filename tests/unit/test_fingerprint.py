@@ -81,49 +81,49 @@ def test_get_bios_serial_non_windows(monkeypatch):
     assert get_bios_serial() == ''
 
 
-def test_get_bios_serial_wmic_success(monkeypatch):
-    """wmic 成功时应返回清理后的序列号。"""
+def test_get_bios_serial_powershell_success(monkeypatch):
+    """PowerShell CIM 成功时应返回清理后的序列号。"""
     monkeypatch.setattr('sys.platform', 'win32')
-    fake_result = MagicMock(stdout='SerialNumber=ABC-123\n\r\n', returncode=0)
+    fake_result = MagicMock(stdout='ABC-123\n\r\n', returncode=0)
     with patch('subprocess.run', return_value=fake_result):
         assert get_bios_serial() == 'ABC-123'
 
 
-def test_get_bios_serial_wmic_failure(monkeypatch):
-    """wmic 调用失败时应返回空字符串。"""
+def test_get_bios_serial_powershell_failure(monkeypatch):
+    """PowerShell 调用失败时应返回空字符串。"""
     monkeypatch.setattr('sys.platform', 'win32')
-    with patch('subprocess.run', side_effect=OSError('wmic not found')):
+    with patch('subprocess.run', side_effect=OSError('powershell not found')):
         assert get_bios_serial() == ''
 
 
 def test_get_bios_serial_timeout(monkeypatch):
-    """wmic 超时应返回空字符串。"""
+    """PowerShell 超时应返回空字符串。"""
     import subprocess as _sp
     monkeypatch.setattr('sys.platform', 'win32')
-    with patch('subprocess.run', side_effect=_sp.TimeoutExpired(cmd='wmic', timeout=3)):
+    with patch('subprocess.run', side_effect=_sp.TimeoutExpired(cmd='powershell', timeout=5)):
         assert get_bios_serial() == ''
 
 
 def test_get_bios_serial_filters_placeholder(monkeypatch):
     """OEM 占位符值应被过滤为空字符串。"""
     monkeypatch.setattr('sys.platform', 'win32')
-    fake_result = MagicMock(stdout='SerialNumber=Default string\n', returncode=0)
+    fake_result = MagicMock(stdout='Default string\n', returncode=0)
     with patch('subprocess.run', return_value=fake_result):
         assert get_bios_serial() == ''
 
 
 def test_get_bios_serial_empty_output(monkeypatch):
-    """wmic 输出为空时应返回空字符串。"""
+    """PowerShell 输出为空时应返回空字符串。"""
     monkeypatch.setattr('sys.platform', 'win32')
     fake_result = MagicMock(stdout='', returncode=0)
     with patch('subprocess.run', return_value=fake_result):
         assert get_bios_serial() == ''
 
 
-def test_get_bios_serial_no_serial_line(monkeypatch):
-    """wmic 输出不含 SerialNumber 行时应返回空字符串。"""
+def test_get_bios_serial_whitespace_output(monkeypatch):
+    """PowerShell 输出仅含空白时应返回空字符串。"""
     monkeypatch.setattr('sys.platform', 'win32')
-    fake_result = MagicMock(stdout='Node - COMPUTER\n\n', returncode=0)
+    fake_result = MagicMock(stdout='\r\n  \n', returncode=0)
     with patch('subprocess.run', return_value=fake_result):
         assert get_bios_serial() == ''
 

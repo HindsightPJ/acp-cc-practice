@@ -21,6 +21,8 @@ class BaseMode(ABC, ttk.Frame):
         self.data_manager = data_manager
         self.progress = progress
         self._after_jobs: List[Any] = []  # 跟踪所有 after 回调
+        self.engine = None  # 基类保证属性存在，子类覆盖
+        self.current_index = 0
 
     def _add_after_job(self, job_id) -> None:
         """添加 after 作业并跟踪"""
@@ -31,13 +33,23 @@ class BaseMode(ABC, ttk.Frame):
         for job_id in self._after_jobs:
             try:
                 self.after_cancel(job_id)
-            except Exception:
-                pass
+            except tk.TclError:
+                pass  # widget 已销毁或 job 已执行
         self._after_jobs.clear()
 
+    def flush_pending_save(self) -> None:
+        """销毁前强制保存延迟的进度数据，子类可覆盖。"""
+        pass
+
     def destroy(self) -> None:
-        """窗口销毁时清理所有待执行的回调"""
+        """窗口销毁时清理所有待执行的回调和事件绑定"""
+        self.flush_pending_save()
         self._cancel_all_after_jobs()
+        try:
+            self.unbind('<Key>')
+            self.unbind('<Button-1>')
+        except tk.TclError:
+            pass  # widget 已销毁
         super().destroy()
 
     def _create_toolbar(self, parent) -> tuple:
@@ -81,7 +93,7 @@ class BaseMode(ABC, ttk.Frame):
         """绑定键盘事件"""
         self.focus_set()
         self.bind('<Key>', self._on_key_press)
-        self.bind_all('<Button-1>', self._on_global_click)
+        self.bind('<Button-1>', self._on_global_click)
 
     def _on_global_click(self, event) -> None:
         """全局点击处理，设置焦点。

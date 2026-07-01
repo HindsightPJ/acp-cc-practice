@@ -12,7 +12,7 @@
   2. 拆分 signature || salt || encrypted_K（严格长度校验）
   3. Ed25519 验签（用内置公钥）
   4. 采集本机指纹 F
-  5. DK = PBKDF2(F, salt, 200000)
+  5. DK = PBKDF2(F, salt, 600000)
   6. K = AES-256-GCM-Decrypt(nonce, ciphertext_with_tag, aad=salt)
      （GCM tag 验证指纹：机器码错误 → DK 错误 → tag 不匹配 → WRONG_MACHINE）
 """
@@ -113,6 +113,9 @@ class LicenseVerifier:
     def check_local_license(self) -> Tuple[LicenseStatus, Optional[str], bool]:
         """检查本地 license.dat。
 
+        P1-7: 当 license.dat 损坏（base64 解码失败 / 长度不对）时，
+        备份为 .corrupt-{timestamp} 后降级试用，避免反复读到坏文件。
+
         Returns:
             (status, K, had_failure)
             - 无文件：(TRIAL, None, False) — 静默试用
@@ -133,19 +136,47 @@ class LicenseVerifier:
         if status == LicenseStatus.AUTHORIZED:
             return (status, k, False)
         logger.warning("license.dat 验证失败，降级试用: %s", err)
+
+        # P1-7: license.dat 文件本身损坏时备份为 .corrupt-{timestamp}，
+        # 避免每次启动都读到坏文件。其他失败原因（INVALID_SIGNATURE /
+        # WRONG_MACHINE）保留原文件，便于用户重试。
+        if err == LicenseError.CORRUPT_LICENSE_FILE:
+            self._backup_corrupt_license()
+
         return (LicenseStatus.TRIAL, None, True)
 
-    def save_license(self, license_code: str) -> bool:
-        """持久化注册码到 license.dat（TD-08: 原子写入）。
+    def _backup_corrupt_license(self) -> None:
+        """把损坏的 license.dat 改名为带时间戳的 .corrupt 副本，便于事后排查。
 
-        采用 tmp + os.replace 模式，避免断电导致文件损坏。
-        与 data_manager.save_progress 的原子写入模式保持一致。
+        与 data_manager._backup_corrupt_progress 行为一致。
+        """
+        import time
+        timestamp = time.strftime('%Y%m%d-%H%M%S')
+        backup_path = f"{self.license_file}.corrupt-{timestamp}"
+        try:
+            os.replace(self.license_file, backup_path)
+            logger.warning("license.dat 已损坏，备份到 %s", backup_path)
+        except OSError:
+            pass
+
+    def save_license(self, license_code: str) -> bool:
+        """持久化注册码到 license.dat（TD-08: 原子写入 + P1-6: .bak 备份）。
+
+        采用「先备份 .bak → 写 .tmp → os.replace」模式，与
+        data_manager.save_progress 保持一致。断电时可通过 .bak 恢复。
 
         Returns:
             True 保存成功，False 保存失败（权限等）
         """
         tmp_file = self.license_file + '.tmp'
+        bak_file = self.license_file + '.bak'
         try:
+            # P1-6: 写入前备份现有 license.dat（与 progress.json 一致）
+            if os.path.exists(self.license_file):
+                try:
+                    os.replace(self.license_file, bak_file)
+                except OSError:
+                    pass  # 备份失败不阻塞主流程
             with open(tmp_file, 'w', encoding='utf-8') as f:
                 f.write(license_code)
             os.replace(tmp_file, self.license_file)
@@ -155,6 +186,12 @@ class LicenseVerifier:
             if os.path.exists(tmp_file):
                 try:
                     os.remove(tmp_file)
+                except OSError:
+                    pass
+            # 尝试从 .bak 恢复（保存失败时回滚到旧版本）
+            if os.path.exists(bak_file) and not os.path.exists(self.license_file):
+                try:
+                    os.replace(bak_file, self.license_file)
                 except OSError:
                     pass
             return False

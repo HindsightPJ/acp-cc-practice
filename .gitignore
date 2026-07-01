@@ -23,8 +23,9 @@ env/
 *~
 
 # User data（每台机器首次使用时生成，不入库）
-# 仅放行加密题库 questions.enc / trial / meta 三个文件
-data/*
+# 保留 data/ 目录结构，放行加密题库 questions.enc / trial / meta 三个文件
+data/
+!data/.gitkeep
 !data/questions.enc
 !data/questions_trial.json
 !data/questions_meta.json

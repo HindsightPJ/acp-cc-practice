@@ -1,10 +1,11 @@
 import sys
 import os
 import logging
+from logging.handlers import RotatingFileHandler
 import tkinter as tk
 from tkinter import messagebox
 
-from data_manager import DataManager
+from data_manager import DataManager, DataLoadError
 from license import LicenseStatus
 from license.verifier import LicenseVerifier
 from ui.main_window import MainWindow
@@ -32,13 +33,15 @@ def _resolve_user_data_dir() -> str:
 
 
 def _setup_logging(user_data_dir: str) -> None:
-    """配置 logging 到 user_data_dir/app.log（console=False 后 print 无输出）。"""
+    """配置 logging 到 user_data_dir/app.log，启用轮转避免日志无限增长。"""
     log_file = os.path.join(user_data_dir, 'app.log')
     logging.basicConfig(
         level=logging.WARNING,
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
         handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'),
+            RotatingFileHandler(
+                log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding='utf-8'
+            ),
         ],
     )
 
@@ -73,12 +76,14 @@ def main():
             questions = data_manager.load_full_questions(key)
         else:
             # 试用模式：加载 trial，缺失则报错
+            # P3-1: 收窄异常捕获——load_trial_questions 只会抛 DataLoadError
+            # (OSError 已被它内部捕获并转抛 DataLoadError)，其他异常应上抛
             try:
                 questions = data_manager.load_trial_questions()
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except DataLoadError as e:
                 logger.error("加载试用题库失败: %s", e)
                 _show_fatal_error("错误", "试用题库缺失，请重新下载程序。")
-    except Exception as e:
+    except DataLoadError as e:
         logger.exception("题库数据加载失败")
         _show_fatal_error("错误", f"题库数据加载失败:\n\n{str(e)}")
 
@@ -99,7 +104,13 @@ def main():
                 parent=app,
             ))
         app.mainloop()
-    except Exception as e:
+    except (tk.TclError, OSError, ValueError, KeyError, RuntimeError) as e:
+        # P3-1: 收窄异常捕获——
+        # tk.TclError: Tk/Tcl 内部错误（display 不可用、字体加载失败等）
+        # OSError: 文件读写失败（progress.json / license.dat）
+        # ValueError/KeyError: 配置或数据格式错误
+        # RuntimeError: 其他运行时错误
+        # 其他异常应上抛，便于开发者定位
         logger.exception("程序启动失败")
         _show_fatal_error("启动错误", f"程序启动失败:\n\n{str(e)}")
 

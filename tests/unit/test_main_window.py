@@ -14,7 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from ui.main_window import (  # pylint: disable=wrong-import-position
+from ui.license_dialog import (  # pylint: disable=wrong-import-position
     _get_license_error_message,
     _verify_and_save_license,
     _LICENSE_ERROR_MESSAGES,
@@ -66,10 +66,10 @@ def test_error_message_dict_keys_complete():
 
 def test_verify_and_save_success():
     """验证成功且保存成功 → (True, 成功消息, True)。"""
-    with patch('ui.main_window.verify', return_value=(LicenseStatus.AUTHORIZED, 'K123', None)):
+    with patch('ui.license_dialog.verify', return_value=(LicenseStatus.AUTHORIZED, 'K123', None)):
         mock_verifier = MagicMock()
         mock_verifier.save_license.return_value = True
-        with patch('ui.main_window.LicenseVerifier', return_value=mock_verifier):
+        with patch('ui.license_dialog.LicenseVerifier', return_value=mock_verifier):
             success, msg, should_close = _verify_and_save_license('valid-code', '/tmp/data')
     assert success is True
     assert "授权成功" in msg
@@ -79,10 +79,10 @@ def test_verify_and_save_success():
 
 def test_verify_and_save_save_fails():
     """验证成功但保存失败 → (False, 失败消息, False)。"""
-    with patch('ui.main_window.verify', return_value=(LicenseStatus.AUTHORIZED, 'K123', None)):
+    with patch('ui.license_dialog.verify', return_value=(LicenseStatus.AUTHORIZED, 'K123', None)):
         mock_verifier = MagicMock()
         mock_verifier.save_license.return_value = False
-        with patch('ui.main_window.LicenseVerifier', return_value=mock_verifier):
+        with patch('ui.license_dialog.LicenseVerifier', return_value=mock_verifier):
             success, msg, should_close = _verify_and_save_license('valid-code', '/tmp/data')
     assert success is False
     assert "保存到本地失败" in msg
@@ -91,7 +91,7 @@ def test_verify_and_save_save_fails():
 
 def test_verify_and_save_invalid_code():
     """验证失败（无效签名）→ (False, 错误消息, False)。"""
-    with patch('ui.main_window.verify',
+    with patch('ui.license_dialog.verify',
                return_value=(LicenseStatus.TRIAL, None, LicenseError.INVALID_SIGNATURE)):
         success, msg, should_close = _verify_and_save_license('bad-code', '/tmp/data')
     assert success is False
@@ -101,7 +101,7 @@ def test_verify_and_save_invalid_code():
 
 def test_verify_and_save_wrong_machine():
     """验证失败（机器码不匹配）→ (False, 错误消息, False)。"""
-    with patch('ui.main_window.verify',
+    with patch('ui.license_dialog.verify',
                return_value=(LicenseStatus.TRIAL, None, LicenseError.WRONG_MACHINE)):
         success, msg, should_close = _verify_and_save_license('code', '/tmp/data')
     assert success is False
@@ -111,7 +111,7 @@ def test_verify_and_save_wrong_machine():
 
 def test_verify_and_save_no_key_authorized():
     """验证状态 AUTHORIZED 但 k 为 None → 视为失败。"""
-    with patch('ui.main_window.verify', return_value=(LicenseStatus.AUTHORIZED, None, None)):
+    with patch('ui.license_dialog.verify', return_value=(LicenseStatus.AUTHORIZED, None, None)):
         success, msg, should_close = _verify_and_save_license('code', '/tmp/data')
     assert success is False
     assert should_close is False

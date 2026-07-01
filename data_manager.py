@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
 import os
+import sys
 import json
 import re
 import logging
@@ -171,6 +172,9 @@ class DataManager:
 
         解密失败的场景（无 .env 密钥 / 密钥错误 / 文件损坏）都不阻断，
         便于他人 clone 后用自己的合法题库运行程序。
+
+        P1-2: 打包后（frozen）禁用明文/docx fallback，避免用户篡改题库或绕过加密。
+        开发模式保留 fallback，便于他人 clone 后用自己的合法题库运行程序。
         """
         # 1. 优先读加密文件
         if os.path.exists(self.questions_enc_file):
@@ -188,6 +192,14 @@ class DataManager:
                 # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
                 # → fallback，不阻断
                 logger.warning("解密 questions.enc 失败，fallback 到明文: %s", e)
+
+        # P1-2: 打包后禁用明文/docx fallback，避免用户篡改题库或绕过加密
+        # 仅开发模式保留 fallback，便于他人 clone 后用自己的合法题库运行程序
+        if getattr(sys, 'frozen', False):
+            raise DataLoadError(
+                "题库密文无法解密，请通过作者重新签发注册码或重新下载程序。"
+                "（打包环境不支持明文 fallback）"
+            )
 
         # 2. fallback 明文 questions.json
         if os.path.exists(self.questions_file):
@@ -265,14 +277,30 @@ class DataManager:
             raise DataLoadError(f"题库密文损坏或密钥不匹配: {e}")
 
     def _load_encryption_key(self) -> Optional[str]:
-        """从 .env 读取 QUESTIONS_KEY（TD-05: 改用统一 load_env）。"""
+        """从 .env 读取加密密钥。
+
+        优先读取 QUESTIONS_MASTER_KEY（新命名），兼容旧版 QUESTIONS_KEY（已弃用）。
+        使用旧命名时记录弃用警告，提示用户迁移到新命名。
+        """
         env = load_env(os.path.join(self.base_dir, '.env'))
-        return env.get('QUESTIONS_KEY')
+        key = env.get('QUESTIONS_MASTER_KEY')
+        if key is None:
+            key = env.get('QUESTIONS_KEY')
+            if key is not None:
+                logger.warning("使用了已弃用的环境变量 QUESTIONS_KEY，请迁移到 QUESTIONS_MASTER_KEY")
+        return key
 
     def save_progress(self, progress_data: Dict[str, Any]) -> None:
-        """保存学习进度（原子写入：先写临时文件，再 os.replace 替换）"""
+        """保存学习进度（Windows 安全：先备份 .bak，再写 .tmp，最后 os.replace）"""
         tmp_file = self.progress_file + '.tmp'
+        bak_file = self.progress_file + '.bak'
         try:
+            # 在写入前备份现有文件（Windows 上 os.replace 非原子，崩溃时可用 .bak 恢复）
+            if os.path.exists(self.progress_file):
+                try:
+                    os.replace(self.progress_file, bak_file)
+                except OSError:
+                    pass  # 备份失败不阻塞主流程
             with open(tmp_file, 'w', encoding='utf-8') as f:
                 json.dump(progress_data, f, ensure_ascii=False, indent=2)
             os.replace(tmp_file, self.progress_file)
@@ -282,10 +310,19 @@ class DataManager:
                     os.remove(tmp_file)
                 except OSError:
                     pass
+            # 尝试从 .bak 恢复
+            if os.path.exists(bak_file) and not os.path.exists(self.progress_file):
+                try:
+                    os.replace(bak_file, self.progress_file)
+                except OSError:
+                    pass
             raise DataSaveError(f"无法保存进度数据: {e}")
 
     def load_progress(self) -> Dict[str, Any]:
-        """加载学习进度；遇到损坏文件自动备份为 .corrupt-{timestamp} 便于排查"""
+        """加载学习进度；遇到损坏文件自动备份为 .corrupt-{timestamp} 便于排查。
+
+        若 progress.json 不存在但 .bak 存在（崩溃场景），自动从 .bak 恢复。
+        """
         if os.path.exists(self.progress_file):
             try:
                 with open(self.progress_file, 'r', encoding='utf-8') as f:
@@ -294,6 +331,18 @@ class DataManager:
                 self._backup_corrupt_progress()
             except PermissionError:
                 raise DataLoadError(f"无法读取进度文件，请检查文件权限")
+
+        # progress.json 不存在，尝试从 .bak 恢复（崩溃后场景）
+        bak_file = self.progress_file + '.bak'
+        if os.path.exists(bak_file):
+            logger.warning("progress.json 缺失，尝试从 .bak 恢复")
+            try:
+                os.replace(bak_file, self.progress_file)
+                with open(self.progress_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                logger.warning("从 .bak 恢复失败: %s", e)
+
         return {
             'wrong_questions': [],
             'practice_stats': {'correct': 0, 'wrong': 0, 'total': 0},

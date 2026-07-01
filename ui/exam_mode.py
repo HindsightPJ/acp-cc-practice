@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+from typing import List, Dict, Any, Optional
 
 from .theme import (
     BG_PAGE, BG_CARD, BG_INPUT, BG_HOVER, BG_SELECT,
@@ -24,7 +25,8 @@ from .option_row import OptionRow
 
 
 class ExamMode(BaseMode):
-    def __init__(self, parent, questions, data_manager, progress):
+    def __init__(self, parent, questions: List[Dict[str, Any]],
+                 data_manager, progress: Dict[str, Any]) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.engine = None
         self.timer_running = False
@@ -291,7 +293,7 @@ class ExamMode(BaseMode):
 
             btn.configure(text=text, bg=bg, fg=fg)
 
-    def toggle_mark_current(self):
+    def toggle_mark_current(self) -> None:
         idx = self.engine.get_current_index()  # TD-15: 显式接口
         if idx in self.exam_marked:
             self.exam_marked.remove(idx)
@@ -299,12 +301,12 @@ class ExamMode(BaseMode):
             self.exam_marked.add(idx)
         self._update_nav_buttons()
 
-    def jump_to_question(self, idx):
+    def jump_to_question(self, idx: int) -> None:
         if 0 <= idx < self.engine.queue_length():  # TD-15: 显式接口
             self.engine.set_current_index(idx)  # TD-15: 显式接口
             self.load_exam_question()
 
-    def start_exam(self):
+    def start_exam(self) -> None:
         self._cancel_all_after_jobs()
         try:
             question_count = int(self.question_count_var.get())
@@ -329,19 +331,20 @@ class ExamMode(BaseMode):
         self.load_exam_question()
         self.update_timer()
 
-    def update_timer(self):
+    def update_timer(self) -> None:
         if not self.timer_running:
             return
 
-        # 用 datetime diff 计算实际经过时间，避免 after(1000) 累积漂移
-        if self.engine and self.engine.exam_start_time is not None:
-            elapsed = (datetime.now() - self.engine.exam_start_time).total_seconds()
-            self.time_remaining = max(0, self.exam_total_seconds - int(elapsed))
+        # 用 engine 显式接口计算实际经过时间，避免 after(1000) 累积漂移
+        if self.engine:
+            elapsed = self.engine.get_exam_elapsed_seconds()
+            if elapsed is not None:
+                self.time_remaining = max(0, self.exam_total_seconds - elapsed)
 
         if self.time_remaining <= 0:
             self.timer_running = False
             messagebox.showwarning("时间到", "考试时间已到，将自动交卷！")
-            self.submit_exam()
+            self.submit_exam(force=True)
             return
 
         minutes = self.time_remaining // 60
@@ -350,14 +353,13 @@ class ExamMode(BaseMode):
         self.timer_label.configure(text=time_str)
 
         if self.time_remaining <= 300:
-            alpha = 0.5 + 0.5 * (self.time_remaining % 2)
             color = RED if self.time_remaining % 2 == 0 else '#b91c1c'
             self.timer_label.configure(fg=color)
 
         job_id = self.after(1000, self.update_timer)
         self._add_after_job(job_id)
 
-    def load_exam_question(self):
+    def load_exam_question(self) -> None:
         question = self.engine.get_current_question()
         if not question:
             return
@@ -401,7 +403,7 @@ class ExamMode(BaseMode):
 
         self._update_nav_buttons()
 
-    def exam_select_option_by_letter(self, letter):
+    def exam_select_option_by_letter(self, letter: str) -> None:
         """点击或键盘触发选项选择。"""
         idx = ord(letter) - ord('A')
         if not (0 <= idx < len(self.exam_option_cards)):
@@ -453,22 +455,22 @@ class ExamMode(BaseMode):
 
         self._update_nav_buttons()
 
-    def exam_next_question(self):
+    def exam_next_question(self) -> None:
         if self.engine.has_next():
             self.engine.next_question()
             self.load_exam_question()
         else:
             messagebox.showinfo("提示", "已经是最后一题了！")
 
-    def exam_prev_question(self):
+    def exam_prev_question(self) -> None:
         if self.engine.has_prev():
             self.engine.prev_question()
             self.load_exam_question()
         else:
             messagebox.showinfo("提示", "已经是第一题了！")
 
-    def submit_exam(self):
-        if not messagebox.askyesno("确认交卷", "确定要交卷吗？\n\n提交后将无法修改答案。"):
+    def submit_exam(self, force: bool = False) -> None:
+        if not force and not messagebox.askyesno("确认交卷", "确定要交卷吗？\n\n提交后将无法修改答案。"):
             return
 
         self._cancel_all_after_jobs()
@@ -483,7 +485,7 @@ class ExamMode(BaseMode):
             self._save_exam_history(report)
             self.show_exam_report(report)
 
-    def _save_exam_history(self, report):
+    def _save_exam_history(self, report: Dict[str, Any]) -> None:
         history = self.progress.get('exam_history', [])
         history.append({
             'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
@@ -496,7 +498,7 @@ class ExamMode(BaseMode):
         self.progress['exam_history'] = history[-20:]
         self.data_manager.save_progress(self.progress)
 
-    def show_exam_report(self, report):
+    def show_exam_report(self, report: Dict[str, Any]) -> None:
         report_window = tk.Toplevel(self)
         report_window.title("考试成绩报告")
         report_window.geometry("600x550")
@@ -608,7 +610,7 @@ class ExamMode(BaseMode):
                               relief=tk.FLAT, width=12, padx=16, pady=6, cursor='hand2')
         close_btn.pack(pady=(0, 20))
 
-    def add_wrong_to_book(self, report):
+    def add_wrong_to_book(self, report: Dict[str, Any]) -> None:
         for q in report['wrong_questions']:
             q_num = q.get('number')
             if q_num not in self.progress.get('wrong_questions', []):

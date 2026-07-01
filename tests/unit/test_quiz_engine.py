@@ -89,8 +89,8 @@ def test_init_empty_questions():
     assert eng.all_questions == []
     assert eng.current_index == 0
     assert eng.questions_queue == []
-    assert eng.answers_record == []
-    assert eng.stats == {'correct': 0, 'wrong': 0, 'total': 0}
+    assert eng.answers_record == {}
+    assert eng.get_stats() == {'correct': 0, 'wrong': 0, 'total': 0}
     assert eng.exam_start_time is None
 
 
@@ -110,8 +110,8 @@ def test_start_practice_mode_no_shuffle(engine, sample_questions):
     assert engine.questions_queue[0]['number'] == 1
     assert engine.questions_queue[9]['number'] == 10
     assert engine.current_index == 0
-    assert engine.answers_record == []
-    assert engine.stats == {'correct': 0, 'wrong': 0, 'total': 0}
+    assert engine.answers_record == {}
+    assert engine.get_stats() == {'correct': 0, 'wrong': 0, 'total': 0}
 
 
 def test_start_practice_mode_with_shuffle(engine, sample_questions):
@@ -131,12 +131,12 @@ def test_start_practice_mode_resets_state(engine):
     engine.submit_answer('A')
     engine.next_question()
     engine.submit_answer('B')
-    assert engine.stats['total'] == 2
+    assert engine.get_stats()['total'] == 2
 
     # 重新开始应清空
     engine.start_practice_mode(shuffle=False)
-    assert engine.stats == {'correct': 0, 'wrong': 0, 'total': 0}
-    assert engine.answers_record == []
+    assert engine.get_stats() == {'correct': 0, 'wrong': 0, 'total': 0}
+    assert engine.answers_record == {}
     assert engine.current_index == 0
 
 
@@ -173,8 +173,8 @@ def test_start_exam_mode_resets_state(engine):
     engine.start_practice_mode(shuffle=False)
     engine.submit_answer('A')
     engine.start_exam_mode(question_count=5, shuffle=False)
-    assert engine.stats == {'correct': 0, 'wrong': 0, 'total': 0}
-    assert engine.answers_record == []
+    assert engine.get_stats() == {'correct': 0, 'wrong': 0, 'total': 0}
+    assert engine.answers_record == {}
     assert engine.current_index == 0
 
 
@@ -273,18 +273,18 @@ def test_submit_answer_updates_stats_correct(engine):
     """答对应使 correct+1、total+1。"""
     engine.start_practice_mode(shuffle=False)
     engine.submit_answer('A')
-    assert engine.stats == {'correct': 1, 'wrong': 0, 'total': 1}
+    assert engine.get_stats() == {'correct': 1, 'wrong': 0, 'total': 1}
 
 
 def test_submit_answer_updates_stats_wrong(engine):
     """答错应使 wrong+1、total+1。"""
     engine.start_practice_mode(shuffle=False)
     engine.submit_answer('B')
-    assert engine.stats == {'correct': 0, 'wrong': 1, 'total': 1}
+    assert engine.get_stats() == {'correct': 0, 'wrong': 1, 'total': 1}
 
 
 def test_submit_answer_records_in_answers_record(engine):
-    """每次提交应追加到 answers_record。"""
+    """每次提交应写入 answers_record（dict，以 queue_index 为键）。"""
     engine.start_practice_mode(shuffle=False)
     engine.submit_answer('A')
     engine.next_question()
@@ -409,6 +409,15 @@ def test_get_progress_includes_stats(engine):
     progress = engine.get_progress()
     assert progress['stats']['total'] == 1
     assert progress['stats']['correct'] == 1
+
+
+def test_get_progress_stats_is_copy(engine):
+    """progress['stats'] 应返回副本，修改不影响内部状态（TD-15 接口契约）。"""
+    engine.start_practice_mode(shuffle=False)
+    engine.submit_answer('A')
+    progress = engine.get_progress()
+    progress['stats']['correct'] = 999
+    assert engine.get_stats()['correct'] == 1
 
 
 # ---------- get_stats 测试（TD-15）----------
@@ -582,12 +591,12 @@ def test_get_wrong_answers_uses_queue_index(engine):
 def test_get_wrong_answers_invalid_index_skipped(engine):
     """queue_index 越界时应跳过，不报错。"""
     engine.start_practice_mode(shuffle=False)
-    # 手动注入一条 queue_index 越界的记录
-    engine.answers_record.append({
+    # 手动注入一条 queue_index 越界的记录（dict 结构，以 queue_index 为键）
+    engine.answers_record[999] = {
         'queue_index': 999,
         'is_correct': False,
         'question_number': 999,
-    })
+    }
     # 不应抛异常
     wrong = engine.get_wrong_answers()
     assert len(wrong) == 0  # 越界记录被跳过
@@ -596,10 +605,11 @@ def test_get_wrong_answers_invalid_index_skipped(engine):
 def test_get_wrong_answers_missing_queue_index(engine):
     """queue_index 缺失时应跳过。"""
     engine.start_practice_mode(shuffle=False)
-    engine.answers_record.append({
+    # dict 结构：用任意键写入，但记录内部无 queue_index 字段
+    engine.answers_record[0] = {
         'is_correct': False,
         # 无 queue_index 字段
-    })
+    }
     wrong = engine.get_wrong_answers()
     assert len(wrong) == 0
 
@@ -626,23 +636,25 @@ def test_record_exam_answer_updates_stats(engine):
     engine.start_exam_mode(question_count=10, shuffle=False)
     engine.record_exam_answer(0, 'A')  # 正确
     engine.record_exam_answer(1, 'B')  # 错误
-    assert engine.stats['total'] == 2
-    assert engine.stats['correct'] == 1
-    assert engine.stats['wrong'] == 1
+    stats = engine.get_stats()
+    assert stats['total'] == 2
+    assert stats['correct'] == 1
+    assert stats['wrong'] == 1
 
 
 def test_record_exam_answer_multi_record_same_question(engine):
-    """同一题多次记录应都生效（考试模式跳跃答题场景）。
+    """同一题多次记录（改答案）应覆盖更新，不重复计数。
 
-    注意：当前实现会重复统计，这是已知行为，测试用于文档化。
+    A7 修复后 answers_record 为 dict，同一 queue_index 改答案会覆盖，
+    不会重复统计——这是与旧行为的关键差异。
     """
     engine.start_exam_mode(question_count=10, shuffle=False)
     engine.record_exam_answer(0, 'B')  # 第一次答错
-    engine.record_exam_answer(0, 'A')  # 第二次答对（改答案）
-    # 当前实现会统计两次（未去重）
-    assert engine.stats['total'] == 2
-    assert engine.stats['correct'] == 1
-    assert engine.stats['wrong'] == 1
+    engine.record_exam_answer(0, 'A')  # 第二次答对（覆盖）
+    stats = engine.get_stats()
+    assert stats['total'] == 1  # 覆盖，不重复
+    assert stats['correct'] == 1
+    assert stats['wrong'] == 0
 
 
 def test_record_exam_answer_multi_choice(engine):
@@ -663,6 +675,21 @@ def test_record_exam_answer_result_fields(engine):
     assert 'selected' in result
     assert 'correct_answer' in result
     assert 'is_correct' in result
+
+
+# ---------- get_exam_elapsed_seconds 测试（TD-15）----------
+
+def test_get_exam_elapsed_seconds_not_in_exam_mode(engine):
+    """未启动考试模式时返回 None。"""
+    assert engine.get_exam_elapsed_seconds() is None
+
+
+def test_get_exam_elapsed_seconds_returns_non_negative(engine):
+    """启动考试模式后应返回非负整数秒数。"""
+    engine.start_exam_mode(question_count=10, shuffle=False)
+    elapsed = engine.get_exam_elapsed_seconds()
+    assert isinstance(elapsed, int)
+    assert elapsed >= 0
 
 
 # ---------- get_exam_report 测试 ----------

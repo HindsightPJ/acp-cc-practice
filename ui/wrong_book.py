@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+from typing import List, Dict, Any, Optional
 
 from .theme import (
     BG_PAGE, BG_CARD, BG_INPUT, BG_SELECT,
@@ -22,18 +23,28 @@ from .option_row import OptionRow
 
 
 class WrongBook(BaseMode):
-    def __init__(self, parent, questions, data_manager, progress):
+    def __init__(self, parent, questions: List[Dict[str, Any]],
+                 data_manager, progress: Dict[str, Any]) -> None:
         super().__init__(parent, questions, data_manager, progress)
 
         self.wrong_questions = self._get_wrong_questions_list()
         self.practice_engine = None
         self._practice_window = None
+        self._detail_windows = []
 
         self._setup_mode_ui()
 
     def destroy(self) -> None:
-        """切 tab 销毁 WrongBook 时，主动关闭错题练习子窗口，
+        """切 tab 销毁 WrongBook 时，主动关闭所有子窗口，
         避免幽灵窗口持有 engine 引用造成状态分裂。"""
+        for dw in self._detail_windows:
+            try:
+                dw.grab_release()
+                dw.destroy()
+            except tk.TclError:
+                pass
+        self._detail_windows.clear()
+
         if self._practice_window is not None:
             try:
                 self._practice_window.grab_release()
@@ -43,7 +54,7 @@ class WrongBook(BaseMode):
             self._practice_window = None
         super().destroy()
 
-    def _get_wrong_questions_list(self):
+    def _get_wrong_questions_list(self) -> List[Dict[str, Any]]:
         wrong_nums = set(self.progress.get('wrong_questions', []))
         return [q for q in self.questions if q.get('number') in wrong_nums]
 
@@ -159,7 +170,7 @@ class WrongBook(BaseMode):
             self.empty_state.pack_forget()
             self.list_inner.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
 
-    def view_question_detail(self, event):
+    def view_question_detail(self, event) -> None:
         selection = self.tree.selection()
         if not selection:
             return
@@ -177,6 +188,9 @@ class WrongBook(BaseMode):
         detail_window.configure(bg=BG_PAGE)
         detail_window.transient(self.winfo_toplevel())
         detail_window.grab_set()
+
+        self._detail_windows.append(detail_window)
+        detail_window.protocol("WM_DELETE_WINDOW", lambda: self._close_detail_window(detail_window))
 
         detail_window.update_idletasks()
         width = detail_window.winfo_width()
@@ -281,11 +295,21 @@ class WrongBook(BaseMode):
         master_btn.pack(side=tk.LEFT)
 
         close_btn = tk.Button(btn_frame, text="关闭",
-                              command=detail_window.destroy,
+                              command=lambda: self._close_detail_window(detail_window),
                               font=font_ui(10), fg=BTN_NORMAL_FG, bg=BTN_NORMAL,
                               activebackground=BTN_NORMAL_HOVER,
                               relief=tk.FLAT, padx=12, pady=5, cursor='hand2')
         close_btn.pack(side=tk.RIGHT)
+
+    def _close_detail_window(self, window):
+        """安全关闭详情窗口并从跟踪列表移除。"""
+        try:
+            if window in self._detail_windows:
+                self._detail_windows.remove(window)
+            window.grab_release()
+            window.destroy()
+        except tk.TclError:
+            pass
 
     def _mark_as_mastered(self, q_num, window):
         if q_num in self.progress.get('wrong_questions', []):
@@ -296,10 +320,10 @@ class WrongBook(BaseMode):
             self._populate_tree()
             self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
 
-            window.destroy()
+            self._close_detail_window(window)
             messagebox.showinfo("成功", "该题已从错题本移除！")
 
-    def start_practice_wrong(self):
+    def start_practice_wrong(self) -> None:
         if not self.wrong_questions:
             messagebox.showinfo("提示", "错题本是空的，继续加油！")
             return
@@ -399,11 +423,11 @@ class WrongBook(BaseMode):
         """绑定错题练习窗口的键盘事件"""
         window.focus_set()
         window.bind('<Key>', self._on_practice_key_press)
-        window.bind_all('<Button-1>', self._on_practice_global_click)
+        window.bind('<Button-1>', self._on_practice_global_click)
 
     def _on_practice_global_click(self, event):
         """全局点击设置焦点到练习窗口"""
-        if hasattr(self, '_practice_window') and self._practice_window.winfo_exists():
+        if self._practice_window is not None and self._practice_window.winfo_exists():
             self._practice_window.focus_set()
 
     def _on_practice_key_press(self, event):
@@ -505,7 +529,8 @@ class WrongBook(BaseMode):
         self.practice_progress_label.configure(
             text=f"第 {progress['current']} / {progress['total']} 题")
 
-        stats = progress['stats']
+        # P2-3: 统一用 get_stats() 显式接口访问统计，与 _psubmit_answer 保持一致。
+        stats = self.practice_engine.get_stats()
         accuracy = (stats['correct'] / stats['total'] * 100) if stats['total'] > 0 else 0
         self.practice_stats_label.configure(
             text=f"正确 {stats['correct']}  |  错误 {stats['wrong']}  |  正确率 {accuracy:.0f}%")
@@ -524,6 +549,16 @@ class WrongBook(BaseMode):
         answer_str = ''.join(selected_letters)
         result = self.practice_engine.submit_answer(answer_str)
         self.panswered = True
+
+        # 写回主页练习统计
+        ps = self.progress.get('practice_stats', {'correct': 0, 'wrong': 0, 'total': 0})
+        ps['total'] = ps.get('total', 0) + 1
+        if result['is_correct']:
+            ps['correct'] = ps.get('correct', 0) + 1
+        else:
+            ps['wrong'] = ps.get('wrong', 0) + 1
+        self.progress['practice_stats'] = ps
+        self.data_manager.save_progress(self.progress)
 
         if result['is_correct']:
             self.presult_label.configure(text="回答正确", fg=GREEN)
@@ -546,7 +581,7 @@ class WrongBook(BaseMode):
 
         self.psubmit_btn.configure(state=tk.DISABLED, bg=BTN_DISABLED)
 
-        stats = self.practice_engine.stats
+        stats = self.practice_engine.get_stats()
         accuracy = (stats['correct'] / stats['total'] * 100) if stats['total'] > 0 else 0
         self.practice_stats_label.configure(
             text=f"正确 {stats['correct']}  |  错误 {stats['wrong']}  |  正确率 {accuracy:.0f}%")
@@ -559,7 +594,7 @@ class WrongBook(BaseMode):
             self._show_practice_result()
 
     def _show_practice_result(self):
-        stats = self.practice_engine.stats
+        stats = self.practice_engine.get_stats()
         total = stats['total']
         correct = stats['correct']
         accuracy = (correct / total * 100) if total > 0 else 0
@@ -568,11 +603,14 @@ class WrongBook(BaseMode):
 
         if accuracy >= 80:
             msg += "\n\n太棒了！你已经掌握了这些错题！"
-            if messagebox.askyesno("恭喜", msg + "\n\n是否将这些错题从错题本中移除？"):
-                for q in self.wrong_questions:
-                    q_num = q.get('number')
-                    if q_num in self.progress.get('wrong_questions', []):
-                        self.progress['wrong_questions'].remove(q_num)
+            # P1-4: 只移除本次练习中答对的错题，而非全部错题。
+            # 此前遍历 self.wrong_questions 全部移除，包括答错的 20%。
+            if messagebox.askyesno("恭喜", msg + "\n\n是否将本次答对的错题从错题本中移除？"):
+                correct_nums = self.practice_engine.get_correct_question_numbers()
+                self.progress['wrong_questions'] = [
+                    q_num for q_num in self.progress.get('wrong_questions', [])
+                    if q_num not in correct_nums
+                ]
 
                 self.data_manager.save_progress(self.progress)
                 self.wrong_questions = self._get_wrong_questions_list()
@@ -581,7 +619,19 @@ class WrongBook(BaseMode):
         else:
             messagebox.showinfo("练习完成", msg + "\n\n继续努力，多复习几遍吧！")
 
-    def clear_all_wrong(self):
+        self._close_practice_window()
+
+    def _close_practice_window(self):
+        """关闭错题练习子窗口。"""
+        if self._practice_window is not None:
+            try:
+                self._practice_window.grab_release()
+                self._practice_window.destroy()
+            except tk.TclError:
+                pass
+            self._practice_window = None
+
+    def clear_all_wrong(self) -> None:
         if not self.wrong_questions:
             messagebox.showinfo("提示", "错题本已经是空的了！")
             return

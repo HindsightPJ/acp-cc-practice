@@ -89,9 +89,10 @@ def get_volume_serial(drive: str = 'C:\\') -> str:
 def get_computer_name() -> str:
     """读取计算机名。
 
-    优先用环境变量 COMPUTERNAME，fallback 到 socket.gethostname()。
+    直接使用 socket.gethostname() 获取，避免环境变量被伪造。
+    返回值统一转为小写并去除首尾空格，防止微小差异导致指纹变化。
     """
-    return os.environ.get('COMPUTERNAME') or socket.gethostname()
+    return socket.gethostname().strip().lower()
 
 
 # BIOS 序列号的常见占位符（不同 OEM 厂商使用不同占位符，需过滤）
@@ -109,7 +110,10 @@ _BIOS_PLACEHOLDERS = frozenset({
 
 
 def get_bios_serial() -> str:
-    """读取 BIOS 序列号（TD-07: 通过 wmic 增强指纹维度）。
+    """读取 BIOS 序列号（TD-07: 通过 PowerShell CIM 增强指纹维度）。
+
+    P1-3: 从 wmic 迁移到 PowerShell CIM（Get-CimInstance），
+    因为 wmic 在 Windows 11 22H2+ 已弃用，未来版本将被移除。
 
     失败时返回空字符串，不阻断机器码生成（其他三维度仍有效）。
     过滤 OEM 常见占位符（"Default string" 等）。
@@ -121,16 +125,14 @@ def get_bios_serial() -> str:
         return ''
     try:
         result = subprocess.run(
-            ['wmic', 'bios', 'get', 'SerialNumber', '/value'],
-            capture_output=True, text=True, timeout=3,
+            ['powershell', '-NoProfile', '-Command',
+             '(Get-CimInstance Win32_BIOS).SerialNumber'],
+            capture_output=True, text=True, timeout=5,
             creationflags=0x08000000,  # CREATE_NO_WINDOW，避免弹出黑框
         )
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if line.startswith('SerialNumber='):
-                serial = line.split('=', 1)[1].strip()
-                if serial and serial.lower() not in _BIOS_PLACEHOLDERS:
-                    return serial
+        serial = result.stdout.strip()
+        if serial and serial.lower() not in _BIOS_PLACEHOLDERS:
+            return serial
         return ''
     except (OSError, subprocess.SubprocessError, ValueError):
         return ''

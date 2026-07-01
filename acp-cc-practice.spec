@@ -1,5 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 
+from PyInstaller.utils.win32.versioninfo import (
+    VSVersionInfo, FixedFileInfo,
+    StringFileInfo, StringTable, StringStruct,
+    VarFileInfo, VarStruct,
+)
 
 # TD-21: Windows EXE 版本信息（右键属性可见）
 version_info = VSVersionInfo(
@@ -30,13 +36,31 @@ version_info = VSVersionInfo(
     ]
 )
 
+# P1-5: 使用 SPECPATH（PyInstaller 注入的全局变量，指向 spec 文件所在目录）
+# 构造 data 文件的绝对路径，避免从非项目根目录调用 pyinstaller 时找不到 data 文件。
+_DATA_DIR = os.path.join(SPECPATH, 'data')
+
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    [os.path.join(SPECPATH, 'main.py')],
+    pathex=[SPECPATH],
     binaries=[],
-    datas=[('data', 'data')],
-    hiddenimports=[],
+    # P1-1: 显式列出打包文件，避免开发机的明文 questions.json 被打包进 exe
+    # 仅包含：加密题库 questions.enc / 试用题库 questions_trial.json / 元数据 questions_meta.json
+    # 不打包 questions.json（明文全库）和 progress.json（用户数据）
+    datas=[
+        (os.path.join(_DATA_DIR, 'questions.enc'), 'data'),
+        (os.path.join(_DATA_DIR, 'questions_trial.json'), 'data'),
+        (os.path.join(_DATA_DIR, 'questions_meta.json'), 'data'),
+    ],
+    hiddenimports=[
+        'cryptography.fernet',
+        'cryptography.hazmat.primitives.ciphers.aead',
+        'cryptography.hazmat.primitives.kdf.pbkdf2',
+        'cryptography.hazmat.primitives.asymmetric.ed25519',
+        'cryptography.hazmat.backends.openssl',
+        'cryptography.hazmat.backends.openssl.backend',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

@@ -1,7 +1,7 @@
 # 项目元数据（TD-25: 添加 pyproject.toml）
 [project]
 name = "acp-cc-practice"
-version = "1.0"
+version = "1.0.0"  # P2-5: 与 acp-cc-practice.spec 的 FileVersion/ProductVersion 对齐
 description = "ACP CC 题库练习软件"
 requires-python = ">=3.10"
 dependencies = [
@@ -24,7 +24,11 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not gui'"
+markers = [
+    "gui: 需要 GUI display 的测试（默认跳过，单独运行：pytest -m gui）",
+    "slow: 运行较慢的测试",
+]
 
 # TD-18: 覆盖率配置
 [tool.coverage.run]

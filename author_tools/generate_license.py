@@ -13,7 +13,7 @@
 
 密码学逻辑必须与 license/verifier.py 严格一致：
     encrypted_K = nonce(12) + AES-256-GCM(nonce, K, DK, aad=salt)
-    DK = PBKDF2(machine_code, salt, 200000)
+    DK = PBKDF2(machine_code, salt, 600000)
     注册码 = base64( signature(64) || salt(16) || encrypted_K(72) ) = 152 字节
 """
 import base64
@@ -89,13 +89,28 @@ def record_issued(machine_code: str, note: str) -> None:
 
     TD-09: 改用原子写入（tmp + os.replace），防止断电导致文件损坏。
     写入失败时上抛异常，让调用方知道记录未保存。
+
+    P1-4: 现有 issued_licenses.json 损坏时备份为 .corrupt-{timestamp} 再重置，
+    避免静默丢失所有签发记录（与 data_manager._backup_corrupt_progress 一致）。
     """
     records = []
     if os.path.exists(ISSUED_LICENSES):
         try:
             with open(ISSUED_LICENSES, 'r', encoding='utf-8') as f:
                 records = json.load(f)
-        except (OSError, json.JSONDecodeError):
+        except json.JSONDecodeError:
+            # P1-4: 损坏时备份为 .corrupt-{timestamp} 再重置，避免静默丢失所有签发记录
+            import time
+            timestamp = time.strftime('%Y%m%d-%H%M%S')
+            corrupt_path = f"{ISSUED_LICENSES}.corrupt-{timestamp}"
+            try:
+                os.replace(ISSUED_LICENSES, corrupt_path)
+                print(f"[警告] issued_licenses.json 损坏，已备份到 {corrupt_path}",
+                      file=sys.stderr)
+            except OSError:
+                pass  # 备份失败不阻塞主流程
+            records = []
+        except OSError:
             records = []
 
     # 去重：同 machine_code 覆盖旧记录
@@ -142,7 +157,11 @@ def main() -> int:
     try:
         license_code = generate_license_for_machine_code(machine_code)
         record_issued(machine_code, note)
-    except Exception as e:
+    except (OSError, ValueError, json.JSONDecodeError) as e:
+        # P1-3: 收窄异常捕获——
+        # OSError: 文件读写失败 / .env 缺失
+        # ValueError: 密钥格式错误 / Ed25519 字节解码失败
+        # json.JSONDecodeError: issued_licenses.json 损坏
         import traceback
         print()
         print("[错误] 生成注册码时发生异常：")

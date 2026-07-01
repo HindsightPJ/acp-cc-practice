@@ -6,31 +6,42 @@ from tkinter import font as tkfont
 def _list_system_fonts():
     """查询系统真实可用字体集合。
 
-    Tkinter 的 font.families() 需要 Tk root 已初始化。这里创建临时 root
-    检测后立即销毁，避免污染主窗口。无头环境失败时返回空集合，由 fallback 兜底。
+    复用已有 Tk root（若存在），避免创建多余 root 导致 Tcl 状态冲突。
+    无头环境或无 root 时返回空集合，由 fallback 兜底。
     """
     try:
-        root = tk.Tk()
-        root.withdraw()
-        families = set(tkfont.families())
-        root.destroy()
-        return families
-    except Exception:  # pylint: disable=broad-exception-caught
+        root = tk._default_root
+        if root is not None:
+            return set(tkfont.families(root))
+        return set()
+    except tk.TclError:
+        # 无头环境或 Tk root 状态异常时，返回空集合由 fallback 兜底
         return set()
 
 
-_AVAILABLE_FONTS = _list_system_fonts()
+_AVAILABLE_FONTS = None
+_FONTS_CACHE = None
 
 
-def _detect_fonts():
+def _get_fonts():
+    """懒加载字体配置：首次调用时检测系统字体，避免模块导入时创建 Tk root。"""
+    global _FONTS_CACHE
+    if _FONTS_CACHE is None:
+        _FONTS_CACHE = _detect_fonts_impl()
+    return _FONTS_CACHE
+
+
+def _detect_fonts_impl():
     """Glassmorphism 极简风字体栈：Inter 优先，fallback 到系统现代字体。
 
     Inter 是 Google 免费字体，粗细对比鲜明，是现代 UI 设计的首选。
     若系统未安装 Inter，按优先级 fallback 到 Segoe UI Variable (Win11) /
     Microsoft YaHei UI (Win10) / Segoe UI，保证中文渲染。
-    通过 _AVAILABLE_FONTS 真实查询，避免指定不存在的字体被 Tkinter
+    通过 _list_system_fonts 真实查询，避免指定不存在的字体被 Tkinter
     静默替换为默认字体（会破坏粗细对比）。
     """
+    global _AVAILABLE_FONTS
+    _AVAILABLE_FONTS = _list_system_fonts()
     system = platform.system()
     available = _AVAILABLE_FONTS
 
@@ -117,7 +128,6 @@ def _detect_fonts():
     }
 
 
-FONTS = _detect_fonts()
 
 # --- 设计 Token：Quiet Academy ----------------------------------------
 # 极简教育风：以纯白为主、教育蓝为单一强调色，配 macOS 风深灰侧栏。
@@ -206,7 +216,7 @@ TAB_INACTIVE_FG = '#8e8e93'
 
 def font_ui(size=11, bold=False):
     """正文/UI 字体。极简风默认 regular，必要时显式 bold。"""
-    name = FONTS['ui']
+    name = _get_fonts()['ui']
     if bold:
         return (name, size, 'bold')
     return (name, size)
@@ -214,20 +224,20 @@ def font_ui(size=11, bold=False):
 
 def font_ui_semibold(size=11):
     """标签/按钮的次级强调字重（Tkinter 仅支持 bold，故复用）。"""
-    return (FONTS['ui'], size, 'bold')
+    return (_get_fonts()['ui'], size, 'bold')
 
 
 def font_emoji(size=14):
-    return (FONTS['emoji'], size)
+    return (_get_fonts()['emoji'], size)
 
 
 def font_mono(size=12):
     """计时器/数字数据用等宽，避免布局漂移。"""
-    return (FONTS['mono'], size)
+    return (_get_fonts()['mono'], size)
 
 
 def font_display(size=16, bold=True):
     """标题字体——使用 display 字族，字号偏大。"""
     if bold:
-        return (FONTS['display'], size, 'bold')
-    return (FONTS['display'], size)
+        return (_get_fonts()['display'], size, 'bold')
+    return (_get_fonts()['display'], size)

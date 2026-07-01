@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+from typing import List, Dict, Any, Optional
 
 from .theme import (
     BG_PAGE, BG_CARD, BG_INPUT, BG_SELECT,
@@ -18,17 +19,20 @@ from .theme import (
     font_ui, font_ui_semibold,
 )
 from quiz_engine import QuizEngine
+from data_manager import DataSaveError
 from .base_mode import BaseMode
 from .option_row import OptionRow
 
 
 class PracticeMode(BaseMode):
-    def __init__(self, parent, questions, data_manager, progress):
+    def __init__(self, parent, questions: List[Dict[str, Any]],
+                 data_manager, progress: Dict[str, Any]) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.engine = QuizEngine(questions)
         self.selected_answers = []
         self.current_question_type = 'single'
         self.is_answered = False
+        self._pending_save = False
 
         self._setup_mode_ui()
         self.start_new_session()
@@ -216,7 +220,7 @@ class PracticeMode(BaseMode):
         # 导航键（Left/Right）交给基类处理（TD-06: 复用 super() 避免重复）
         return super()._on_key_press(event)
 
-    def handle_option_click(self, letter):
+    def handle_option_click(self, letter: str) -> None:
         if self.is_answered:
             return
 
@@ -236,17 +240,17 @@ class PracticeMode(BaseMode):
                 self.selected_answers.sort()
                 self.option_cards[card_idx].set_selected(True)
 
-    def start_new_session(self):
+    def start_new_session(self) -> None:
         shuffle = self.shuffle_var.get()
         self.engine.start_practice_mode(shuffle=shuffle)
         self.selected_answers = []
         self.is_answered = False
         self.load_current_question()
 
-    def restart_session(self):
+    def restart_session(self) -> None:
         self.start_new_session()
 
-    def load_current_question(self):
+    def load_current_question(self) -> None:
         question = self.engine.get_current_question()
         if not question:
             messagebox.showinfo("提示", "已完成所有题目！")
@@ -286,7 +290,10 @@ class PracticeMode(BaseMode):
         self.progress_label.configure(
             text=f"第 {progress['current']} 题 / 共 {progress['total']} 题")
 
-        stats = progress['stats']
+        # P2-3: 统一用 get_stats() 显式接口访问统计，与 submit_answer 保持一致。
+        # stats_label 显示的是当前 session 的统计（重新开始会归零）；
+        # progress['practice_stats'] 是跨 session 累计统计（持久化）。
+        stats = self.engine.get_stats()
         accuracy = (stats['correct'] / stats['total'] * 100) if stats['total'] > 0 else 0
         self.stats_label.configure(
             text=f"正确 {stats['correct']}  |  错误 {stats['wrong']}  |  正确率 {accuracy:.0f}%")
@@ -299,9 +306,10 @@ class PracticeMode(BaseMode):
             bar_width = int(container_width * (progress['percentage'] / 100))
             self.progress_bar_fill.configure(width=max(bar_width, 0))
         else:
-            self.after(50, self._update_progress_bar_width)
+            job_id = self.after(50, self._update_progress_bar_width)
+            self._add_after_job(job_id)
 
-    def submit_answer(self):
+    def submit_answer(self) -> None:
         if not self.selected_answers:
             messagebox.showwarning("提示", "请先选择一个答案！")
             return
@@ -319,7 +327,6 @@ class PracticeMode(BaseMode):
             question = self.engine.get_current_question()
             if question.get('number') not in self.progress.get('wrong_questions', []):
                 self.progress.setdefault('wrong_questions', []).append(question.get('number'))
-                self._save_progress_delayed()
 
         question = self.engine.get_current_question()
         explanation = question.get('explanation', '暂无解析')
@@ -359,11 +366,24 @@ class PracticeMode(BaseMode):
 
     def _save_progress_delayed(self):
         self._cancel_all_after_jobs()
+        self._pending_save = True
         job_id = self.after(2000, self._do_save_progress)
         self._add_after_job(job_id)
 
     def _do_save_progress(self):
+        self._pending_save = False
         self.data_manager.save_progress(self.progress)
+
+    def flush_pending_save(self) -> None:
+        """切 tab 前强制保存延迟的进度，避免数据丢失。"""
+        if self._pending_save:
+            self._cancel_all_after_jobs()
+            self._pending_save = False
+            try:
+                self.data_manager.save_progress(self.progress)
+            except (OSError, ValueError, DataSaveError):
+                # 保存失败不应阻塞窗口销毁；下次启动会从 .bak 恢复
+                pass
 
     def _on_question_resize(self, event=None):
         self.update_idletasks()
@@ -371,14 +391,14 @@ class PracticeMode(BaseMode):
         if container_width > 0:
             self.question_label.configure(wraplength=container_width - 10)
 
-    def next_question(self):
+    def next_question(self) -> None:
         if self.engine.has_next():
             self.engine.next_question()
             self.load_current_question()
         else:
             messagebox.showinfo("提示", "已经是最后一题了！")
 
-    def prev_question(self):
+    def prev_question(self) -> None:
         if self.engine.has_prev():
             self.engine.prev_question()
             self.load_current_question()

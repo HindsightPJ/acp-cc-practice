@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+from typing import List, Dict, Any, Optional
 
 from .theme import (
     BG_PAGE, BG_CARD, BG_INPUT, BG_SELECT,
@@ -24,7 +25,8 @@ from .option_row import OptionRow
 
 
 class ReviewMode(BaseMode):
-    def __init__(self, parent, questions, data_manager=None, progress=None):
+    def __init__(self, parent, questions: List[Dict[str, Any]],
+                 data_manager=None, progress: Optional[Dict[str, Any]] = None) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.showing_answer = False
         self.auto_show_answer = False
@@ -196,7 +198,7 @@ class ReviewMode(BaseMode):
         if self.auto_show_answer and not self.showing_answer:
             self.toggle_answer()
 
-    def load_question(self):
+    def load_question(self) -> None:
         if 0 <= self.current_index < self.engine.queue_length():
             question = self.engine.get_question_at(self.current_index)
         else:
@@ -241,7 +243,7 @@ class ReviewMode(BaseMode):
             job_id = self.after(100, self.toggle_answer)
             self._add_after_job(job_id)
 
-    def toggle_answer(self):
+    def toggle_answer(self) -> None:
         question = self.engine.get_question_at(self.current_index)
 
         if not self.showing_answer:
@@ -275,17 +277,17 @@ class ReviewMode(BaseMode):
             for i in range(len(options)):
                 self.review_option_rows[i].reset()
 
-    def next_question(self):
+    def next_question(self) -> None:
         if self.current_index < self.engine.queue_length() - 1:
             self.current_index += 1
             self.load_question()
 
-    def prev_question(self):
+    def prev_question(self) -> None:
         if self.current_index > 0:
             self.current_index -= 1
             self.load_question()
 
-    def jump_to_question(self):
+    def jump_to_question(self) -> None:
         try:
             num = int(self.jump_var.get())
             if 1 <= num <= len(self.questions):
@@ -296,7 +298,7 @@ class ReviewMode(BaseMode):
         except ValueError:
             messagebox.showerror("错误", "请输入有效的数字！")
 
-    def toggle_favorite(self):
+    def toggle_favorite(self) -> None:
         if not self.data_manager or not self.progress:
             return
 

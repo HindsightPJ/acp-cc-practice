@@ -60,18 +60,38 @@ def test_ui_option_row_importable():
 
 
 def test_ui_main_window_importable():
-    """TD-19: ui.main_window 模块可导入（含 MainWindow + MasteryRing + 模块级函数）。"""
+    """TD-19: ui.main_window 模块可导入（含 MainWindow）。"""
     from ui import main_window  # pylint: disable=unused-import
     assert hasattr(main_window, 'MainWindow')
-    assert hasattr(main_window, 'MasteryRing')
-    # TD-11 抽取的模块级函数
-    assert callable(main_window._get_license_error_message)
-    assert callable(main_window._verify_and_save_license)
+
+
+def test_ui_mastery_ring_importable():
+    """TD-19: ui.mastery_ring 模块可导入（含 MasteryRing）。"""
+    from ui import mastery_ring  # pylint: disable=unused-import
+    assert hasattr(mastery_ring, 'MasteryRing')
+
+
+def test_ui_sidebar_importable():
+    """TD-19: ui.sidebar 模块可导入（含 Sidebar）。"""
+    from ui import sidebar  # pylint: disable=unused-import
+    assert hasattr(sidebar, 'Sidebar')
+
+
+def test_ui_license_dialog_importable():
+    """TD-19: ui.license_dialog 模块可导入（含 LicenseDialog）。"""
+    from ui import license_dialog  # pylint: disable=unused-import
+    assert hasattr(license_dialog, 'LicenseDialog')
 
 
 def test_main_window_class_hierarchy():
-    """TD-19: MainWindow 继承 tk.Tk，MasteryRing 继承 tk.Canvas。"""
+    """TD-19: MainWindow 继承 tk.Tk。"""
     import tkinter as tk
-    from ui.main_window import MainWindow, MasteryRing
+    from ui.main_window import MainWindow
     assert issubclass(MainWindow, tk.Tk)
+
+
+def test_mastery_ring_class_hierarchy():
+    """TD-19: MasteryRing 继承 tk.Canvas。"""
+    import tkinter as tk
+    from ui.mastery_ring import MasteryRing
     assert issubclass(MasteryRing, tk.Canvas)

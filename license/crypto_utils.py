@@ -6,8 +6,8 @@
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-# PBKDF2 迭代次数（NIST 推荐 ≥ 600000，本实现取 200000 兼顾安全与性能）
-PBKDF2_ITERATIONS = 200000
+# PBKDF2 迭代次数（NIST SP 800-132 推荐 ≥ 600000）
+PBKDF2_ITERATIONS = 600000
 
 
 def derive_dk(machine_code: str, salt: bytes) -> bytes:

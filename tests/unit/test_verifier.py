@@ -21,7 +21,7 @@ def _make_license(machine_code: str, key_k: str, private_key_hex: str) -> str:
 
     注册码 = base64( signature(64) || salt(16) || encrypted_K(72) )
       encrypted_K = nonce(12) + AES-256-GCM(nonce, K, DK, aad=salt)
-      DK = PBKDF2(machine_code, salt, 200000)
+      DK = PBKDF2(machine_code, salt, 600000)
     """
     salt = os.urandom(16)
     dk = derive_dk(machine_code, salt)

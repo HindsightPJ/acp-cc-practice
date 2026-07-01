@@ -93,5 +93,7 @@ acp-cc-practice/
 
 ## CI
 
-GitHub Actions 在 push/PR to main 时自动运行测试（Python 3.10/3.11/3.12）。
+GitHub Actions 在 push/PR to main 时自动运行测试：
+- **Ubuntu**（Python 3.10/3.11/3.12）：非 GUI 单元/集成测试 + 覆盖率
+- **Windows**（Python 3.11）：非 GUI 测试 + GUI 冒烟测试（项目主场景）
 配置文件：`.github/workflows/ci.yml`

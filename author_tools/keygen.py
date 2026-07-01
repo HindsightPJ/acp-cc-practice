@@ -8,9 +8,11 @@
     ED25519_PRIVATE_KEY=<64 字符 hex 的 Ed25519 私钥种子>
     ED25519_PUBLIC_KEY=<64 字符 hex 的 Ed25519 公钥>
 
-注意：ED25519_PUBLIC_KEY 需要手动复制到客户端 license/public_key.py。
+P1-5: 自动同步公钥到 license/public_key.py，避免作者忘记手动复制
+导致验签失败。仅当公钥变化时写入；已有相同公钥时跳过。
 """
 import os
+import re
 import sys
 
 from cryptography.fernet import Fernet
@@ -59,8 +61,69 @@ def write_env(keys: dict, env_path: str) -> None:
         f.write(f"ED25519_PUBLIC_KEY={keys['ed25519_public_key']}\n")
 
 
+def sync_public_key_to_client(public_key_hex: str, base_dir: str) -> bool:
+    """P1-5: 自动同步 Ed25519 公钥到 license/public_key.py。
+
+    仅当现有公钥与新公钥不同时才写入，避免无谓修改。
+    使用正则替换，保留原文件结构与注释。
+
+    Args:
+        public_key_hex: 64 字符 hex 公钥
+        base_dir: 项目根目录（acp-cc-practice/）
+
+    Returns:
+        True 表示已写入或已一致；False 表示同步失败（文件缺失/格式不匹配）
+    """
+    public_key_file = os.path.join(base_dir, 'license', 'public_key.py')
+    if not os.path.exists(public_key_file):
+        print(f"[警告] 找不到 {public_key_file}，请手动同步公钥", file=sys.stderr)
+        return False
+
+    try:
+        with open(public_key_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except OSError as e:
+        print(f"[警告] 读取 public_key.py 失败: {e}，请手动同步公钥",
+              file=sys.stderr)
+        return False
+
+    # 匹配 ED25519_PUBLIC_KEY_HEX = "..." 形式（支持单/双引号）
+    pattern = re.compile(
+        r'(ED25519_PUBLIC_KEY_HEX\s*=\s*)["\']([0-9a-fA-F]{64})["\']'
+    )
+    match = pattern.search(content)
+    if not match:
+        print(f"[警告] public_key.py 中未找到 ED25519_PUBLIC_KEY_HEX 定义，"
+              f"请手动同步公钥", file=sys.stderr)
+        return False
+
+    existing_key = match.group(2)
+    if existing_key.lower() == public_key_hex.lower():
+        # 公钥已一致，无需修改
+        return True
+
+    # 替换为新公钥（保持双引号风格）
+    new_content = pattern.sub(
+        lambda m: f'{m.group(1)}"{public_key_hex}"', content
+    )
+    try:
+        with open(public_key_file, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        print(f"[已同步] ED25519 公钥已写入 license/public_key.py")
+        return True
+    except OSError as e:
+        print(f"[警告] 写入 public_key.py 失败: {e}，请手动同步公钥",
+              file=sys.stderr)
+        return False
+
+
 def main() -> int:
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    # P0-1: 必须取 2 层 dirname 才能指向项目根（acp-cc-practice/），
+    # 与 encrypt_questions.py / generate_license.py 保持一致。
+    # 此前只取 1 层会指向 author_tools/，导致 .env 写错位置，
+    # 且 sync_public_key_to_client 的 base_dir 参数错误，
+    # 使 license/public_key.py 永远不会被更新（同步函数找不到文件直接返回 False）。
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     env_path = os.path.join(base_dir, '.env')
 
     if os.path.exists(env_path):
@@ -78,7 +141,9 @@ def main() -> int:
     print(f"  ED25519_PRIVATE_KEY:  {keys['ed25519_private_key'][:16]}...")
     print(f"  ED25519_PUBLIC_KEY:   {keys['ed25519_public_key']}")
     print()
-    print("[下一步] 把 ED25519_PUBLIC_KEY 复制到 acp-cc-practice/license/public_key.py")
+
+    # P1-5: 自动同步公钥到 license/public_key.py
+    sync_public_key_to_client(keys['ed25519_public_key'], base_dir)
     return 0
 
 

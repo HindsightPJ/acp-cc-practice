@@ -62,7 +62,7 @@ acp-cc-practice/
 │   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
 │   └── questions_meta.json  # 元数据（入库）
-├── tests/                   # 测试套件（40 个测试）
+├── tests/                   # 测试套件（181 项：172 单元/集成 + 9 GUI 冒烟）
 │   ├── unit/                # 单元测试
 │   └── integration/         # 集成测试
 └── ui/

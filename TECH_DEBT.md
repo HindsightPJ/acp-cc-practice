@@ -54,7 +54,7 @@
 
 - **位置**：`data_manager.py:212-225` / `author_tools/encrypt_questions.py:29-43` / `author_tools/generate_license.py:39-56`
 - **问题**：三处各自用裸字符串解析 `.env`，行为可能不一致（引号、注释处理不同）
-- **风险**：`data_manager._load_encryption_key` 不支持引号和行内注释，用户误写 `QUESTIONS_KEY="xxx"` 会保留引号导致解密失败
+- **风险**：`data_manager._load_encryption_key` 不支持引号和行内注释，用户误写 `QUESTIONS_MASTER_KEY="xxx"` 会保留引号导致解密失败
 - **修复**：合并为公共函数 `load_env(path) -> dict`
 
 ### TD-06: 基类方法被完全覆盖未调 `super()` ✅ 已修复
@@ -77,6 +77,7 @@
 - **问题**：`ComputerName` 用户可在系统设置中随意修改，是三个维度中最弱的；当前组合 `SHA-256(MachineGuid | VolumeSerial | ComputerName)` 中 ComputerName 占 1/3 权重过高
 - **风险**：用户改计算机名会导致注册码失效（误伤合法用户）
 - **修复**（已完成）：新增 `get_bios_serial()` 通过 `wmic bios get SerialNumber` 采集 BIOS 序列号作为第 4 维度；`compute_machine_code` 增加 `bios_serial` 参数；机器码变为 `SHA-256(guid|volume|name|bios)`；BIOS 获取失败时用空字符串（不阻断）；过滤 OEM 常见占位符；ComputerName 权重从 1/3 降到 1/4；新增 7 个 BIOS 相关测试
+- **P1-3 更新**：`wmic` 在 Windows 11 22H2+ 已弃用，`get_bios_serial()` 已迁移到 PowerShell CIM（`Get-CimInstance Win32_BIOS`）；机器码算法不变，不影响已签发的注册码
 - **注意**：破坏性更改——机器码算法变化，已签发的注册码需重新签发
 
 ### TD-08: `save_license` 非原子写入

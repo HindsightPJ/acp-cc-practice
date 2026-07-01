@@ -58,7 +58,7 @@ BIOS 序列号获取失败时降级为空字符串，不阻断机器码生成。
 **作者侧**（generate_license.py）：
 1. 输入用户机器码
 2. 生成随机 salt(16) + nonce(12)
-3. DK = PBKDF2(machine_code, salt, 200000)
+3. DK = PBKDF2(machine_code, salt, 600000)
 4. encrypted_K = nonce + AES-GCM(nonce, K, DK, aad=salt)
 5. signature = Ed25519.sign(salt + encrypted_K)
 6. 注册码 = base64(signature(64) + salt(16) + encrypted_K(72)) = 152 字节
