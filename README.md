@@ -47,6 +47,7 @@ acp-cc-practice/
 ├── quiz_engine.py           # 题库引擎：题目队列、作答、统计、报告
 ├── data_manager.py          # 题库加载（trial/full 两段式）+ 进度持久化
 ├── requirements.txt         # 依赖（python-docx + cryptography）
+├── .env.example             # .env 模板（作者密钥，本地保留）
 ├── .gitignore
 ├── license/                 # 授权模块
 │   ├── __init__.py          # LicenseStatus / LicenseError 枚举
