@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, cast
 import os
 import sys
 import json
@@ -80,7 +80,7 @@ def _parse_explanation(text: str):
 
 
 class DataManager:
-    def __init__(self, base_dir: str, user_data_dir: str = None) -> None:
+    def __init__(self, base_dir: str, user_data_dir: Optional[str] = None) -> None:
         """初始化数据管理器。
 
         Args:
@@ -186,7 +186,7 @@ class DataManager:
                     with open(self.questions_enc_file, 'rb') as f:
                         ciphertext = f.read()
                     plaintext = Fernet(key.encode()).decrypt(ciphertext)
-                    return json.loads(plaintext.decode('utf-8'))
+                    return cast(List[Dict[str, Any]], json.loads(plaintext.decode('utf-8')))
             except (ValueError, OSError, json.JSONDecodeError, UnicodeDecodeError, InvalidToken) as e:
                 # TD-10: 收窄异常捕获——密钥格式错误(ValueError) / 文件IO(OSError) /
                 # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
@@ -205,7 +205,7 @@ class DataManager:
         if os.path.exists(self.questions_file):
             try:
                 with open(self.questions_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    return cast(List[Dict[str, Any]], json.load(f))
             except json.JSONDecodeError as e:
                 raise DataLoadError(f"题目数据格式错误，请删除 data 文件夹后重新运行: {e}")
             except PermissionError:
@@ -233,7 +233,7 @@ class DataManager:
             return None
         try:
             with open(meta_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                return cast(Dict[str, Any], json.load(f))
         except (json.JSONDecodeError, OSError):
             return None
 
@@ -244,7 +244,7 @@ class DataManager:
             raise DataLoadError("试用题库缺失，请重新下载程序")
         try:
             with open(trial_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                return cast(List[Dict[str, Any]], json.load(f))
         except json.JSONDecodeError as e:
             raise DataLoadError(f"试用题库损坏，请重新下载程序: {e}")
         except PermissionError:
@@ -270,7 +270,7 @@ class DataManager:
             with open(self.questions_enc_file, 'rb') as f:
                 ciphertext = f.read()
             plaintext = fernet.decrypt(ciphertext)
-            return json.loads(plaintext.decode('utf-8'))
+            return cast(List[Dict[str, Any]], json.loads(plaintext.decode('utf-8')))
         except (ValueError, OSError, json.JSONDecodeError, UnicodeDecodeError, InvalidToken) as e:
             # TD-10: 收窄异常捕获——密钥格式错误(ValueError) / 文件IO(OSError) /
             # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
@@ -326,7 +326,7 @@ class DataManager:
         if os.path.exists(self.progress_file):
             try:
                 with open(self.progress_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    return cast(Dict[str, Any], json.load(f))
             except json.JSONDecodeError:
                 self._backup_corrupt_progress()
             except PermissionError:
@@ -339,7 +339,7 @@ class DataManager:
             try:
                 os.replace(bak_file, self.progress_file)
                 with open(self.progress_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    return cast(Dict[str, Any], json.load(f))
             except (OSError, json.JSONDecodeError) as e:
                 logger.warning("从 .bak 恢复失败: %s", e)
 

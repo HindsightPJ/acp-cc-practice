@@ -40,7 +40,16 @@ exclude_lines = [
     "pragma: no cover",
     "def __repr__",
     "raise NotImplementedError",
-    "if __name__ == .__main__.:",
+    "if __name__ = .__main__.:",
     "pass",
 ]
 show_missing = true
+
+# TD-28: mypy 类型检查配置
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+show_error_codes = true
+exclude = ["build", "dist", "tests"]

@@ -14,7 +14,7 @@ import socket
 import subprocess
 import sys
 import logging
-from typing import Optional
+from typing import Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ def get_machine_guid() -> str:
     )
     try:
         value, _ = winreg.QueryValueEx(key, 'MachineGuid')
-        return value
+        return cast(str, value)
     finally:
         winreg.CloseKey(key)
 

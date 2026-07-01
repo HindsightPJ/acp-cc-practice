@@ -67,8 +67,8 @@ class LicenseDialog:
         self.parent = parent
         self.license_dir = license_dir
         self.verify_and_save = verify_and_save or _verify_and_save_license
-        self.dialog = None
-        self._license_entry = None
+        self.dialog: Optional[tk.Toplevel] = None
+        self._license_entry: Optional[tk.Text] = None
 
     def show(self) -> bool:
         """显示对话框；若无法读取机器码则报错并返回 False。"""
@@ -126,6 +126,8 @@ class LicenseDialog:
                   cursor='hand2').pack(side='right', padx=5)
 
     def _on_verify(self) -> None:
+        if self._license_entry is None or self.dialog is None:
+            return
         code = self._license_entry.get('1.0', 'end').strip()
         if not code:
             messagebox.showwarning("提示", "请输入注册码", parent=self.dialog)

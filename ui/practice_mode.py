@@ -28,8 +28,8 @@ class PracticeMode(BaseMode):
     def __init__(self, parent, questions: List[Dict[str, Any]],
                  data_manager, progress: Dict[str, Any]) -> None:
         super().__init__(parent, questions, data_manager, progress)
-        self.engine = QuizEngine(questions)
-        self.selected_answers = []
+        self.engine: QuizEngine = QuizEngine(questions)
+        self.selected_answers: List[str] = []
         self.current_question_type = 'single'
         self.is_answered = False
         self._pending_save = False
@@ -192,6 +192,8 @@ class PracticeMode(BaseMode):
         self.explanation_text.config(state=tk.DISABLED)
 
     def _on_key_press(self, event):
+        if self.engine is None:
+            return
         if not self.engine.get_current_question():
             return
 
@@ -221,14 +223,18 @@ class PracticeMode(BaseMode):
         return super()._on_key_press(event)
 
     def handle_option_click(self, letter: str) -> None:
-        if self.is_answered:
+        if self.engine is None or self.is_answered:
+            return
+
+        question = self.engine.get_current_question()
+        if question is None:
             return
 
         card_idx = ord(letter) - ord('A')
 
         if self.current_question_type == 'single':
             for i, card in enumerate(self.option_cards):
-                if i < len(self.engine.get_current_question().get('options', [])):
+                if i < len(question.get('options', [])):
                     card.set_selected(i == card_idx)
             self.selected_answers = [letter]
         else:
@@ -241,6 +247,8 @@ class PracticeMode(BaseMode):
                 self.option_cards[card_idx].set_selected(True)
 
     def start_new_session(self) -> None:
+        if self.engine is None:
+            return
         shuffle = self.shuffle_var.get()
         self.engine.start_practice_mode(shuffle=shuffle)
         self.selected_answers = []
@@ -251,6 +259,8 @@ class PracticeMode(BaseMode):
         self.start_new_session()
 
     def load_current_question(self) -> None:
+        if self.engine is None:
+            return
         question = self.engine.get_current_question()
         if not question:
             messagebox.showinfo("提示", "已完成所有题目！")
@@ -299,6 +309,8 @@ class PracticeMode(BaseMode):
             text=f"正确 {stats['correct']}  |  错误 {stats['wrong']}  |  正确率 {accuracy:.0f}%")
 
     def _update_progress_bar_width(self):
+        if self.engine is None:
+            return
         self.update_idletasks()
         progress = self.engine.get_progress()
         container_width = self.winfo_width()
@@ -310,12 +322,20 @@ class PracticeMode(BaseMode):
             self._add_after_job(job_id)
 
     def submit_answer(self) -> None:
+        if self.engine is None:
+            return
         if not self.selected_answers:
             messagebox.showwarning("提示", "请先选择一个答案！")
             return
 
+        question = self.engine.get_current_question()
+        if question is None:
+            return
+
         answer_str = ''.join(sorted(self.selected_answers))
         result = self.engine.submit_answer(answer_str)
+        if result is None:
+            return
         self.is_answered = True
 
         if result['is_correct']:
@@ -324,11 +344,9 @@ class PracticeMode(BaseMode):
             self.result_label.configure(
                 text=f"回答错误，正确答案: {result['correct_answer']}", fg=RED)
 
-            question = self.engine.get_current_question()
             if question.get('number') not in self.progress.get('wrong_questions', []):
                 self.progress.setdefault('wrong_questions', []).append(question.get('number'))
 
-        question = self.engine.get_current_question()
         explanation = question.get('explanation', '暂无解析')
         if not explanation or len(explanation) < 5:
             explanation = '暂无详细解析'
@@ -392,6 +410,8 @@ class PracticeMode(BaseMode):
             self.question_label.configure(wraplength=container_width - 10)
 
     def next_question(self) -> None:
+        if self.engine is None:
+            return
         if self.engine.has_next():
             self.engine.next_question()
             self.load_current_question()
@@ -399,6 +419,8 @@ class PracticeMode(BaseMode):
             messagebox.showinfo("提示", "已经是最后一题了！")
 
     def prev_question(self) -> None:
+        if self.engine is None:
+            return
         if self.engine.has_prev():
             self.engine.prev_question()
             self.load_current_question()

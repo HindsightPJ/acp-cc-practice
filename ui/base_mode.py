@@ -4,6 +4,7 @@ from tkinter import ttk, messagebox
 from typing import List, Dict, Any, Optional
 from abc import ABC, abstractmethod
 
+from quiz_engine import QuizEngine
 from .theme import (
     BG_PAGE, BG_CARD, BG_INPUT, BORDER,
     TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
@@ -15,13 +16,13 @@ class BaseMode(ABC, ttk.Frame):
     """练习模式的抽象基类，包含公共功能和生命周期管理"""
 
     def __init__(self, parent, questions: List[Dict[str, Any]],
-                 data_manager, progress: Dict[str, Any]):
+                 data_manager, progress: Optional[Dict[str, Any]]):
         super().__init__(parent)
         self.questions = questions
         self.data_manager = data_manager
-        self.progress = progress
+        self.progress: Dict[str, Any] = {} if progress is None else progress
         self._after_jobs: List[Any] = []  # 跟踪所有 after 回调
-        self.engine = None  # 基类保证属性存在，子类覆盖
+        self.engine: Optional[QuizEngine] = None  # 基类保证属性存在，子类覆盖
         self.current_index = 0
 
     def _add_after_job(self, job_id) -> None:

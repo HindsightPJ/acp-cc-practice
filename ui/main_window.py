@@ -37,9 +37,9 @@ class MainWindow(tk.Tk):
         # 若未传入，fallback 到 data_manager.data_dir（开发模式可用）
         self.license_dir = license_dir or data_manager.data_dir
 
-        self.current_frame = None
+        self.current_frame: Optional[tk.Frame] = None
         self._active_nav = 'practice'
-        self.sidebar = None
+        self.sidebar: Optional[Sidebar] = None
 
         self.configure_ui()
         self.create_widgets()
@@ -106,6 +106,8 @@ class MainWindow(tk.Tk):
         self._update_stats_display()
 
     def _update_nav_highlight(self) -> None:
+        if self.sidebar is None:
+            return
         self.sidebar.set_active_nav(self._active_nav)
 
     def _update_stats_display(self) -> None:
@@ -134,12 +136,12 @@ class MainWindow(tk.Tk):
         coverage = min(coverage, 1.0)
         mastery = coverage * accuracy
 
-        self.sidebar.set_mastery(mastery)
-
         wrong_count = len(self.progress.get('wrong_questions', []))
-        self.sidebar.set_wrong_indicator(
-            text=f"错题本 {wrong_count} 题" if wrong_count else "错题本为空",
-            fg=RED if wrong_count > 0 else INK_TEXT_MUTED)
+        if self.sidebar is not None:
+            self.sidebar.set_mastery(mastery)
+            self.sidebar.set_wrong_indicator(
+                text=f"错题本 {wrong_count} 题" if wrong_count else "错题本为空",
+                fg=RED if wrong_count > 0 else INK_TEXT_MUTED)
 
         self._update_stats_display()
 

@@ -35,9 +35,9 @@ class Sidebar(tk.Frame):
         self._nav_defs = nav_defs
         self._on_nav_clicked = on_nav_clicked
         self._active_nav = nav_defs[0][0] if nav_defs else None
-        self._nav_refs = {}
-        self.mastery_ring = None
-        self.wrong_indicator = None
+        self._nav_refs: Dict[str, Dict[str, Any]] = {}
+        self.mastery_ring: Optional[MasteryRing] = None
+        self.wrong_indicator: Optional[tk.Label] = None
         self._build()
 
     def _build(self):
@@ -106,9 +106,9 @@ class Sidebar(tk.Frame):
         }
 
         for w in [item, label]:
-            w.bind('<Button-1>', lambda e, t=tab_id: self._handle_nav_click(t))
-            w.bind('<Enter>', lambda e, t=tab_id: self._on_nav_hover(t))
-            w.bind('<Leave>', lambda e, t=tab_id: self._on_nav_leave(t))
+            w.bind('<Button-1>', lambda e, t=tab_id: self._handle_nav_click(t))  # type: ignore[misc]
+            w.bind('<Enter>', lambda e, t=tab_id: self._on_nav_hover(t))  # type: ignore[misc]
+            w.bind('<Leave>', lambda e, t=tab_id: self._on_nav_leave(t))  # type: ignore[misc]
 
     def _handle_nav_click(self, tab_id: str) -> None:
         """处理导航项点击：更新高亮、执行命令、触发外部回调。"""

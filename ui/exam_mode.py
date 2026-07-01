@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 
 from .theme import (
     BG_PAGE, BG_CARD, BG_INPUT, BG_HOVER, BG_SELECT,
@@ -32,8 +32,8 @@ class ExamMode(BaseMode):
         self.timer_running = False
         self.time_remaining = 0
         self.exam_total_seconds = 0
-        self.exam_answers = {}
-        self.exam_marked = set()
+        self.exam_answers: Dict[int, str] = {}
+        self.exam_marked: Set[int] = set()
 
         self._setup_mode_ui()
         self._bind_keyboard()
@@ -219,7 +219,7 @@ class ExamMode(BaseMode):
         self.nav_buttons = []
 
     def _on_key_press(self, event):
-        if not self.engine or not self.engine.get_current_question():
+        if self.engine is None or not self.engine.get_current_question():
             return
 
         key = event.char.upper() if event.char else ''
@@ -274,6 +274,8 @@ class ExamMode(BaseMode):
         self.nav_canvas.config(scrollregion=self.nav_canvas.bbox(tk.ALL))
 
     def _update_nav_buttons(self):
+        if self.engine is None:
+            return
         current = self.engine.get_current_index()  # TD-15: 显式接口
         for i, btn in enumerate(self.nav_buttons):
             if i == current:
@@ -294,6 +296,8 @@ class ExamMode(BaseMode):
             btn.configure(text=text, bg=bg, fg=fg)
 
     def toggle_mark_current(self) -> None:
+        if self.engine is None:
+            return
         idx = self.engine.get_current_index()  # TD-15: 显式接口
         if idx in self.exam_marked:
             self.exam_marked.remove(idx)
@@ -302,6 +306,8 @@ class ExamMode(BaseMode):
         self._update_nav_buttons()
 
     def jump_to_question(self, idx: int) -> None:
+        if self.engine is None:
+            return
         if 0 <= idx < self.engine.queue_length():  # TD-15: 显式接口
             self.engine.set_current_index(idx)  # TD-15: 显式接口
             self.load_exam_question()
@@ -360,6 +366,8 @@ class ExamMode(BaseMode):
         self._add_after_job(job_id)
 
     def load_exam_question(self) -> None:
+        if self.engine is None:
+            return
         question = self.engine.get_current_question()
         if not question:
             return
@@ -405,6 +413,8 @@ class ExamMode(BaseMode):
 
     def exam_select_option_by_letter(self, letter: str) -> None:
         """点击或键盘触发选项选择。"""
+        if self.engine is None:
+            return
         idx = ord(letter) - ord('A')
         if not (0 <= idx < len(self.exam_option_cards)):
             return
@@ -415,6 +425,8 @@ class ExamMode(BaseMode):
 
         current_idx = self.engine.get_current_index()  # TD-15: 显式接口
         question = self.engine.get_current_question()
+        if question is None:
+            return
         is_multiple = question.get('type') == 'multiple'
         options_count = len(question.get('options', []))
 
@@ -456,6 +468,8 @@ class ExamMode(BaseMode):
         self._update_nav_buttons()
 
     def exam_next_question(self) -> None:
+        if self.engine is None:
+            return
         if self.engine.has_next():
             self.engine.next_question()
             self.load_exam_question()
@@ -463,6 +477,8 @@ class ExamMode(BaseMode):
             messagebox.showinfo("提示", "已经是最后一题了！")
 
     def exam_prev_question(self) -> None:
+        if self.engine is None:
+            return
         if self.engine.has_prev():
             self.engine.prev_question()
             self.load_exam_question()
@@ -475,6 +491,9 @@ class ExamMode(BaseMode):
 
         self._cancel_all_after_jobs()
         self.timer_running = False
+
+        if self.engine is None:
+            return
 
         for idx, letter in self.exam_answers.items():
             self.engine.record_exam_answer(idx, letter)

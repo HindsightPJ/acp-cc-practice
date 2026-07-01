@@ -205,6 +205,8 @@ class QuizEngine:
             return None
 
         elapsed = self.get_exam_elapsed_seconds()
+        if elapsed is None:
+            return None
         minutes = elapsed // 60
         seconds = elapsed % 60
 

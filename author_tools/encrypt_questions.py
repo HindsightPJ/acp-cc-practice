@@ -8,6 +8,7 @@
 
 K 来自 .env 的 QUESTIONS_MASTER_KEY。K 不变时重新加密不影响已签发的注册码。
 """
+from typing import List, Dict, Any, cast
 import json
 import os
 import sys
@@ -42,16 +43,16 @@ def load_master_key() -> str:
     return key
 
 
-def load_questions() -> list:
+def load_questions() -> List[Dict[str, Any]]:
     """读取明文题库。"""
     if not os.path.exists(QUESTIONS_JSON):
         print(f"[错误] 找不到明文题库: {QUESTIONS_JSON}", file=sys.stderr)
         sys.exit(1)
     with open(QUESTIONS_JSON, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        return cast(List[Dict[str, Any]], json.load(f))
 
 
-def encrypt_and_write(questions: list, key: str) -> None:
+def encrypt_and_write(questions: List[Dict[str, Any]], key: str) -> None:
     """加密全库并写入 questions.enc。"""
     fernet = Fernet(key.encode())
     plaintext = json.dumps(questions, ensure_ascii=False).encode('utf-8')

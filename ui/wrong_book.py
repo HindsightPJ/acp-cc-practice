@@ -28,9 +28,9 @@ class WrongBook(BaseMode):
         super().__init__(parent, questions, data_manager, progress)
 
         self.wrong_questions = self._get_wrong_questions_list()
-        self.practice_engine = None
-        self._practice_window = None
-        self._detail_windows = []
+        self.practice_engine: Optional[QuizEngine] = None
+        self._practice_window: Optional[tk.Toplevel] = None
+        self._detail_windows: List[tk.Toplevel] = []
 
         self._setup_mode_ui()
 

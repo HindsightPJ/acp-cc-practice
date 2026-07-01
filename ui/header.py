@@ -37,6 +37,7 @@ class Header(tk.Frame):
         self.total_count = total_count
         self.trial_count = trial_count
         self.on_activate_click = on_activate_click
+        self.activate_btn: Optional[tk.Button] = None
 
         self._build()
         self.set_mode_title(mode_title)

@@ -5,6 +5,8 @@ from logging.handlers import RotatingFileHandler
 import tkinter as tk
 from tkinter import messagebox
 
+from typing import cast
+
 from data_manager import DataManager, DataLoadError
 from license import LicenseStatus
 from license.verifier import LicenseVerifier
@@ -14,7 +16,7 @@ from ui.main_window import MainWindow
 def _resolve_base_dir() -> str:
     """PyInstaller 打包后从 _MEIPASS 读取只读 data 文件；开发模式从源码目录读取。"""
     if hasattr(sys, '_MEIPASS'):
-        return sys._MEIPASS
+        return cast(str, sys._MEIPASS)
     return os.path.dirname(os.path.abspath(__file__))
 
 

@@ -31,7 +31,7 @@ class ReviewMode(BaseMode):
         self.showing_answer = False
         self.auto_show_answer = False
 
-        self.engine = QuizEngine(questions)
+        self.engine: QuizEngine = QuizEngine(questions)
         self.engine.set_questions_queue(questions)  # TD-15: 显式接口
         self.current_index = 0
         self._setup_mode_ui()
@@ -204,6 +204,9 @@ class ReviewMode(BaseMode):
         else:
             return
 
+        if question is None:
+            return
+
         self.review_question_text.config(state=tk.NORMAL)
         self.review_question_text.delete(1.0, tk.END)
         self.review_question_text.insert(tk.END,
@@ -245,6 +248,8 @@ class ReviewMode(BaseMode):
 
     def toggle_answer(self) -> None:
         question = self.engine.get_question_at(self.current_index)
+        if question is None:
+            return
 
         if not self.showing_answer:
             self.showing_answer = True
@@ -303,6 +308,8 @@ class ReviewMode(BaseMode):
             return
 
         question = self.engine.get_question_at(self.current_index)
+        if question is None:
+            return
         q_num = question.get('number')
         favorites = self.progress.get('favorites', [])
 
