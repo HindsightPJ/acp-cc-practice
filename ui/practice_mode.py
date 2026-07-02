@@ -1,11 +1,12 @@
 import tkinter as tk
 from tkinter import messagebox
-from typing import Any
+from typing import Any, Optional
 
 from .theme import Theme, font_ui, create_normal_button
 
 from quiz_engine import QuizEngine
 from models import Question
+from data_manager import DataManager
 from .base_mode import BaseMode
 from .practice_session import PracticeSession
 from .practice_panel import PracticePanel
@@ -15,7 +16,11 @@ theme = Theme()
 
 class PracticeMode(BaseMode):
     def __init__(
-        self, parent, questions: list[Question], data_manager, progress: Any
+        self,
+        parent,
+        questions: list[Question],
+        data_manager: Optional[DataManager],
+        progress: Optional[Any],
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.engine: QuizEngine = QuizEngine(questions)

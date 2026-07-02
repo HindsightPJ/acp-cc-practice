@@ -1,11 +1,12 @@
 import tkinter as tk
 from tkinter import messagebox
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 
 from quiz_engine import QuizEngine
 from models import Question
+from data_manager import DataManager
 from .base_mode import BaseMode
 from .option_row import OptionRow
 
@@ -14,7 +15,11 @@ theme = Theme()
 
 class ReviewMode(BaseMode):
     def __init__(
-        self, parent, questions: List[Question], data_manager=None, progress: Any = None
+        self,
+        parent,
+        questions: List[Question],
+        data_manager: Optional[DataManager] = None,
+        progress: Optional[Any] = None,
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.showing_answer = False
@@ -22,7 +27,6 @@ class ReviewMode(BaseMode):
 
         self.engine: QuizEngine = QuizEngine(questions)
         self.engine.set_questions_queue(questions)  # TD-15: 显式接口
-        self.current_index = 0
         self._setup_mode_ui()
         self.load_question()
         self._bind_keyboard()
@@ -225,8 +229,9 @@ class ReviewMode(BaseMode):
             self.toggle_answer()
 
     def load_question(self) -> None:
-        if 0 <= self.current_index < self.engine.queue_length():
-            question = self.engine.get_question_at(self.current_index)
+        current_index = self.engine.get_current_index()
+        if 0 <= current_index < self.engine.queue_length():
+            question = self.engine.get_question_at(current_index)
         else:
             return
 
@@ -262,9 +267,9 @@ class ReviewMode(BaseMode):
         self.review_explanation_text.config(state=tk.DISABLED)
         self.toggle_answer_btn.configure(text="显示答案 (Space)")
 
-        self.jump_var.set(str(self.current_index + 1))
+        self.jump_var.set(str(current_index + 1))
         self.progress_info.configure(
-            text=f"第 {self.current_index + 1} 题 / 共 {len(self.questions)} 题"
+            text=f"第 {current_index + 1} 题 / 共 {len(self.questions)} 题"
         )
 
         self._sync_favorite_button()
@@ -274,7 +279,7 @@ class ReviewMode(BaseMode):
             self._add_after_job(job_id)
 
     def toggle_answer(self) -> None:
-        question = self.engine.get_question_at(self.current_index)
+        question = self.engine.get_question_at(self.engine.get_current_index())
         if question is None:
             return
 
@@ -311,20 +316,20 @@ class ReviewMode(BaseMode):
                 self.review_option_rows[i].reset()
 
     def next_question(self) -> None:
-        if self.current_index < self.engine.queue_length() - 1:
-            self.current_index += 1
+        if self.engine and self.engine.has_next():
+            self.engine.next_question()
             self.load_question()
 
     def prev_question(self) -> None:
-        if self.current_index > 0:
-            self.current_index -= 1
+        if self.engine and self.engine.has_prev():
+            self.engine.prev_question()
             self.load_question()
 
     def jump_to_question(self) -> None:
         try:
             num = int(self.jump_var.get())
             if 1 <= num <= len(self.questions):
-                self.current_index = num - 1
+                self.engine.set_current_index(num - 1)
                 self.load_question()
             else:
                 messagebox.showerror("错误", f"请输入 1-{len(self.questions)} 之间的题号！")
@@ -335,7 +340,7 @@ class ReviewMode(BaseMode):
         if not self.data_manager:
             return
 
-        question = self.engine.get_question_at(self.current_index)
+        question = self.engine.get_question_at(self.engine.get_current_index())
         if question is None:
             return
         q_num = question.number
@@ -347,9 +352,10 @@ class ReviewMode(BaseMode):
         """根据当前题是否已收藏，更新按钮文字与配色作为静默反馈。"""
         if not self.engine:
             return
-        if self.current_index >= self.engine.queue_length():
+        current_index = self.engine.get_current_index()
+        if current_index >= self.engine.queue_length():
             return
-        q_num = self.engine.get_question_at(self.current_index).number
+        q_num = self.engine.get_question_at(current_index).number
         is_fav = self.app_state.is_favorite(q_num)
         if is_fav:
             self.favorite_btn.configure(text="已收藏 ✓", fg=theme.ACCENT, bg=theme.ACCENT_LIGHT)

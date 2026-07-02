@@ -7,6 +7,7 @@ from .theme import Theme, font_ui, font_ui_semibold, font_mono, create_primary_b
 
 from quiz_engine import QuizEngine
 from models import Question
+from data_manager import DataManager
 from .base_mode import BaseMode
 from .option_row import OptionRow
 from .exam_report_dialog import ExamReportDialog
@@ -17,7 +18,11 @@ theme = Theme()
 
 class ExamMode(BaseMode):
     def __init__(
-        self, parent, questions: List[Question], data_manager, progress: Any
+        self,
+        parent,
+        questions: List[Question],
+        data_manager: Optional[DataManager],
+        progress: Optional[Any],
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.engine: Optional[QuizEngine] = None
@@ -201,18 +206,14 @@ class ExamMode(BaseMode):
         )
         next_exam_btn.pack(side=tk.LEFT)
 
-        mark_btn = tk.Button(
+        mark_btn = create_primary_button(
             action_bar,
             text="标记 (M)",
             command=self.toggle_mark_current,
-            font=font_ui(10),
-            fg=theme.YELLOW,
-            bg=theme.YELLOW_BG,
-            activebackground=theme.YELLOW_BORDER,
-            relief=tk.FLAT,
+            bg_color=theme.YELLOW,
+            active_bg=theme.YELLOW_BORDER,
             padx=12,
             pady=5,
-            cursor="hand2",
         )
         mark_btn.pack(side=tk.LEFT, padx=(8, 0))
 
@@ -320,21 +321,21 @@ class ExamMode(BaseMode):
         self.nav_canvas.config(scrollregion=self.nav_canvas.bbox(tk.ALL))
 
     def _update_nav_buttons(self):
-        if self.engine is None:
+        if self.engine is None or self.exam_session is None:
             return
         current = self.engine.get_current_index()  # TD-15: 显式接口
         for i, btn in enumerate(self.nav_buttons):
             if i == current:
                 bg = theme.ACCENT
                 fg = theme.SELECTED_TEXT
-            elif i in self.exam_answers:
+            elif self.exam_session.has_answer(i):
                 bg = theme.GREEN_BG
                 fg = theme.GREEN_TEXT
             else:
                 bg = theme.BG_INPUT
                 fg = theme.TEXT_SECONDARY
 
-            if i in self.exam_marked:
+            if self.exam_session.is_marked(i):
                 text = f"★{i + 1}"
             else:
                 text = str(i + 1)
@@ -342,13 +343,9 @@ class ExamMode(BaseMode):
             btn.configure(text=text, bg=bg, fg=fg)
 
     def toggle_mark_current(self) -> None:
-        if self.engine is None:
+        if self.engine is None or self.exam_session is None:
             return
-        idx = self.engine.get_current_index()  # TD-15: 显式接口
-        if idx in self.exam_marked:
-            self.exam_marked.remove(idx)
-        else:
-            self.exam_marked.add(idx)
+        self.exam_session.toggle_mark()
         self._update_nav_buttons()
 
     def jump_to_question(self, idx: int) -> None:
@@ -369,8 +366,7 @@ class ExamMode(BaseMode):
 
         self.engine = QuizEngine(self.questions)
         self.engine.start_exam_mode(question_count=question_count)
-        self.exam_answers = {}
-        self.exam_marked = set()
+        self.exam_session = ExamSession(self.engine)
 
         self.exam_total_seconds = duration * 60
         self.time_remaining = self.exam_total_seconds
@@ -442,14 +438,12 @@ class ExamMode(BaseMode):
             else:
                 item["row"].pack_forget()
 
-        current_idx = self.engine.get_current_index()  # TD-15: 显式接口
-        if current_idx in self.exam_answers:
-            answered_letters = self.exam_answers[current_idx]
-            for i, item in enumerate(self.exam_option_cards):
-                letter = chr(ord("A") + i)
-                if letter in answered_letters:
-                    item["var"].set(1)
-                    item["row"].set_selected(True)
+        answered_letters = self.exam_session.get_current_selected() if self.exam_session else ""
+        for i, item in enumerate(self.exam_option_cards):
+            letter = chr(ord("A") + i)
+            if letter in answered_letters:
+                item["var"].set(1)
+                item["row"].set_selected(True)
 
         progress = self.engine.get_progress()
         self.exam_progress_label.configure(
@@ -460,57 +454,21 @@ class ExamMode(BaseMode):
 
     def exam_select_option_by_letter(self, letter: str) -> None:
         """点击或键盘触发选项选择。"""
-        if self.engine is None:
-            return
-        idx = ord(letter) - ord("A")
-        if not (0 <= idx < len(self.exam_option_cards)):
+        if self.engine is None or self.exam_session is None:
             return
 
-        item = self.exam_option_cards[idx]
-        var = item["var"]
-        row = item["row"]
-
-        current_idx = self.engine.get_current_index()  # TD-15: 显式接口
-        question = self.engine.get_current_question()
-        if question is None:
+        selected = self.exam_session.select_option(letter)
+        if selected is None:
             return
-        is_multiple = question.type == "multiple"
-        options_count = len(question.options)
 
-        if is_multiple:
-            # 多选题：切换当前选项，不影响其他选项
-            if var.get() == 1:
-                var.set(0)
-                row.set_selected(False)
-            else:
-                var.set(1)
-                row.set_selected(True)
-
-            # 收集所有已选选项
-            selected = []
-            for i, it in enumerate(self.exam_option_cards):
-                if i < options_count and it["var"].get():
-                    selected.append(chr(ord("A") + i))
-            selected.sort()
-            if selected:
-                self.exam_answers[current_idx] = "".join(selected)
-            elif current_idx in self.exam_answers:
-                del self.exam_answers[current_idx]
-        else:
-            # 单选题：点击一个取消其他
-            if var.get() == 1:
-                var.set(0)
-                row.set_selected(False)
-                if current_idx in self.exam_answers:
-                    del self.exam_answers[current_idx]
-            else:
-                for i, it in enumerate(self.exam_option_cards):
-                    if i < options_count and it["var"].get():
-                        it["var"].set(0)
-                        it["row"].set_selected(False)
-                var.set(1)
-                row.set_selected(True)
-                self.exam_answers[current_idx] = letter
+        options_count = len(self.exam_session.get_current_question().options)
+        for i, item in enumerate(self.exam_option_cards):
+            if i >= options_count:
+                continue
+            letter_i = chr(ord("A") + i)
+            is_selected = letter_i in selected
+            item["var"].set(1 if is_selected else 0)
+            item["row"].set_selected(is_selected)
 
         self._update_nav_buttons()
 
@@ -541,11 +499,10 @@ class ExamMode(BaseMode):
         self._cancel_all_after_jobs()
         self.timer_running = False
 
-        if self.engine is None:
+        if self.engine is None or self.exam_session is None:
             return
 
-        for idx, letter in self.exam_answers.items():
-            self.engine.record_exam_answer(idx, letter)
+        self.exam_session.record_all_answers()
 
         report = self.engine.get_exam_report()
 

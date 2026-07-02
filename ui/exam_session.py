@@ -63,7 +63,10 @@ class ExamSession:
             else:
                 current.add(letter)
         else:
-            current = {letter}
+            if letter in current and len(current) == 1:
+                current = set()
+            else:
+                current = {letter}
 
         selected = "".join(sorted(current))
         if selected:
@@ -72,20 +75,6 @@ class ExamSession:
             del self.answers[current_idx]
 
         return selected
-
-    def record_answer(self) -> bool:
-        """记录当前题目的答案到 QuizEngine（用于交卷评分）。
-
-        Returns:
-            是否成功记录
-        """
-        question = self.get_current_question()
-        if question is None:
-            return False
-
-        selected = self.answers.get(self.get_current_index(), "")
-        self.engine.record_exam_answer(self.get_current_index(), selected)
-        return True
 
     def record_all_answers(self) -> None:
         """在交卷前把所有已选答案写入 QuizEngine。"""

@@ -6,6 +6,7 @@ from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, crea
 
 from quiz_engine import QuizEngine
 from models import Question
+from data_manager import DataManager
 from .base_mode import BaseMode
 from .option_row import OptionRow
 from .practice_session import PracticeSession
@@ -16,7 +17,11 @@ theme = Theme()
 
 class WrongBook(BaseMode):
     def __init__(
-        self, parent, questions: List[Question], data_manager, progress: Any
+        self,
+        parent,
+        questions: List[Question],
+        data_manager: Optional[DataManager],
+        progress: Optional[Any],
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
 
@@ -248,38 +253,13 @@ class WrongBook(BaseMode):
         options_card.pack(fill=tk.X, padx=20, pady=(0, 12))
 
         for opt in question.options:
-            opt_row = tk.Frame(opt_inner, bg=theme.BG_INPUT, padx=10, pady=6)
-            opt_row.pack(fill=tk.X, pady=2)
-
-            opt_letter = opt.letter
-            is_correct = opt_letter in question.answer
-
-            row_bg = theme.GREEN_BG if is_correct else theme.BG_INPUT
-            letter_fg = theme.GREEN_TEXT if is_correct else theme.TEXT_SECONDARY
-            text_fg = theme.GREEN_TEXT if is_correct else theme.TEXT_PRIMARY
-
-            opt_row.configure(bg=row_bg)
-
-            tk.Label(
-                opt_row,
-                text=opt_letter,
-                font=font_ui_semibold(11),
-                fg=letter_fg,
-                bg=row_bg,
-                width=2,
-                anchor="w",
-            ).pack(side=tk.LEFT, padx=(0, 10))
-
-            tk.Label(
-                opt_row,
-                text=opt.text,
-                font=font_ui(11),
-                fg=text_fg,
-                bg=row_bg,
-                wraplength=480,
-                justify=tk.LEFT,
-                anchor=tk.W,
-            ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            row = OptionRow(opt_inner, letter=opt.letter, wraplength=480)
+            row.pack(fill=tk.X, pady=2)
+            row.update_text(opt.text)
+            if opt.letter in question.answer:
+                row.reveal_correct()
+            else:
+                row.reset()
 
         answer_card, ans_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
         answer_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 12))
@@ -408,22 +388,16 @@ class WrongBook(BaseMode):
 
     def _on_practice_key_press(self, event):
         """错题练习键盘事件处理 - 复用 PracticePanel 的键盘处理。"""
-        if not self._practice_panel:
+        if not self._practice_panel or not self.practice_engine:
             return
-
-        # 选项键与提交交给面板；面板内部不处理选项键，因此这里先走基类通用方法。
-        # 由于基类方法依赖 self.engine，而 WrongBook 的 engine 为 None，临时切换。
-        original_engine = self.engine
-        self.engine = self.practice_engine
 
         result = self._handle_option_key_press(
             event,
             on_select=self._practice_panel.handle_option_click,
             on_submit=self._practice_panel.submit_answer,
             is_answered_check=lambda: self._practice_session.is_answered,
+            engine=self.practice_engine,
         )
-
-        self.engine = original_engine
 
         if result == "break":
             return "break"

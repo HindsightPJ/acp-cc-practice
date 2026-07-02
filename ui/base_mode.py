@@ -1,14 +1,14 @@
 import tkinter as tk
 from tkinter import ttk
 
-from typing import List, Dict, Any, Optional, cast
+from typing import List, Any, Optional, cast
 from abc import ABC, abstractmethod
 
 from quiz_engine import QuizEngine
 from models import Question
 from app_state import AppState
 from data_manager import DataManager
-from .theme import Theme, font_ui, font_ui_semibold
+from .theme import Theme
 
 theme = Theme()
 
@@ -21,14 +21,17 @@ class BaseMode(ABC, ttk.Frame):
     """
 
     def __init__(
-        self, parent, questions: List[Question], data_manager, progress: Optional[Any]
+        self,
+        parent,
+        questions: List[Question],
+        data_manager: Optional[DataManager],
+        progress: Optional[Any],
     ):
         super().__init__(parent)
         self.questions: List[Question] = questions
         self.data_manager = data_manager
         self._after_jobs: List[Any] = []  # 跟踪所有 after 回调
         self.engine: Optional[QuizEngine] = None  # 基类保证属性存在，子类覆盖
-        self.current_index = 0
 
         if isinstance(progress, AppState):
             self._state = progress
@@ -73,53 +76,6 @@ class BaseMode(ABC, ttk.Frame):
             pass  # widget 已销毁
         super().destroy()
 
-    def _create_toolbar(self, parent) -> tuple:
-        """创建公共工具栏，返回 (toolbar, progress_label, type_label)"""
-        toolbar = tk.Frame(parent, bg=theme.BG_PAGE)
-        toolbar.pack(fill=tk.X, pady=(0, 12))
-
-        toolbar_left = tk.Frame(toolbar, bg=theme.BG_PAGE)
-        toolbar_left.pack(side=tk.LEFT)
-
-        progress_label = tk.Label(
-            toolbar_left,
-            text="第 0 题 / 共 0 题",
-            font=font_ui(11),
-            fg=theme.TEXT_SECONDARY,
-            bg=theme.BG_PAGE,
-        )
-        progress_label.pack(side=tk.LEFT, padx=(0, 16))
-
-        type_label = tk.Label(
-            toolbar_left,
-            text="单选题",
-            font=font_ui_semibold(10),
-            fg=theme.ACCENT,
-            bg=theme.BG_PAGE,
-        )
-        type_label.pack(side=tk.LEFT)
-
-        return toolbar, progress_label, type_label
-
-    def _create_progress_bar(self, parent) -> tuple:
-        """创建进度条，返回 (progress_bg, progress_bar_fill)"""
-        progress_bg = tk.Frame(parent, bg=theme.BORDER, height=3)
-        progress_bg.pack(fill=tk.X, pady=(0, 16))
-        progress_bg.pack_propagate(False)
-
-        progress_bar_fill = tk.Frame(progress_bg, bg=theme.ACCENT, width=0, height=3)
-        progress_bar_fill.place(x=0, y=0, relheight=1.0)
-
-        return progress_bg, progress_bar_fill
-
-    def _update_progress_bar_width(
-        self, progress_bar_fill, container_width: int, percentage: float
-    ) -> None:
-        """更新进度条宽度"""
-        if container_width > 0:
-            bar_width = int(container_width * (percentage / 100))
-            progress_bar_fill.configure(width=max(bar_width, 0))
-
     def _bind_keyboard(self) -> None:
         """绑定键盘事件"""
         self.focus_set()
@@ -139,26 +95,33 @@ class BaseMode(ABC, ttk.Frame):
             pass
 
     def _handle_option_key_press(
-        self, event, on_select, on_submit, is_answered_check
+        self,
+        event,
+        on_select,
+        on_submit,
+        is_answered_check,
+        engine: Optional[QuizEngine] = None,
     ) -> Optional[str]:
         """通用的选项选择键盘处理 - 处理 A-F、1-6、Enter 按键。
-        
+
         Args:
             event: 键盘事件
             on_select: 选择选项的回调函数，接受 letter 参数
             on_submit: 提交答案的回调函数
             is_answered_check: 检查是否已答题的函数
-        
+            engine: 可选的 QuizEngine 实例；未提供时使用 self.engine
+
         Returns:
             "break" 如果处理了事件，否则 None
         """
-        if not self.engine or not self.engine.get_current_question():
+        active_engine = engine or self.engine
+        if not active_engine or not active_engine.get_current_question():
             return None
-        
+
         key = event.char.upper() if event.char else ""
         keysym = event.keysym
-        
-        question = self.engine.get_current_question()
+
+        question = active_engine.get_current_question()
         if question is None:
             return None
 
@@ -178,12 +141,12 @@ class BaseMode(ABC, ttk.Frame):
                 letter = chr(ord("A") + card_idx)
                 on_select(letter)
             return "break"
-        
+
         # Enter 提交
         if keysym == "Return" and not is_answered_check():
             on_submit()
             return "break"
-        
+
         return None
 
     def _on_key_press(self, event):
@@ -204,19 +167,17 @@ class BaseMode(ABC, ttk.Frame):
             return "break"
         return None
 
-    def next_question(self) -> Optional[Dict[str, Any]]:
+    def next_question(self) -> Optional[Question]:
         """下一题"""
         if self.engine and self.engine.has_next():
             self.engine.next_question()
-            self.current_index = self.engine.get_current_index()  # TD-15: 显式接口
             return self.engine.get_current_question()
         return None
 
-    def prev_question(self) -> Optional[Dict[str, Any]]:
+    def prev_question(self) -> Optional[Question]:
         """上一题"""
         if self.engine and self.engine.has_prev():
             self.engine.prev_question()
-            self.current_index = self.engine.get_current_index()  # TD-15: 显式接口
             return self.engine.get_current_question()
         return None
 
