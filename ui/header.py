@@ -4,7 +4,6 @@ import tkinter as tk
 from typing import Optional, Callable
 
 from .theme import Theme, font_ui, font_display
-from .i18n import _
 
 from license import LicenseStatus
 
@@ -70,7 +69,7 @@ class Header(tk.Frame):
         if self.license_status != LicenseStatus.AUTHORIZED:
             self.activate_btn = tk.Button(
                 inner,
-                text=_("input_license"),
+                text="输入注册码",
                 command=self._on_activate_click,
                 font=font_ui(10),
                 bg=theme.ACCENT,
@@ -94,9 +93,9 @@ class Header(tk.Frame):
 
     def _refresh_license_text(self) -> None:
         if self.license_status == LicenseStatus.AUTHORIZED:
-            text = f"{_('total_questions', total=self.total_count)} · {_('authorized_status')}"
+            text = f"题库共 {self.total_count} 题 · 已授权"
         else:
-            text = f"{_('total_questions', total=self.total_count)} · {_('trial_status', trial=self.trial_count)}"
+            text = f"题库共 {self.total_count} 题 · 试用版（前 {self.trial_count} 题）"
         self.license_status_label.configure(text=text)
 
     def set_mode_title(self, title: str) -> None:
@@ -113,9 +112,9 @@ class Header(tk.Frame):
         """
         self.stats_label.configure(
             text=(
-                f"{_('practiced', count=practiced)}  ·  "
-                f"{_('accuracy', accuracy=f'{accuracy:.0f}')}  ·  "
-                f"{_('wrong_count', count=wrong_count)}"
+                f"已练 {practiced} 题  ·  "
+                f"正确率 {accuracy:.0f}%  ·  "
+                f"错题 {wrong_count}"
             )
         )
 

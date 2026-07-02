@@ -2,18 +2,21 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Dict, Any, Optional
 
-from .theme import Theme, font_ui, font_ui_semibold
+from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 
 from quiz_engine import QuizEngine
+from models import Question
 from .base_mode import BaseMode
 from .option_row import OptionRow
+from .practice_session import PracticeSession
+from .practice_panel import PracticePanel
 
 theme = Theme()
 
 
 class WrongBook(BaseMode):
     def __init__(
-        self, parent, questions: List[Dict[str, Any]], data_manager, progress: Any
+        self, parent, questions: List[Question], data_manager, progress: Any
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
 
@@ -21,6 +24,8 @@ class WrongBook(BaseMode):
         self.practice_engine: Optional[QuizEngine] = None
         self._practice_window: Optional[tk.Toplevel] = None
         self._detail_windows: List[tk.Toplevel] = []
+        self._practice_session: Optional[PracticeSession] = None
+        self._practice_panel: Optional[PracticePanel] = None
 
         self._setup_mode_ui()
 
@@ -44,9 +49,9 @@ class WrongBook(BaseMode):
             self._practice_window = None
         super().destroy()
 
-    def _get_wrong_questions_list(self) -> List[Dict[str, Any]]:
-        wrong_nums = set(self.progress.get("wrong_questions", []))
-        return [q for q in self.questions if q.get("number") in wrong_nums]
+    def _get_wrong_questions_list(self) -> List[Question]:
+        wrong_nums = set(self.app_state.get_wrong_questions())
+        return [q for q in self.questions if q.number in wrong_nums]
 
     def _setup_mode_ui(self):
         self.configure(style="TFrame")
@@ -69,33 +74,20 @@ class WrongBook(BaseMode):
         toolbar_right = tk.Frame(toolbar, bg=theme.BG_PAGE)
         toolbar_right.pack(side=tk.RIGHT)
 
-        practice_btn = tk.Button(
+        practice_btn = create_primary_button(
             toolbar_right,
             text="练习错题",
             command=self.start_practice_wrong,
-            font=font_ui_semibold(11),
-            fg="#ffffff",
-            bg=theme.BTN_PRIMARY,
-            activebackground=theme.BTN_PRIMARY_ACTIVE,
-            relief=tk.FLAT,
             padx=16,
             pady=5,
-            cursor="hand2",
         )
         practice_btn.pack(side=tk.LEFT, padx=(0, 8))
 
-        clear_btn = tk.Button(
+        clear_btn = create_normal_button(
             toolbar_right,
             text="清空",
             command=self.clear_all_wrong,
-            font=font_ui(10),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_HOVER,
-            relief=tk.FLAT,
-            padx=12,
             pady=4,
-            cursor="hand2",
         )
         clear_btn.pack(side=tk.LEFT)
 
@@ -176,10 +168,10 @@ class WrongBook(BaseMode):
             self.tree.delete(item)
 
         for q in self.wrong_questions:
-            content = q.get("content", "")
+            content = q.content
             if len(content) > 60:
                 content = content[:60] + "..."
-            self.tree.insert("", tk.END, values=(q.get("number"), content, q.get("answer", "?")))
+            self.tree.insert("", tk.END, values=(q.number, content, q.answer or "?"))
 
         self._update_empty_state()
 
@@ -200,7 +192,7 @@ class WrongBook(BaseMode):
         item = self.tree.item(selection[0])
         q_num = item["values"][0]
 
-        question = next((q for q in self.wrong_questions if q.get("number") == q_num), None)
+        question = next((q for q in self.wrong_questions if q.number == q_num), None)
         if not question:
             return
 
@@ -221,13 +213,8 @@ class WrongBook(BaseMode):
         y = (detail_window.winfo_screenheight() // 2) - (height // 2)
         detail_window.geometry(f"{width}x{height}+{x}+{y}")
 
-        header = tk.Frame(
-            detail_window, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        header, h_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
         header.pack(fill=tk.X, padx=20, pady=(20, 0))
-
-        h_inner = tk.Frame(header, bg=theme.BG_CARD)
-        h_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=14)
 
         tk.Label(
             h_inner,
@@ -237,13 +224,8 @@ class WrongBook(BaseMode):
             bg=theme.BG_CARD,
         ).pack(anchor=tk.W)
 
-        question_card = tk.Frame(
-            detail_window, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        question_card, q_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
         question_card.pack(fill=tk.X, padx=20, pady=12)
-
-        q_inner = tk.Frame(question_card, bg=theme.BG_CARD)
-        q_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=14)
 
         q_text = tk.Text(
             q_inner,
@@ -259,23 +241,18 @@ class WrongBook(BaseMode):
             insertbackground=theme.TEXT_PRIMARY,
         )
         q_text.pack(fill=tk.X)
-        q_text.insert(tk.END, f"{q_num}. {question.get('content')}")
+        q_text.insert(tk.END, f"{q_num}. {question.content}")
         q_text.config(state=tk.DISABLED)
 
-        options_card = tk.Frame(
-            detail_window, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        options_card, opt_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
         options_card.pack(fill=tk.X, padx=20, pady=(0, 12))
 
-        opt_inner = tk.Frame(options_card, bg=theme.BG_CARD)
-        opt_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=14)
-
-        for opt in question.get("options", []):
+        for opt in question.options:
             opt_row = tk.Frame(opt_inner, bg=theme.BG_INPUT, padx=10, pady=6)
             opt_row.pack(fill=tk.X, pady=2)
 
-            opt_letter = opt.get("letter", "")
-            is_correct = opt_letter in question.get("answer", "")
+            opt_letter = opt.letter
+            is_correct = opt_letter in question.answer
 
             row_bg = theme.GREEN_BG if is_correct else theme.BG_INPUT
             letter_fg = theme.GREEN_TEXT if is_correct else theme.TEXT_SECONDARY
@@ -295,7 +272,7 @@ class WrongBook(BaseMode):
 
             tk.Label(
                 opt_row,
-                text=opt.get("text", ""),
+                text=opt.text,
                 font=font_ui(11),
                 fg=text_fg,
                 bg=row_bg,
@@ -304,13 +281,8 @@ class WrongBook(BaseMode):
                 anchor=tk.W,
             ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        answer_card = tk.Frame(
-            detail_window, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        answer_card, ans_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
         answer_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 12))
-
-        ans_inner = tk.Frame(answer_card, bg=theme.BG_CARD)
-        ans_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=14)
 
         ans_top = tk.Frame(ans_inner, bg=theme.BG_CARD)
         ans_top.pack(fill=tk.X, pady=(0, 8))
@@ -321,7 +293,7 @@ class WrongBook(BaseMode):
 
         tk.Label(
             ans_top,
-            text=question.get("answer", "?"),
+            text=question.answer or "?",
             font=font_ui_semibold(13),
             fg=theme.GREEN,
             bg=theme.BG_CARD,
@@ -348,39 +320,25 @@ class WrongBook(BaseMode):
         )
         exp_text.pack(fill=tk.BOTH, expand=True)
         exp_scrollbar.config(command=exp_text.yview)
-        exp_text.insert(tk.END, question.get("explanation", "暂无解析"))
+        exp_text.insert(tk.END, question.explanation or "暂无解析")
         exp_text.config(state=tk.DISABLED)
 
         btn_frame = tk.Frame(detail_window, bg=theme.BG_PAGE)
         btn_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
 
-        master_btn = tk.Button(
+        master_btn = create_primary_button(
             btn_frame,
             text="标记为已掌握",
             command=lambda: self._mark_as_mastered(q_num, detail_window),
-            font=font_ui_semibold(11),
-            fg="#ffffff",
-            bg=theme.GREEN,
-            activebackground="#16a34a",
-            relief=tk.FLAT,
-            padx=16,
-            pady=6,
-            cursor="hand2",
+            bg_color=theme.GREEN,
+            active_bg="#16a34a",
         )
         master_btn.pack(side=tk.LEFT)
 
-        close_btn = tk.Button(
+        close_btn = create_normal_button(
             btn_frame,
             text="关闭",
             command=lambda: self._close_detail_window(detail_window),
-            font=font_ui(10),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_HOVER,
-            relief=tk.FLAT,
-            padx=12,
-            pady=5,
-            cursor="hand2",
         )
         close_btn.pack(side=tk.RIGHT)
 
@@ -412,322 +370,84 @@ class WrongBook(BaseMode):
             return
 
         self.practice_engine = QuizEngine(self.wrong_questions)
-        self.practice_engine.start_practice_mode(shuffle=True)
+
+        # 使用 PracticeSession 管理练习逻辑
+        self._practice_session = PracticeSession(self.practice_engine, self.app_state)
+        self._practice_session.reset_session(shuffle=True)
 
         practice_window = tk.Toplevel(self)
         practice_window.title("错题专项练习")
-        practice_window.geometry("850x620")
+        practice_window.geometry("850x700")
         practice_window.configure(bg=theme.BG_PAGE)
         practice_window.transient(self.winfo_toplevel())
         practice_window.grab_set()
 
         self._practice_window = practice_window
-        self._setup_practice_ui(practice_window)
+        self._practice_panel = PracticePanel(
+            practice_window,
+            session=self._practice_session,
+            on_finish=self._show_practice_result,
+            show_progress_bar=False,
+            show_prev_button=False,
+        )
+        self._practice_panel.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
         self._bind_practice_keyboard(practice_window)
-        self._load_practice_question()
-
-    def _setup_practice_ui(self, parent):
-        info_bar = tk.Frame(
-            parent, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
-        info_bar.pack(fill=tk.X, padx=20, pady=(20, 0))
-
-        info_inner = tk.Frame(info_bar, bg=theme.BG_CARD)
-        info_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=12)
-
-        self.practice_progress_label = tk.Label(
-            info_inner,
-            text="第 0 / 0 题",
-            font=font_ui(11),
-            fg=theme.TEXT_SECONDARY,
-            bg=theme.BG_CARD,
-        )
-        self.practice_progress_label.pack(side=tk.LEFT)
-
-        self.practice_stats_label = tk.Label(
-            info_inner,
-            text="正确 0  |  错误 0  |  正确率 0%",
-            font=font_ui_semibold(11),
-            fg=theme.ACCENT,
-            bg=theme.BG_CARD,
-        )
-        self.practice_stats_label.pack(side=tk.RIGHT)
-
-        question_card = tk.Frame(
-            parent, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
-        question_card.pack(fill=tk.X, padx=20, pady=12)
-
-        q_inner = tk.Frame(question_card, bg=theme.BG_CARD)
-        q_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
-
-        self.pq_text = tk.Text(
-            q_inner,
-            height=4,
-            wrap=tk.WORD,
-            font=font_ui(12),
-            bg=theme.BG_CARD,
-            fg=theme.TEXT_PRIMARY,
-            relief=tk.FLAT,
-            padx=0,
-            pady=0,
-            selectbackground=theme.BG_SELECT,
-            insertbackground=theme.TEXT_PRIMARY,
-        )
-        self.pq_text.pack(fill=tk.X)
-        self.pq_text.config(state=tk.DISABLED)
-
-        options_card = tk.Frame(
-            parent, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
-        options_card.pack(fill=tk.X, padx=20, pady=(0, 12))
-
-        opt_inner = tk.Frame(options_card, bg=theme.BG_CARD)
-        opt_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=14)
-
-        self.po_buttons = []
-        for letter in ["A", "B", "C", "D", "E", "F"]:
-            row = OptionRow(
-                opt_inner, letter=letter, on_click=lambda sel: self._practice_on_click(sel)
-            )
-            row.pack(fill=tk.X, pady=2)
-            self.po_buttons.append(
-                {
-                    "row": row,
-                    "var": tk.IntVar(value=0),
-                    "letter": letter,
-                }
-            )
-            if ord(letter) - ord("A") >= 4:
-                row.pack_forget()
-
-        action_bar = tk.Frame(parent, bg=theme.BG_PAGE)
-        action_bar.pack(fill=tk.X, padx=20, pady=10)
-
-        self.psubmit_btn = tk.Button(
-            action_bar,
-            text="提交答案",
-            command=self._psubmit_answer,
-            font=font_ui_semibold(11),
-            fg="#ffffff",
-            bg=theme.BTN_PRIMARY,
-            activebackground=theme.BTN_PRIMARY_ACTIVE,
-            relief=tk.FLAT,
-            width=12,
-            padx=16,
-            pady=6,
-            cursor="hand2",
-        )
-        self.psubmit_btn.pack(side=tk.LEFT, padx=(0, 8))
-
-        next_btn = tk.Button(
-            action_bar,
-            text="下一题",
-            command=self._pnext_question,
-            font=font_ui(10),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_HOVER,
-            relief=tk.FLAT,
-            padx=12,
-            pady=5,
-            cursor="hand2",
-        )
-        next_btn.pack(side=tk.LEFT)
-
-        self.presult_label = tk.Label(
-            parent, text="", font=font_ui(12), fg=theme.TEXT_PRIMARY, bg=theme.BG_PAGE
-        )
-        self.presult_label.pack(pady=10)
-
-        self.panswered = False
+        self._practice_panel.load_current_question()
 
     def _bind_practice_keyboard(self, window):
-        """绑定错题练习窗口的键盘事件"""
+        """绑定错题练习窗口的键盘事件。"""
         window.focus_set()
         window.bind("<Key>", self._on_practice_key_press)
         window.bind("<Button-1>", self._on_practice_global_click)
 
     def _on_practice_global_click(self, event):
-        """全局点击设置焦点到练习窗口"""
+        """全局点击设置焦点到练习窗口。"""
         if self._practice_window is not None and self._practice_window.winfo_exists():
             self._practice_window.focus_set()
 
     def _on_practice_key_press(self, event):
-        """错题练习键盘事件处理"""
-        if not self.practice_engine or not self.practice_engine.get_current_question():
+        """错题练习键盘事件处理 - 复用 PracticePanel 的键盘处理。"""
+        if not self._practice_panel:
             return
 
-        key = event.char.upper() if event.char else ""
-        keysym = event.keysym
+        # 选项键与提交交给面板；面板内部不处理选项键，因此这里先走基类通用方法。
+        # 由于基类方法依赖 self.engine，而 WrongBook 的 engine 为 None，临时切换。
+        original_engine = self.engine
+        self.engine = self.practice_engine
 
-        # 字母选择答案 (A-F)
-        if key and key in "ABCDEF" and not self.panswered:
-            card_idx = ord(key) - ord("A")
-            options_count = len(self.practice_engine.get_current_question().get("options", []))
-            if card_idx < options_count:
-                self._practice_select_by_index(card_idx)
-            return "break"
-
-        # 数字选择答案 (1-6)
-        if key and key in "123456" and not self.panswered:
-            card_idx = int(key) - 1
-            options_count = len(self.practice_engine.get_current_question().get("options", []))
-            if card_idx < options_count:
-                self._practice_select_by_index(card_idx)
-            return "break"
-
-        # Enter 提交答案
-        if keysym == "Return" and not self.panswered:
-            self._psubmit_answer()
-            return "break"
-
-        # 方向键下一题
-        if keysym == "Right":
-            self._pnext_question()
-            return "break"
-
-    def _practice_on_click(self, letter: str) -> None:
-        """错题练习选项点击：通过字母定位到对应行后切换状态。"""
-        idx = ord(letter) - ord("A")
-        if 0 <= idx < len(self.po_buttons):
-            self._practice_select_by_index(idx)
-
-    def _practice_select_by_index(self, idx):
-        """通过索引选择练习选项"""
-        if self.panswered:
-            return
-
-        item = self.po_buttons[idx]
-        var = item["var"]
-        row = item["row"]
-
-        question = self.practice_engine.get_current_question()
-        is_multiple = question.get("type") == "multiple"
-
-        if is_multiple:
-            # 多选题：切换当前选项
-            if var.get() == 1:
-                var.set(0)
-                row.set_selected(False)
-            else:
-                var.set(1)
-                row.set_selected(True)
-        else:
-            # 单选题：取消其他选项
-            for po_item in self.po_buttons:
-                if po_item["var"].get() == 1:
-                    po_item["var"].set(0)
-                    po_item["row"].set_selected(False)
-
-            var.set(1)
-            row.set_selected(True)
-
-    def _load_practice_question(self):
-        question = self.practice_engine.get_current_question()
-        if not question:
-            self._show_practice_result()
-            return
-
-        self.pq_text.config(state=tk.NORMAL)
-        self.pq_text.delete(1.0, tk.END)
-        self.pq_text.insert(tk.END, f"{question.get('number')}. {question.get('content')}")
-        self.pq_text.config(state=tk.DISABLED)
-
-        options = question.get("options", [])
-        for i, item in enumerate(self.po_buttons):
-            if i < len(options):
-                item["row"].pack(fill=tk.X, pady=2)
-                item["row"].update_text(options[i].get("text", ""))
-            else:
-                item["row"].pack_forget()
-            item["var"].set(0)
-            item["row"].reset()
-
-        self.presult_label.configure(text="")
-        self.psubmit_btn.configure(state=tk.NORMAL, bg=theme.BTN_PRIMARY)
-        self.panswered = False
-
-        progress = self.practice_engine.get_progress()
-        self.practice_progress_label.configure(
-            text=f"第 {progress['current']} / {progress['total']} 题"
+        result = self._handle_option_key_press(
+            event,
+            on_select=self._practice_panel.handle_option_click,
+            on_submit=self._practice_panel.submit_answer,
+            is_answered_check=lambda: self._practice_session.is_answered,
         )
 
-        # P2-3: 统一用 get_stats() 显式接口访问统计，与 _psubmit_answer 保持一致。
-        stats = self.practice_engine.get_stats()
-        accuracy = (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
-        self.practice_stats_label.configure(
-            text=f"正确 {stats['correct']}  |  错误 {stats['wrong']}  |  正确率 {accuracy:.0f}%"
-        )
+        self.engine = original_engine
 
-    def _psubmit_answer(self):
-        selected_letters = []
-        for item in self.po_buttons:
-            if item["var"].get() == 1:
-                selected_letters.append(item["letter"])
+        if result == "break":
+            return "break"
 
-        if not selected_letters:
-            messagebox.showwarning("提示", "请先选择答案！")
-            return
-
-        selected_letters.sort()
-        answer_str = "".join(selected_letters)
-        result = self.practice_engine.submit_answer(answer_str)
-        self.panswered = True
-
-        # 写回主页练习统计
-        self.app_state.increment_practice_stats(result["is_correct"])
-        self.app_state.save()
-
-        if result["is_correct"]:
-            self.presult_label.configure(text="回答正确", fg=theme.GREEN)
-        else:
-            self.presult_label.configure(
-                text=f"回答错误，正确答案: {result['correct_answer']}", fg=theme.RED
-            )
-
-        question = self.practice_engine.get_current_question()
-        correct_answer = question.get("answer", "")
-        correct_set = set(correct_answer)
-        selected_set = set(selected_letters)
-        for item in self.po_buttons:
-            letter = item["letter"]
-            is_in_correct = letter in correct_set
-            is_in_selected = letter in selected_set
-            if is_in_correct or is_in_selected:
-                item["row"].set_result(is_in_correct, is_in_selected)
-            else:
-                item["row"].reset()
-
-        self.psubmit_btn.configure(state=tk.DISABLED, bg=theme.BTN_DISABLED)
-
-        stats = self.practice_engine.get_stats()
-        accuracy = (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
-        self.practice_stats_label.configure(
-            text=f"正确 {stats['correct']}  |  错误 {stats['wrong']}  |  正确率 {accuracy:.0f}%"
-        )
-
-    def _pnext_question(self):
-        if self.practice_engine.has_next():
-            self.practice_engine.next_question()
-            self._load_practice_question()
-        else:
-            self._show_practice_result()
+        # 方向键导航交给面板
+        return self._practice_panel.handle_key_press(event)
 
     def _show_practice_result(self):
-        stats = self.practice_engine.get_stats()
+        if not self._practice_session:
+            return
+
+        stats = self._practice_session.get_stats()
         total = stats["total"]
         correct = stats["correct"]
         accuracy = (correct / total * 100) if total > 0 else 0
 
         msg = f"练习完成！\n\n总题数: {total} 题\n正确: {correct} 题\n错误: {stats['wrong']} 题\n正确率: {accuracy:.1f}%"
 
-        # P1-4: 无论正确率多少，都只询问移除“本次答对”的错题，
+        # P1-4: 无论正确率多少，都只询问移除"本次答对"的错题，
         # 从不自动清空全部错题，避免一次性丢失还需复习的题目。
         if messagebox.askyesno(
             "练习完成", msg + "\n\n是否将本次答对的错题从错题本中移除？（答错的仍会保留）"
         ):
-            correct_nums = self.practice_engine.get_correct_question_numbers()
+            correct_nums = self._practice_session.get_correct_question_numbers()
             self.app_state.set_wrong_questions(
                 [
                     q_num
@@ -752,6 +472,7 @@ class WrongBook(BaseMode):
             except tk.TclError:
                 pass
             self._practice_window = None
+        self._practice_session = None
 
     def clear_all_wrong(self) -> None:
         if not self.wrong_questions:

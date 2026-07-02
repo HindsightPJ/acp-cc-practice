@@ -6,6 +6,7 @@ import re
 import logging
 from env_utils import load_env
 from telemetry import log_error
+from models import Question, Option
 
 logger = logging.getLogger(__name__)
 
@@ -106,13 +107,13 @@ class DataManager:
         if not os.path.exists(self.user_data_dir):
             os.makedirs(self.user_data_dir, exist_ok=True)
 
-    def parse_docx(self, docx_path: str) -> List[Dict[str, Any]]:
+    def parse_docx(self, docx_path: str) -> List[Question]:
         """解析Word文档，提取所有题目（TD-11: 检测/解析逻辑已抽取到模块级函数）。"""
         if Document is None:
             raise ImportError("请先安装python-docx库: pip install python-docx")
 
         doc = Document(docx_path)
-        questions: List[Dict[str, Any]] = []
+        raw_questions: List[Dict[str, Any]] = []
         current_question: Optional[Dict[str, Any]] = None
 
         for para in doc.paragraphs:
@@ -124,7 +125,7 @@ class DataManager:
             header = _parse_question_header(text)
             if header:
                 if current_question:
-                    questions.append(current_question)
+                    raw_questions.append(current_question)
                 current_question = {
                     "number": header[0],
                     "content": header[1],
@@ -164,17 +165,17 @@ class DataManager:
                     current_question["explanation"] = explanation
 
         if current_question:
-            questions.append(current_question)
+            raw_questions.append(current_question)
 
         # 去重：同一题号保留后出现的版本（通常是修正版）
         seen: Dict[int, Dict[str, Any]] = {}
-        for q in questions:
+        for q in raw_questions:
             seen[q["number"]] = q
-        questions = [seen[k] for k in sorted(seen)]
+        raw_questions = [seen[k] for k in sorted(seen)]
 
-        return questions
+        return [Question.from_dict(q) for q in raw_questions]
 
-    def load_or_parse_questions(self, docx_path: str) -> List[Dict[str, Any]]:
+    def load_or_parse_questions(self, docx_path: str) -> List[Question]:
         """加载题目：优先读加密 questions.enc，解密失败则 fallback 到明文 questions.json → docx 解析。
 
         解密失败的场景（无 .env 密钥 / 密钥错误 / 文件损坏）都不阻断，
@@ -195,7 +196,8 @@ class DataManager:
                     with open(self.questions_enc_file, "rb") as f:
                         ciphertext = f.read()
                     plaintext = Fernet(key.encode()).decrypt(ciphertext)
-                    return cast(List[Dict[str, Any]], json.loads(plaintext.decode("utf-8")))
+                    raw_list = json.loads(plaintext.decode("utf-8"))
+                    return [Question.from_dict(q) for q in raw_list]
             except (
                 ValueError,
                 OSError,
@@ -220,7 +222,8 @@ class DataManager:
         if os.path.exists(self.questions_file):
             try:
                 with open(self.questions_file, "r", encoding="utf-8") as f:
-                    return cast(List[Dict[str, Any]], json.load(f))
+                    raw_list = json.load(f)
+                    return [Question.from_dict(q) for q in raw_list]
             except json.JSONDecodeError as e:
                 raise DataLoadError(f"题目数据格式错误，请删除 data 文件夹后重新运行: {e}")
             except PermissionError:
@@ -231,7 +234,7 @@ class DataManager:
 
         try:
             with open(self.questions_file, "w", encoding="utf-8") as f:
-                json.dump(questions, f, ensure_ascii=False, indent=2)
+                json.dump([q.to_dict() for q in questions], f, ensure_ascii=False, indent=2)
         except PermissionError:
             raise DataSaveError(f"无法保存题目数据到 {self.questions_file}，请检查目录权限")
 
@@ -252,20 +255,21 @@ class DataManager:
         except (json.JSONDecodeError, OSError):
             return None
 
-    def load_trial_questions(self) -> List[Dict[str, Any]]:
+    def load_trial_questions(self) -> List[Question]:
         """加载 questions_trial.json（前 20 题明文）。"""
         trial_path = os.path.join(self.data_dir, "questions_trial.json")
         if not os.path.exists(trial_path):
             raise DataLoadError("试用题库缺失，请重新下载程序")
         try:
             with open(trial_path, "r", encoding="utf-8") as f:
-                return cast(List[Dict[str, Any]], json.load(f))
+                raw_list = json.load(f)
+                return [Question.from_dict(q) for q in raw_list]
         except json.JSONDecodeError as e:
             raise DataLoadError(f"试用题库损坏，请重新下载程序: {e}")
         except PermissionError:
             raise DataLoadError("无法读取试用题库，请检查文件权限")
 
-    def load_full_questions(self, key: str) -> List[Dict[str, Any]]:
+    def load_full_questions(self, key: str) -> List[Question]:
         """用 K 解密 questions.enc 加载全库。
 
         Args:
@@ -286,7 +290,8 @@ class DataManager:
             with open(self.questions_enc_file, "rb") as f:
                 ciphertext = f.read()
             plaintext = fernet.decrypt(ciphertext)
-            return cast(List[Dict[str, Any]], json.loads(plaintext.decode("utf-8")))
+            raw_list = json.loads(plaintext.decode("utf-8"))
+            return [Question.from_dict(q) for q in raw_list]
         except (ValueError, OSError, json.JSONDecodeError, UnicodeDecodeError, InvalidToken) as e:
             # TD-10: 收窄异常捕获——密钥格式错误(ValueError) / 文件IO(OSError) /
             # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)

@@ -1,7 +1,7 @@
 """应用状态对象（TD-30）：解耦 UI 与持久化状态管理。
 
-UI 层通过 AppState 读写学习进度，不再直接调用 data_manager.save_progress。
-状态对象负责维护原始 dict 的引用，确保外部测试代码直接访问 progress dict 时仍能看到一致数据。
+UI 层通过 AppState 读写学习进度，不再直接调用 data_manager.save_progress，
+也不再直接访问原始 progress dict。
 """
 
 from typing import Any, Dict, List, Optional
@@ -30,10 +30,6 @@ class AppState:
         self._progress.setdefault("exam_history", [])
         self._progress.setdefault("favorites", [])
         self._progress.setdefault("settings", {})
-
-    # ---------- 原始进度访问（兼容旧代码/测试） ----------
-    def get_raw_progress(self) -> Dict[str, Any]:
-        return self._progress
 
     # ---------- 练习统计 ----------
     def get_practice_stats(self) -> Dict[str, int]:

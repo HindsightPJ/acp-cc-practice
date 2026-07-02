@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional, cast
 from abc import ABC, abstractmethod
 
 from quiz_engine import QuizEngine
+from models import Question
 from app_state import AppState
 from data_manager import DataManager
 from .theme import Theme, font_ui, font_ui_semibold
@@ -20,10 +21,10 @@ class BaseMode(ABC, ttk.Frame):
     """
 
     def __init__(
-        self, parent, questions: List[Dict[str, Any]], data_manager, progress: Optional[Any]
+        self, parent, questions: List[Question], data_manager, progress: Optional[Any]
     ):
         super().__init__(parent)
-        self.questions = questions
+        self.questions: List[Question] = questions
         self.data_manager = data_manager
         self._after_jobs: List[Any] = []  # 跟踪所有 after 回调
         self.engine: Optional[QuizEngine] = None  # 基类保证属性存在，子类覆盖
@@ -33,8 +34,6 @@ class BaseMode(ABC, ttk.Frame):
             self._state = progress
         else:
             self._state = AppState(data_manager, progress)
-        # 保留 progress 属性引用原始 dict，兼容现有测试与直接读取逻辑
-        self.progress: Dict[str, Any] = self._state.get_raw_progress()
 
     @property
     def app_state(self) -> AppState:
@@ -138,6 +137,54 @@ class BaseMode(ABC, ttk.Frame):
             self.focus_set()
         except tk.TclError:
             pass
+
+    def _handle_option_key_press(
+        self, event, on_select, on_submit, is_answered_check
+    ) -> Optional[str]:
+        """通用的选项选择键盘处理 - 处理 A-F、1-6、Enter 按键。
+        
+        Args:
+            event: 键盘事件
+            on_select: 选择选项的回调函数，接受 letter 参数
+            on_submit: 提交答案的回调函数
+            is_answered_check: 检查是否已答题的函数
+        
+        Returns:
+            "break" 如果处理了事件，否则 None
+        """
+        if not self.engine or not self.engine.get_current_question():
+            return None
+        
+        key = event.char.upper() if event.char else ""
+        keysym = event.keysym
+        
+        question = self.engine.get_current_question()
+        if question is None:
+            return None
+
+        # 字母选择 (A-F)
+        if key and key in "ABCDEF" and not is_answered_check():
+            card_idx = ord(key) - ord("A")
+            options_count = len(question.options)
+            if card_idx < options_count:
+                on_select(key)
+            return "break"
+
+        # 数字选择 (1-6)
+        if key and key in "123456" and not is_answered_check():
+            card_idx = int(key) - 1
+            options_count = len(question.options)
+            if card_idx < options_count:
+                letter = chr(ord("A") + card_idx)
+                on_select(letter)
+            return "break"
+        
+        # Enter 提交
+        if keysym == "Return" and not is_answered_check():
+            on_submit()
+            return "break"
+        
+        return None
 
     def _on_key_press(self, event):
         """键盘事件处理 - 子类可覆盖。

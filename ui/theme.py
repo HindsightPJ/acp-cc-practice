@@ -270,120 +270,120 @@ def font_display(size=16, bold=True):
 
 
 # ---------------------------------------------------------------------------
-# 暗色模式支持（TD-33）
+# UI 组件工厂函数 —— 集中按钮 / 卡片样式，避免各处重复配置
 # ---------------------------------------------------------------------------
-# 保持上面的常量作为浅色默认值；动态主题通过 Theme 类获取。
-_DARK_MODE = False
-
-_DARK_TOKENS = {
-    "BG_PAGE": "#121212",
-    "BG_CARD": "#1e1e1e",
-    "BG_INPUT": "#2c2c2e",
-    "BG_HOVER": "#2c2c2e",
-    "BG_SELECT": "#1e3a8a",
-    "BORDER": "#38383a",
-    "BORDER_LIGHT": "#2c2c2e",
-    "INK": "#000000",
-    "INK_SOFT": "#1c1c1e",
-    "INK_TEXT": "#f5f5f7",
-    "INK_TEXT_MUTED": "#8e8e93",
-    "INK_DIVIDER": "#38383a",
-    "TEXT_PRIMARY": "#f5f5f7",
-    "TEXT_SECONDARY": "#a1a1aa",
-    "TEXT_MUTED": "#71717a",
-    "TEXT_PLACEHOLDER": "#52525b",
-    "ACCENT": "#3b82f6",
-    "ACCENT_HOVER": "#2563eb",
-    "ACCENT_LIGHT": "#1e3a8a",
-    "ACCENT_BORDER": "#3b82f6",
-    "GREEN": "#34d399",
-    "GREEN_BG": "#064e3b",
-    "GREEN_BORDER": "#059669",
-    "GREEN_TEXT": "#6ee7b7",
-    "RED": "#f87171",
-    "RED_BG": "#7f1d1d",
-    "RED_BORDER": "#dc2626",
-    "RED_TEXT": "#fca5a5",
-    "YELLOW": "#fbbf24",
-    "YELLOW_BG": "#78350f",
-    "YELLOW_BORDER": "#d97706",
-    "YELLOW_TEXT": "#fde68a",
-    "PURPLE": "#a78bfa",
-    "PURPLE_BG": "#4c1d95",
-    "PURPLE_BORDER": "#7c3aed",
-    "PURPLE_TEXT": "#ddd6fe",
-    "SELECTED_BG": "#3b82f6",
-    "SELECTED_TEXT": "#ffffff",
-    "CORRECT_BG": "#059669",
-    "CORRECT_TEXT": "#ffffff",
-    "CORRECT_HINT_BG": "#064e3b",
-    "CORRECT_HINT_TEXT": "#6ee7b7",
-    "WRONG_BG": "#dc2626",
-    "WRONG_TEXT": "#ffffff",
-    "BTN_PRIMARY": "#3b82f6",
-    "BTN_PRIMARY_HOVER": "#2563eb",
-    "BTN_PRIMARY_ACTIVE": "#1d4ed8",
-    "BTN_NORMAL": "#1e1e1e",
-    "BTN_NORMAL_FG": "#f5f5f7",
-    "BTN_NORMAL_HOVER": "#2c2c2e",
-    "BTN_NORMAL_ACTIVE": "#3f3f46",
-    "BTN_DISABLED": "#27272a",
-    "BTN_DISABLED_FG": "#71717a",
-    "TAB_ACTIVE_FG": "#3b82f6",
-    "TAB_ACTIVE_BORDER": "#3b82f6",
-    "TAB_INACTIVE_FG": "#a1a1aa",
-}
-
-# 自动收集当前浅色值，避免维护两套重复映射。
-_LIGHT_TOKENS = {name: globals()[name] for name in _DARK_TOKENS if name in globals()}
 
 
-def set_dark_mode(enabled: bool) -> None:
-    """切换全局暗色模式开关。
+def create_primary_button(
+    parent,
+    text="",
+    command=None,
+    bg_color=None,
+    active_bg=None,
+    width=0,
+    padx=16,
+    pady=6,
+):
+    """创建主按钮（白字 + 强调色底，默认教育蓝）。
 
-    该开关影响之后通过 Theme 实例读取的所有颜色值。已创建的 UI 组件
-    如需响应切换，应重新读取颜色并更新自身样式。
+    bg_color 可替换为 RED / GREEN / PURPLE 等语义色，用于交卷、标记等特殊场景。
     """
-    global _DARK_MODE
-    _DARK_MODE = bool(enabled)
+    bg = bg_color or BTN_PRIMARY
+    active = active_bg or BTN_PRIMARY_HOVER
+    btn = tk.Button(
+        parent,
+        text=text,
+        command=command,
+        font=font_ui_semibold(11),
+        fg="#ffffff",
+        bg=bg,
+        activebackground=active,
+        activeforeground="#ffffff",
+        relief=tk.FLAT,
+        width=width,
+        padx=padx,
+        pady=pady,
+        cursor="hand2",
+    )
+
+    def on_enter(e):
+        btn.configure(bg=active)
+
+    def on_leave(e):
+        btn.configure(bg=bg)
+
+    btn.bind("<Enter>", on_enter)
+    btn.bind("<Leave>", on_leave)
+    return btn
 
 
-def is_dark_mode() -> bool:
-    """当前是否处于暗色模式。"""
-    return _DARK_MODE
+def create_normal_button(
+    parent,
+    text="",
+    command=None,
+    font_size=10,
+    padx=12,
+    pady=5,
+    width=0,
+):
+    """创建普通按钮（深色字 + 白底，轻量视觉）。"""
+    btn = tk.Button(
+        parent,
+        text=text,
+        command=command,
+        font=font_ui(font_size),
+        fg=BTN_NORMAL_FG,
+        bg=BTN_NORMAL,
+        activebackground=BTN_NORMAL_HOVER,
+        activeforeground=TEXT_PRIMARY,
+        relief=tk.FLAT,
+        width=width,
+        padx=padx,
+        pady=pady,
+        cursor="hand2",
+    )
+
+    def on_enter(e):
+        btn.configure(bg=BTN_NORMAL_HOVER)
+
+    def on_leave(e):
+        btn.configure(bg=BTN_NORMAL)
+
+    btn.bind("<Enter>", on_enter)
+    btn.bind("<Leave>", on_leave)
+    return btn
 
 
-def color(name: str) -> str:
-    """根据当前模式返回指定 token 的颜色值。
+def create_card(parent, inner_padx=20, inner_pady=16):
+    """创建带边框的卡片容器，返回 (card, inner)。
 
-    若 token 不存在，回退到常量值；若常量也不存在则抛出 KeyError。
+    card 是外层边框 Frame（未 pack），inner 是内层内容 Frame（已设置 padding）。
+    调用方负责 pack card，然后往 inner 里填充内容即可。
     """
-    if name in _DARK_TOKENS and _DARK_MODE:
-        return _DARK_TOKENS[name]
-    fallback: str = _LIGHT_TOKENS.get(name, globals()[name])
-    return fallback
+    card = tk.Frame(
+        parent, bg=BG_CARD, highlightbackground=BORDER, highlightthickness=1
+    )
+    inner = tk.Frame(card, bg=BG_CARD)
+    inner.pack(fill=tk.BOTH, expand=True, padx=inner_padx, pady=inner_pady)
+    return card, inner
 
 
 class Theme:
-    """动态主题访问器。
+    """主题访问器：以属性方式读取本模块定义的全局颜色常量。
 
     用法：
         theme = Theme()
         frame = tk.Frame(parent, bg=theme.BG_PAGE)
-
-    颜色值会随 set_dark_mode() 的切换而变化，因此适合在运行时重新应用主题。
     """
 
     def __getattr__(self, name: str) -> str:
         if name.startswith("_"):
             raise AttributeError(name)
-        return color(name)
-
-    def set_dark_mode(self, enabled: bool) -> None:
-        set_dark_mode(enabled)
-
-    def is_dark_mode(self) -> bool:
-        return is_dark_mode()
+        return globals()[name]
 
     def __dir__(self):
-        return sorted(_LIGHT_TOKENS.keys())
+        return sorted(
+            name
+            for name in globals()
+            if name.isupper() and isinstance(globals()[name], str) and name[0] != "_"
+        )

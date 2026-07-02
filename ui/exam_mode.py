@@ -1,28 +1,30 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 
-from .theme import Theme, font_ui, font_ui_semibold, font_mono
+from .theme import Theme, font_ui, font_ui_semibold, font_mono, create_primary_button, create_normal_button, create_card
 
 from quiz_engine import QuizEngine
+from models import Question
 from .base_mode import BaseMode
 from .option_row import OptionRow
+from .exam_report_dialog import ExamReportDialog
+from .exam_session import ExamSession
 
 theme = Theme()
 
 
 class ExamMode(BaseMode):
     def __init__(
-        self, parent, questions: List[Dict[str, Any]], data_manager, progress: Any
+        self, parent, questions: List[Question], data_manager, progress: Any
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
-        self.engine = None
+        self.engine: Optional[QuizEngine] = None
         self.timer_running = False
         self.time_remaining = 0
         self.exam_total_seconds = 0
-        self.exam_answers: Dict[int, str] = {}
-        self.exam_marked: Set[int] = set()
+        self.exam_session: Optional[ExamSession] = None
 
         self._setup_mode_ui()
         self._bind_keyboard()
@@ -30,13 +32,8 @@ class ExamMode(BaseMode):
     def _setup_mode_ui(self):
         self.configure(style="TFrame")
 
-        settings_card = tk.Frame(
-            self, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        settings_card, s_inner = create_card(self, inner_padx=24, inner_pady=20)
         settings_card.pack(fill=tk.X, pady=(0, 16))
-
-        s_inner = tk.Frame(settings_card, bg=theme.BG_CARD)
-        s_inner.pack(fill=tk.BOTH, expand=True, padx=24, pady=20)
 
         s_title = tk.Label(
             s_inner,
@@ -92,34 +89,18 @@ class ExamMode(BaseMode):
         )
         duration_combo.pack(side=tk.LEFT)
 
-        self.start_btn = tk.Button(
+        self.start_btn = create_primary_button(
             settings_row,
             text="开始考试",
             command=self.start_exam,
-            font=font_ui_semibold(11),
-            fg="#ffffff",
-            bg=theme.BTN_PRIMARY,
-            activebackground=theme.BTN_PRIMARY_ACTIVE,
-            activeforeground="#ffffff",
-            relief=tk.FLAT,
             padx=24,
-            pady=6,
-            cursor="hand2",
         )
         self.start_btn.pack(side=tk.RIGHT)
 
         self.exam_container = tk.Frame(self, bg=theme.BG_PAGE)
 
-        timer_bar = tk.Frame(
-            self.exam_container,
-            bg=theme.BG_CARD,
-            highlightbackground=theme.BORDER,
-            highlightthickness=1,
-        )
+        timer_bar, timer_inner = create_card(self.exam_container, inner_padx=24, inner_pady=12)
         timer_bar.pack(fill=tk.X, pady=(0, 12))
-
-        timer_inner = tk.Frame(timer_bar, bg=theme.BG_CARD)
-        timer_inner.pack(fill=tk.BOTH, expand=True, padx=24, pady=12)
 
         timer_left = tk.Frame(timer_inner, bg=theme.BG_CARD)
         timer_left.pack(side=tk.LEFT)
@@ -160,13 +141,8 @@ class ExamMode(BaseMode):
         left_panel = tk.Frame(main_paned, bg=theme.BG_PAGE)
         main_paned.add(left_panel, minsize=600)
 
-        question_card = tk.Frame(
-            left_panel, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        question_card, q_inner = create_card(left_panel, inner_pady=16)
         question_card.pack(fill=tk.X, pady=(0, 12))
-
-        q_inner = tk.Frame(question_card, bg=theme.BG_CARD)
-        q_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
 
         self.exam_question_text = tk.Text(
             q_inner,
@@ -184,13 +160,8 @@ class ExamMode(BaseMode):
         self.exam_question_text.pack(fill=tk.X)
         self.exam_question_text.config(state=tk.DISABLED)
 
-        options_card = tk.Frame(
-            left_panel, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        options_card, opt_inner = create_card(left_panel, inner_pady=14)
         options_card.pack(fill=tk.X, pady=(0, 12))
-
-        opt_inner = tk.Frame(options_card, bg=theme.BG_CARD)
-        opt_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=14)
 
         self.exam_option_cards = []
         for idx in range(6):
@@ -216,33 +187,17 @@ class ExamMode(BaseMode):
         btn_left = tk.Frame(action_bar, bg=theme.BG_PAGE)
         btn_left.pack(side=tk.LEFT)
 
-        prev_exam_btn = tk.Button(
+        prev_exam_btn = create_normal_button(
             btn_left,
             text="上一题 (←)",
             command=self.exam_prev_question,
-            font=font_ui(10),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_HOVER,
-            relief=tk.FLAT,
-            padx=12,
-            pady=5,
-            cursor="hand2",
         )
         prev_exam_btn.pack(side=tk.LEFT, padx=(0, 4))
 
-        next_exam_btn = tk.Button(
+        next_exam_btn = create_normal_button(
             btn_left,
             text="下一题 (→)",
             command=self.exam_next_question,
-            font=font_ui(10),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_HOVER,
-            relief=tk.FLAT,
-            padx=12,
-            pady=5,
-            cursor="hand2",
         )
         next_exam_btn.pack(side=tk.LEFT)
 
@@ -261,18 +216,13 @@ class ExamMode(BaseMode):
         )
         mark_btn.pack(side=tk.LEFT, padx=(8, 0))
 
-        submit_exam_btn = tk.Button(
+        submit_exam_btn = create_primary_button(
             action_bar,
             text="交卷",
             command=self.submit_exam,
-            font=font_ui_semibold(11),
-            fg="#ffffff",
-            bg=theme.RED,
-            activebackground="#dc2626",
-            relief=tk.FLAT,
+            bg_color=theme.RED,
+            active_bg="#dc2626",
             padx=20,
-            pady=6,
-            cursor="hand2",
         )
         submit_exam_btn.pack(side=tk.RIGHT)
 
@@ -318,24 +268,17 @@ class ExamMode(BaseMode):
         if self.engine is None or not self.engine.get_current_question():
             return
 
-        key = event.char.upper() if event.char else ""
+        # 复用基类通用选项键盘处理
+        result = self._handle_option_key_press(
+            event,
+            on_select=self.exam_select_option_by_letter,
+            on_submit=lambda: None,
+            is_answered_check=lambda: False,
+        )
+        if result == "break":
+            return "break"
+
         keysym = event.keysym
-
-        if key and key in "ABCDEF":
-            card_idx = ord(key) - ord("A")
-            options_count = len(self.engine.get_current_question().get("options", []))
-            if card_idx < options_count:
-                self.exam_select_option_by_letter(key)
-            return "break"
-
-        if key and key in "123456":
-            card_idx = int(key) - 1
-            options_count = len(self.engine.get_current_question().get("options", []))
-            if card_idx < options_count:
-                letter = chr(ord("A") + card_idx)
-                self.exam_select_option_by_letter(letter)
-            return "break"
-
         if keysym == "Left":
             self.exam_prev_question()
             return "break"
@@ -344,6 +287,7 @@ class ExamMode(BaseMode):
             self.exam_next_question()
             return "break"
 
+        key = event.char.upper() if event.char else ""
         if key == "M":
             self.toggle_mark_current()
             return "break"
@@ -477,23 +421,22 @@ class ExamMode(BaseMode):
         self.exam_question_text.config(state=tk.NORMAL)
         self.exam_question_text.delete(1.0, tk.END)
         self.exam_question_text.insert(
-            tk.END, f"{self.engine.get_current_index() + 1}. {question.get('content')}"
+            tk.END, f"{self.engine.get_current_index() + 1}. {question.content}"
         )  # TD-15: 显式接口
         self.exam_question_text.config(state=tk.DISABLED)
 
         # 显示题目类型
-        q_type = question.get("type", "single")
-        if q_type == "multiple":
+        if question.type == "multiple":
             self.exam_type_label.configure(text="多选题", fg=theme.YELLOW)
         else:
             self.exam_type_label.configure(text="单选题", fg=theme.ACCENT)
 
-        options_count = len(question.get("options", []))
+        options_count = len(question.options)
         for i, item in enumerate(self.exam_option_cards):
             if i < options_count:
                 item["row"].pack(fill=tk.X, pady=3)
-                opt = question["options"][i]
-                item["row"].update_text(opt.get("text", ""))
+                opt = question.options[i]
+                item["row"].update_text(opt.text)
                 item["var"].set(0)
                 item["row"].reset()
             else:
@@ -531,8 +474,8 @@ class ExamMode(BaseMode):
         question = self.engine.get_current_question()
         if question is None:
             return
-        is_multiple = question.get("type") == "multiple"
-        options_count = len(question.get("options", []))
+        is_multiple = question.type == "multiple"
+        options_count = len(question.options)
 
         if is_multiple:
             # 多选题：切换当前选项，不影响其他选项
@@ -624,175 +567,15 @@ class ExamMode(BaseMode):
         self.app_state.save()
 
     def show_exam_report(self, report: Dict[str, Any]) -> None:
-        report_window = tk.Toplevel(self)
-        report_window.title("考试成绩报告")
-        report_window.geometry("600x550")
-        report_window.configure(bg=theme.BG_PAGE)
-        report_window.transient(self.winfo_toplevel())
-        report_window.grab_set()
-
-        report_window.update_idletasks()
-        width = report_window.winfo_width()
-        height = report_window.winfo_height()
-        x = (report_window.winfo_screenwidth() // 2) - (width // 2)
-        y = (report_window.winfo_screenheight() // 2) - (height // 2)
-        report_window.geometry(f"{width}x{height}+{x}+{y}")
-
-        header = tk.Frame(
-            report_window, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
-        header.pack(fill=tk.X, padx=20, pady=(20, 0))
-
-        h_inner = tk.Frame(header, bg=theme.BG_CARD)
-        h_inner.pack(fill=tk.BOTH, expand=True, padx=24, pady=20)
-
-        tk.Label(
-            h_inner,
-            text="考试成绩报告",
-            font=font_ui_semibold(18),
-            fg=theme.TEXT_PRIMARY,
-            bg=theme.BG_CARD,
-        ).pack(anchor=tk.W)
-
-        tk.Label(
-            h_inner,
-            text=f"完成于 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            font=font_ui(10),
-            fg=theme.TEXT_MUTED,
-            bg=theme.BG_CARD,
-        ).pack(anchor=tk.W, pady=(4, 0))
-
-        accuracy = report["accuracy"]
-        acc_color = (
-            theme.GREEN if accuracy >= 80 else (theme.YELLOW if accuracy >= 60 else theme.RED)
-        )
-
-        score_card = tk.Frame(
-            report_window, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
-        score_card.pack(fill=tk.X, padx=20, pady=16)
-
-        score_inner = tk.Frame(score_card, bg=theme.BG_CARD)
-        score_inner.pack(fill=tk.BOTH, expand=True, padx=24, pady=20)
-
-        acc_frame = tk.Frame(score_inner, bg=theme.BG_CARD)
-        acc_frame.pack(fill=tk.X, pady=(0, 16))
-
-        tk.Label(
-            acc_frame, text=f"{accuracy:.1f}%", font=font_mono(32), fg=acc_color, bg=theme.BG_CARD
-        ).pack(side=tk.LEFT, padx=(0, 12))
-
-        tk.Label(
-            acc_frame, text="正确率", font=font_ui(12), fg=theme.TEXT_MUTED, bg=theme.BG_CARD
-        ).pack(side=tk.LEFT)
-
-        stats_grid = tk.Frame(score_inner, bg=theme.BG_CARD)
-        stats_grid.pack(fill=tk.X)
-
-        stats_data = [
-            ("总题数", f"{report['total_questions']}", theme.TEXT_SECONDARY),
-            ("正确", f"{report['correct']}", theme.GREEN),
-            ("错误", f"{report['wrong']}", theme.RED),
-            ("用时", report["time_used"], theme.ACCENT),
-        ]
-
-        for i, (label, value, color) in enumerate(stats_data):
-            stat_item = tk.Frame(stats_grid, bg=theme.BG_INPUT, padx=16, pady=10)
-            stat_item.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0 if i == 0 else 4, 4))
-
-            tk.Label(
-                stat_item, text=value, font=font_ui_semibold(14), fg=color, bg=theme.BG_INPUT
-            ).pack()
-
-            tk.Label(
-                stat_item, text=label, font=font_ui(9), fg=theme.TEXT_MUTED, bg=theme.BG_INPUT
-            ).pack(pady=(2, 0))
-
-        if report["wrong_questions"]:
-            wrong_card = tk.Frame(
-                report_window,
-                bg=theme.BG_CARD,
-                highlightbackground=theme.BORDER,
-                highlightthickness=1,
-            )
-            wrong_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 16))
-
-            w_inner = tk.Frame(wrong_card, bg=theme.BG_CARD)
-            w_inner.pack(fill=tk.BOTH, expand=True, padx=24, pady=16)
-
-            tk.Label(
-                w_inner,
-                text=f"错题 ({len(report['wrong_questions'])} 题)",
-                font=font_ui_semibold(12),
-                fg=theme.RED,
-                bg=theme.BG_CARD,
-            ).pack(anchor=tk.W, pady=(0, 8))
-
-            wrong_list_frame = tk.Frame(w_inner, bg=theme.BG_CARD)
-            wrong_list_frame.pack(fill=tk.BOTH, expand=True)
-
-            scrollbar = tk.Scrollbar(wrong_list_frame)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-            wrong_text = tk.Text(
-                wrong_list_frame,
-                height=5,
-                wrap=tk.WORD,
-                font=font_ui(10),
-                bg=theme.BG_INPUT,
-                fg=theme.TEXT_SECONDARY,
-                relief=tk.FLAT,
-                padx=12,
-                pady=8,
-                yscrollcommand=scrollbar.set,
-                selectbackground=theme.BG_SELECT,
-                insertbackground=theme.TEXT_PRIMARY,
-            )
-            wrong_text.pack(fill=tk.BOTH, expand=True)
-            scrollbar.config(command=wrong_text.yview)
-
-            for q in report["wrong_questions"][:10]:
-                content_preview = q.get("content", "")[:50]
-                wrong_text.insert(tk.END, f"第 {q.get('number')} 题: {content_preview}...\n\n")
-
-            wrong_text.config(state=tk.DISABLED)
-
-            add_wrong_btn = tk.Button(
-                w_inner,
-                text="加入错题本",
-                command=lambda: self.add_wrong_to_book(report),
-                font=font_ui(10),
-                fg="#ffffff",
-                bg=theme.RED,
-                activebackground="#dc2626",
-                relief=tk.FLAT,
-                padx=16,
-                pady=5,
-                cursor="hand2",
-            )
-            add_wrong_btn.pack(pady=(10, 0))
-
-        close_btn = tk.Button(
-            report_window,
-            text="关闭",
-            command=report_window.destroy,
-            font=font_ui_semibold(11),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_ACTIVE,
-            relief=tk.FLAT,
-            width=12,
-            padx=16,
-            pady=6,
-            cursor="hand2",
-        )
-        close_btn.pack(pady=(0, 20))
+        """显示考试成绩报告对话框。"""
+        dialog = ExamReportDialog(self, report, on_add_wrong=self.add_wrong_to_book)
+        dialog.show()
 
     def add_wrong_to_book(self, report: Dict[str, Any]) -> None:
         added = 0
         for q in report["wrong_questions"]:
-            q_num = q.get("number")
-            if q_num is not None and not self.app_state.is_wrong_question(q_num):
+            q_num = q.number
+            if not self.app_state.is_wrong_question(q_num):
                 self.app_state.add_wrong_question(q_num)
                 added += 1
 

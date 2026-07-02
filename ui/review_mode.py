@@ -2,9 +2,10 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import List, Dict, Any
 
-from .theme import Theme, font_ui, font_ui_semibold
+from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 
 from quiz_engine import QuizEngine
+from models import Question
 from .base_mode import BaseMode
 from .option_row import OptionRow
 
@@ -13,7 +14,7 @@ theme = Theme()
 
 class ReviewMode(BaseMode):
     def __init__(
-        self, parent, questions: List[Dict[str, Any]], data_manager=None, progress: Any = None
+        self, parent, questions: List[Question], data_manager=None, progress: Any = None
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.showing_answer = False
@@ -93,58 +94,35 @@ class ReviewMode(BaseMode):
         )
         jump_entry.pack(side=tk.LEFT, padx=(0, 4))
 
-        jump_btn = tk.Button(
+        jump_btn = create_normal_button(
             toolbar_right,
             text="跳转",
             command=self.jump_to_question,
-            font=font_ui(10),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_HOVER,
-            relief=tk.FLAT,
             padx=10,
             pady=3,
-            cursor="hand2",
         )
         jump_btn.pack(side=tk.LEFT, padx=(0, 8))
 
-        prev_btn = tk.Button(
+        prev_btn = create_normal_button(
             toolbar_right,
             text="上一题 (←)",
             command=self.prev_question,
-            font=font_ui(10),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_HOVER,
-            relief=tk.FLAT,
             padx=10,
             pady=3,
-            cursor="hand2",
         )
         prev_btn.pack(side=tk.LEFT, padx=(0, 4))
 
-        next_btn = tk.Button(
+        next_btn = create_normal_button(
             toolbar_right,
             text="下一题 (→)",
             command=self.next_question,
-            font=font_ui(10),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_HOVER,
-            relief=tk.FLAT,
             padx=10,
             pady=3,
-            cursor="hand2",
         )
         next_btn.pack(side=tk.LEFT)
 
-        question_card = tk.Frame(
-            self, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        question_card, q_inner = create_card(self, inner_padx=20, inner_pady=16)
         question_card.pack(fill=tk.X, pady=(0, 12))
-
-        q_inner = tk.Frame(question_card, bg=theme.BG_CARD)
-        q_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
 
         self.review_question_text = tk.Text(
             q_inner,
@@ -162,13 +140,8 @@ class ReviewMode(BaseMode):
         self.review_question_text.pack(fill=tk.X)
         self.review_question_text.config(state=tk.DISABLED)
 
-        options_card = tk.Frame(
-            self, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        options_card, opt_inner = create_card(self, inner_padx=20, inner_pady=14)
         options_card.pack(fill=tk.X, pady=(0, 12))
-
-        opt_inner = tk.Frame(options_card, bg=theme.BG_CARD)
-        opt_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=14)
 
         self.review_option_rows = []
         for letter in ["A", "B", "C", "D", "E", "F"]:
@@ -178,13 +151,8 @@ class ReviewMode(BaseMode):
             if ord(letter) - ord("A") >= 4:
                 row.pack_forget()
 
-        answer_card = tk.Frame(
-            self, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
+        answer_card, ans_inner = create_card(self, inner_padx=20, inner_pady=14)
         answer_card.pack(fill=tk.BOTH, expand=True)
-
-        ans_inner = tk.Frame(answer_card, bg=theme.BG_CARD)
-        ans_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=14)
 
         ans_top = tk.Frame(ans_inner, bg=theme.BG_CARD)
         ans_top.pack(fill=tk.X, pady=(0, 8))
@@ -224,35 +192,20 @@ class ReviewMode(BaseMode):
         action_bar = tk.Frame(self, bg=theme.BG_PAGE)
         action_bar.pack(fill=tk.X, pady=(12, 0))
 
-        self.toggle_answer_btn = tk.Button(
+        self.toggle_answer_btn = create_primary_button(
             action_bar,
             text="显示答案 (Space)",
             command=self.toggle_answer,
-            font=font_ui_semibold(11),
-            fg="#ffffff",
-            bg=theme.PURPLE,
-            activebackground="#7c3aed",
-            activeforeground="#ffffff",
-            relief=tk.FLAT,
+            bg_color=theme.PURPLE,
+            active_bg="#7c3aed",
             width=16,
-            padx=16,
-            pady=6,
-            cursor="hand2",
         )
         self.toggle_answer_btn.pack(side=tk.LEFT, padx=(0, 8))
 
-        self.favorite_btn = tk.Button(
+        self.favorite_btn = create_normal_button(
             action_bar,
             text="收藏",
             command=self.toggle_favorite,
-            font=font_ui(10),
-            fg=theme.BTN_NORMAL_FG,
-            bg=theme.BTN_NORMAL,
-            activebackground=theme.BTN_NORMAL_HOVER,
-            relief=tk.FLAT,
-            padx=12,
-            pady=5,
-            cursor="hand2",
         )
         self.favorite_btn.pack(side=tk.LEFT)
 
@@ -283,22 +236,21 @@ class ReviewMode(BaseMode):
         self.review_question_text.config(state=tk.NORMAL)
         self.review_question_text.delete(1.0, tk.END)
         self.review_question_text.insert(
-            tk.END, f"{question.get('number')}. {question.get('content')}"
+            tk.END, f"{question.number}. {question.content}"
         )
         self.review_question_text.config(state=tk.DISABLED)
 
         # 显示题目类型
-        q_type = question.get("type", "single")
-        if q_type == "multiple":
+        if question.type == "multiple":
             self.type_label.configure(text="多选题", fg=theme.YELLOW)
         else:
             self.type_label.configure(text="单选题", fg=theme.ACCENT)
 
-        options = question.get("options", [])
+        options = question.options
         for i in range(6):
             if i < len(options):
                 self.review_option_rows[i].pack(fill=tk.X, pady=2)
-                self.review_option_rows[i].update_text(options[i].get("text", ""))
+                self.review_option_rows[i].update_text(options[i].text)
                 self.review_option_rows[i].reset()
             else:
                 self.review_option_rows[i].pack_forget()
@@ -329,19 +281,19 @@ class ReviewMode(BaseMode):
         if not self.showing_answer:
             self.showing_answer = True
             self.answer_label.configure(
-                text=f"正确答案: {question.get('answer', '未知')}", fg=theme.GREEN
+                text=f"正确答案: {question.answer or '未知'}", fg=theme.GREEN
             )
             self.review_explanation_text.config(state=tk.NORMAL)
             self.review_explanation_text.delete(1.0, tk.END)
-            explanation = question.get("explanation", "暂无解析")
+            explanation = question.explanation or "暂无解析"
             self.review_explanation_text.insert(tk.END, explanation)
             self.review_explanation_text.config(state=tk.DISABLED)
             self.toggle_answer_btn.configure(text="隐藏答案 (Space)")
 
-            correct_answer = question.get("answer", "")
-            options = question.get("options", [])
+            correct_answer = question.answer
+            options = question.options
             for i, opt in enumerate(options):
-                letter = opt.get("letter", chr(ord("A") + i))
+                letter = opt.letter or chr(ord("A") + i)
                 if letter in correct_answer:
                     self.review_option_rows[i].reveal_correct()
                 else:
@@ -354,7 +306,7 @@ class ReviewMode(BaseMode):
             self.review_explanation_text.config(state=tk.DISABLED)
             self.toggle_answer_btn.configure(text="显示答案 (Space)")
 
-            options = question.get("options", [])
+            options = question.options
             for i in range(len(options)):
                 self.review_option_rows[i].reset()
 
@@ -380,26 +332,24 @@ class ReviewMode(BaseMode):
             messagebox.showerror("错误", "请输入有效的数字！")
 
     def toggle_favorite(self) -> None:
-        if not self.data_manager or not self.progress:
+        if not self.data_manager:
             return
 
         question = self.engine.get_question_at(self.current_index)
         if question is None:
             return
-        q_num = question.get("number")
-        if q_num is None:
-            return
+        q_num = question.number
         self.app_state.toggle_favorite(q_num)
         self.app_state.save()
         self._sync_favorite_button()
 
     def _sync_favorite_button(self):
         """根据当前题是否已收藏，更新按钮文字与配色作为静默反馈。"""
-        if not self.engine or not self.progress:
+        if not self.engine:
             return
         if self.current_index >= self.engine.queue_length():
             return
-        q_num = self.engine.get_question_at(self.current_index).get("number")
+        q_num = self.engine.get_question_at(self.current_index).number
         is_fav = self.app_state.is_favorite(q_num)
         if is_fav:
             self.favorite_btn.configure(text="已收藏 ✓", fg=theme.ACCENT, bg=theme.ACCENT_LIGHT)

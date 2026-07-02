@@ -4,7 +4,6 @@ import tkinter as tk
 from typing import List, Dict, Any, Optional, Callable
 
 from .theme import Theme, font_ui, font_ui_semibold, font_display
-from .i18n import _
 
 from .mastery_ring import MasteryRing
 
@@ -26,7 +25,6 @@ class Sidebar(tk.Frame):
         parent,
         nav_defs: List[tuple],
         on_nav_clicked: Optional[Callable[[str], None]] = None,
-        on_settings_click: Optional[Callable[[], None]] = None,
     ) -> None:
         """初始化侧边栏。
 
@@ -34,18 +32,15 @@ class Sidebar(tk.Frame):
             parent: 父容器
             nav_defs: [(tab_id, tab_text, command), ...] 导航定义
             on_nav_clicked: 点击导航项后的外部回调，签名为 (tab_id) -> None
-            on_settings_click: 点击设置按钮后的外部回调
         """
         super().__init__(parent, bg=theme.INK, width=SIDEBAR_WIDTH)
         self.pack_propagate(False)
         self._nav_defs = nav_defs
         self._on_nav_clicked = on_nav_clicked
-        self._on_settings_click = on_settings_click
         self._active_nav = nav_defs[0][0] if nav_defs else None
         self._nav_refs: Dict[str, Dict[str, Any]] = {}
         self.mastery_ring: Optional[MasteryRing] = None
         self.wrong_indicator: Optional[tk.Label] = None
-        self._settings_btn: Optional[tk.Label] = None
         self._build()
 
     def _build(self):
@@ -54,11 +49,8 @@ class Sidebar(tk.Frame):
         brand.pack(fill=tk.X, padx=20, pady=(20, 16))
 
         tk.Label(
-            brand, text="ACP", font=font_display(20, True), fg=theme.ACCENT, bg=theme.INK
-        ).pack(side=tk.LEFT, padx=(0, 8))
-        tk.Label(
-            brand, text=_("app_title"), font=font_ui(11), fg=theme.INK_TEXT_MUTED, bg=theme.INK
-        ).pack(side=tk.LEFT, pady=(4, 0))
+            brand, text="ACP 云计算练习", font=font_display(14, True), fg=theme.ACCENT, bg=theme.INK
+        ).pack(anchor="w")
 
         # 分隔
         tk.Frame(self, bg=theme.INK_DIVIDER, height=1).pack(fill=tk.X, padx=20)
@@ -69,31 +61,6 @@ class Sidebar(tk.Frame):
 
         for tab_id, tab_text, command in self._nav_defs:
             self._build_nav_item(nav_container, tab_id, tab_text, command)
-
-        # 设置入口（轻量文字按钮）
-        settings_container = tk.Frame(self, bg=theme.INK)
-        settings_container.pack(fill=tk.X, padx=12, pady=(8, 0))
-        self._settings_btn = tk.Label(
-            settings_container,
-            text=_("settings"),
-            font=font_ui(11),
-            fg=theme.INK_TEXT_MUTED,
-            bg=theme.INK,
-            cursor="hand2",
-            anchor="w",
-            padx=14,
-            pady=8,
-        )
-        self._settings_btn.pack(fill=tk.X)
-        self._settings_btn.bind("<Button-1>", lambda e: self._on_settings())  # type: ignore[misc]
-        self._settings_btn.bind(
-            "<Enter>",
-            lambda e: self._settings_btn.configure(fg=theme.INK_TEXT),  # type: ignore[misc]
-        )
-        self._settings_btn.bind(
-            "<Leave>",
-            lambda e: self._settings_btn.configure(fg=theme.INK_TEXT_MUTED),  # type: ignore[misc]
-        )
 
         # 弹性空间，把就绪度环推到底部
         spacer = tk.Frame(self, bg=theme.INK)
@@ -107,7 +74,7 @@ class Sidebar(tk.Frame):
         self.mastery_ring.pack()
 
         tk.Label(
-            self, text=_("mastery"), font=font_ui(9), fg=theme.INK_TEXT_MUTED, bg=theme.INK
+            self, text="就绪度", font=font_ui(9), fg=theme.INK_TEXT_MUTED, bg=theme.INK
         ).pack(pady=(0, 4))
 
         # 错题数小指示
@@ -115,11 +82,6 @@ class Sidebar(tk.Frame):
             self, text="", font=font_ui(10), fg=theme.INK_TEXT_MUTED, bg=theme.INK
         )
         self.wrong_indicator.pack(pady=(0, 20))
-
-    def _on_settings(self) -> None:
-        """处理设置按钮点击。"""
-        if self._on_settings_click:
-            self._on_settings_click()
 
     def _build_nav_item(self, parent, tab_id: str, tab_text: str, command) -> None:
         item = tk.Frame(parent, bg=theme.INK, cursor="hand2")
