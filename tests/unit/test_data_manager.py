@@ -1,6 +1,5 @@
 """data_manager.py 单元测试。"""
 import json
-import os
 
 import pytest
 from cryptography.fernet import Fernet

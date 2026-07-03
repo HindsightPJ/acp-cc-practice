@@ -8,7 +8,6 @@ UI 构建部分（tk.Toplevel/Label/Text 等）不在此测试范围。
 """
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from ui.license_dialog import (
     _get_license_error_message,

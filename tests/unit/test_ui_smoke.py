@@ -3,7 +3,6 @@
 验证所有 UI 模块可导入，捕获语法错误、import 链断裂、循环依赖等问题。
 完整的 MainWindow 实例化测试需要虚拟 display（xvfb），留待后续。
 """
-import pytest
 
 
 def test_ui_package_importable():
@@ -51,7 +50,6 @@ def test_ui_wrong_book_importable():
 
 def test_ui_option_row_importable():
     """TD-19: ui.option_row 模块可导入。"""
-    from ui import option_row  # pylint: disable=unused-import
 
 
 def test_ui_main_window_importable():

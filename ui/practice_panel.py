@@ -6,7 +6,7 @@ P2: 将 PracticeMode 与 WrongBook 错题练习中重复的练习视图抽离为
 
 import tkinter as tk
 from tkinter import messagebox
-from typing import Any, Callable
+from typing import Callable
 
 from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 from .option_row import OptionRow

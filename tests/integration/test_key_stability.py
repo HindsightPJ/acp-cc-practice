@@ -2,7 +2,6 @@
 import json
 
 import pytest
-from cryptography.fernet import Fernet
 
 import keygen
 import encrypt_questions

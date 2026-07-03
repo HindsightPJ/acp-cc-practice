@@ -4,7 +4,7 @@ import json
 import re
 import logging
 from logging_utils import log_error
-from models import Question, Option
+from models import Question
 
 logger = logging.getLogger(__name__)
 

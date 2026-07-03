@@ -13,13 +13,13 @@ from models import Question
 
 class PracticeSession:
     """练习会话管理器 - 封装题目加载、选项选择、答案提交的通用逻辑。
-    
+
     职责：
     - 管理练习状态（已答题、选中答案、当前题型）
     - 处理选项选择逻辑（单选/多选）
     - 提交答案并返回判题结果
     - 提供当前题目数据供 UI 层更新
-    
+
     使用方式：
     - PracticeMode 持有 PracticeSession 实例
     - WrongBook 的错题练习也持有 PracticeSession 实例
@@ -35,7 +35,7 @@ class PracticeSession:
 
     def load_current_question(self) -> Question | None:
         """加载当前题目，返回题目数据供 UI 更新。
-        
+
         Returns:
             当前题目对象，如果没有题目则返回 None
         """
@@ -43,7 +43,7 @@ class PracticeSession:
 
     def handle_option_click(self, letter: str, options_count: int) -> None:
         """处理选项点击，更新选中状态。
-        
+
         Args:
             letter: 选项字母 (A-F)
             options_count: 当前题目的选项数量
@@ -76,7 +76,7 @@ class PracticeSession:
 
     def submit_answer(self) -> dict[str, Any] | None:
         """提交答案，返回判题结果。
-        
+
         Returns:
             判题结果字典，包含 is_correct, correct_answer 等；
             如果没有选中答案或没有当前题目，返回 None
@@ -118,7 +118,7 @@ class PracticeSession:
 
     def reset_session(self, shuffle: bool = False) -> None:
         """重置练习会话。
-        
+
         Args:
             shuffle: 是否随机出题
         """

@@ -8,7 +8,6 @@ import logging
 import logging.handlers
 from unittest.mock import patch
 
-import pytest
 
 from main import _setup_logging
 

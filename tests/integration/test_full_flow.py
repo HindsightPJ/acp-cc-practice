@@ -2,7 +2,6 @@
 import json
 
 import pytest
-from cryptography.fernet import Fernet
 
 import keygen
 import encrypt_questions
@@ -60,7 +59,7 @@ def test_full_authorize_flow(full_setup, monkeypatch):
     """完整流程：加密 → 签发 → 验证 → 解密。"""
     tmp_path = full_setup['tmp_path']
     keys = full_setup['keys']
-    questions = full_setup['questions']
+    full_setup['questions']
 
     # 1. 作者加密题库
     assert encrypt_questions.main() == 0

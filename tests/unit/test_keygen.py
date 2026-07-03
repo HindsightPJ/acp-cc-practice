@@ -1,9 +1,7 @@
 """keygen.py 单元测试。"""
 import os
-import tempfile
 from pathlib import Path
 
-import pytest
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 

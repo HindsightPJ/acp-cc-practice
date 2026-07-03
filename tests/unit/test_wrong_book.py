@@ -8,7 +8,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 
 from ui.wrong_book import WrongBook
 

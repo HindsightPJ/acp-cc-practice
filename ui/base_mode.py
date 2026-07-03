@@ -8,7 +8,6 @@ from quiz_engine import QuizEngine
 from models import Question
 from app_state import AppState
 from data_manager import DataManager
-from .theme import theme
 
 
 class BaseMode(ABC, ttk.Frame):

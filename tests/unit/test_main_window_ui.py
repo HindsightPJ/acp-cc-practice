@@ -137,7 +137,6 @@ def test_main_window_mode_switching(fake_data_manager):
 
 def test_sidebar_can_instantiate(clean_root):
     """Sidebar 可独立实例化并设置活动导航项。"""
-    import tkinter as tk
     from ui.sidebar import Sidebar
 
     calls = []
@@ -157,7 +156,6 @@ def test_sidebar_can_instantiate(clean_root):
 
 def test_license_dialog_can_instantiate(clean_root):
     """LicenseDialog 可实例化（不实际显示对话框）。"""
-    import tkinter as tk
     from ui.license_dialog import LicenseDialog
 
     dialog = LicenseDialog(clean_root, '/tmp/test-license-dir')
@@ -207,7 +205,6 @@ def test_header_activate_click_callback(clean_root):
 
 def test_mastery_ring_boundary_values(clean_root):
     """MasteryRing 对越界/异常值做安全截断。"""
-    import math
     from ui.mastery_ring import MasteryRing
 
     ring = MasteryRing(clean_root)
