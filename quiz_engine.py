@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import Any
 import random
 from datetime import datetime
 
@@ -6,12 +6,12 @@ from models import Question
 
 
 class QuizEngine:
-    def __init__(self, questions: List[Question]) -> None:
-        self.all_questions: List[Question] = list(questions)
+    def __init__(self, questions: list[Question]) -> None:
+        self.all_questions: list[Question] = list(questions)
         self.current_index: int = 0
-        self.questions_queue: List[Question] = []
-        self.answers_record: Dict[int, Dict[str, Any]] = {}
-        self.exam_start_time: Optional[datetime] = None
+        self.questions_queue: list[Question] = []
+        self.answers_record: dict[int, dict[str, Any]] = {}
+        self.exam_start_time: datetime | None = None
 
     def start_practice_mode(self, shuffle: bool = False) -> None:
         """启动练习模式"""
@@ -33,13 +33,13 @@ class QuizEngine:
         self.answers_record = {}
         self.exam_start_time = datetime.now()
 
-    def get_current_question(self) -> Optional[Question]:
+    def get_current_question(self) -> Question | None:
         """获取当前题目"""
         if 0 <= self.current_index < len(self.questions_queue):
             return self.questions_queue[self.current_index]
         return None
 
-    def submit_answer(self, selected_letter: str) -> Optional[Dict[str, Any]]:
+    def submit_answer(self, selected_letter: str) -> dict[str, Any] | None:
         """提交答案并判断对错"""
         current = self.get_current_question()
         if not current:
@@ -51,7 +51,7 @@ class QuizEngine:
         # 空答案不应判为正确
         is_correct = bool(answer_sorted) and (selected_sorted == answer_sorted)
 
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "queue_index": self.current_index,
             "question_number": current.number,
             "selected": selected_letter.upper(),
@@ -64,12 +64,12 @@ class QuizEngine:
 
         return result
 
-    def next_question(self) -> Optional[Question]:
+    def next_question(self) -> Question | None:
         """下一题"""
         self.current_index += 1
         return self.get_current_question()
 
-    def prev_question(self) -> Optional[Question]:
+    def prev_question(self) -> Question | None:
         """上一题"""
         if self.current_index > 0:
             self.current_index -= 1
@@ -83,7 +83,7 @@ class QuizEngine:
         """是否有上一题"""
         return self.current_index > 0
 
-    def get_progress(self) -> Dict[str, Any]:
+    def get_progress(self) -> dict[str, Any]:
         """获取进度信息（TD-15: stats 返回副本，避免 UI 意外修改内部状态）。"""
         return {
             "current": self.current_index + 1,
@@ -94,7 +94,7 @@ class QuizEngine:
             "stats": self.get_stats(),
         }
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         """获取统计信息（从 answers_record 重新计算，确保跳跃答题不重复计数）。"""
         total = len(self.answers_record)
         correct = sum(1 for r in self.answers_record.values() if r.get("is_correct"))
@@ -115,7 +115,7 @@ class QuizEngine:
         """获取题目队列长度（TD-15: 显式接口，替代 len(engine.questions_queue)）。"""
         return len(self.questions_queue)
 
-    def get_question_at(self, index: int) -> Optional[Question]:
+    def get_question_at(self, index: int) -> Question | None:
         """获取指定索引的题目（TD-15: 显式接口，替代 engine.questions_queue[i]）。
 
         Returns:
@@ -125,7 +125,7 @@ class QuizEngine:
             return self.questions_queue[index]
         return None
 
-    def set_questions_queue(self, questions: List[Question]) -> None:
+    def set_questions_queue(self, questions: list[Question]) -> None:
         """替换题目队列（TD-15: 显式接口，供 review_mode 加载错题列表用）。
 
         内部做浅拷贝，避免外部修改传入的 list 影响内部状态。
@@ -135,7 +135,7 @@ class QuizEngine:
         if self.current_index >= len(self.questions_queue):
             self.current_index = max(0, len(self.questions_queue) - 1)
 
-    def get_wrong_answers(self) -> List[Question]:
+    def get_wrong_answers(self) -> list[Question]:
         """获取所有错误答案的题目。
 
         依赖 answers_record 中记录的 queue_index 反查 questions_queue，
@@ -165,7 +165,7 @@ class QuizEngine:
 
     def record_exam_answer(
         self, queue_index: int, selected_letter: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """记录考试模式下的答题结果（支持跳跃答题，覆盖更新而非追加）。
 
         与 submit_answer 不同，本方法不推进 current_index，仅把指定题号
@@ -182,7 +182,7 @@ class QuizEngine:
         # 空答案不应判为正确
         is_correct = bool(answer_sorted) and (selected_sorted == answer_sorted)
 
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "queue_index": queue_index,
             "question_number": question.number,
             "selected": selected_letter.upper(),
@@ -195,7 +195,7 @@ class QuizEngine:
 
         return result
 
-    def get_exam_elapsed_seconds(self) -> Optional[int]:
+    def get_exam_elapsed_seconds(self) -> int | None:
         """获取考试已进行秒数（TD-15: 显式接口，替代 UI 直接读取 exam_start_time）。
 
         Returns:
@@ -205,7 +205,7 @@ class QuizEngine:
             return None
         return int((datetime.now() - self.exam_start_time).total_seconds())
 
-    def get_exam_report(self) -> Optional[Dict[str, Any]]:
+    def get_exam_report(self) -> dict[str, Any] | None:
         """获取考试报告"""
         if self.exam_start_time is None:
             return None
@@ -226,6 +226,6 @@ class QuizEngine:
             "wrong_questions": self.get_wrong_answers(),
         }
 
-    def get_review_questions(self) -> List[Question]:
+    def get_review_questions(self) -> list[Question]:
         """获取背题模式的题目列表"""
         return list(self.all_questions)
