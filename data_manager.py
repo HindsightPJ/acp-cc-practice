@@ -41,16 +41,14 @@ def _parse_question_header(text: str):
 
 def _is_option_line(text: str) -> bool:
     """检测是否为选项行。"""
-    return bool(re.match(r"^[•·]?\s*[A-F][\.\、\.]", text))
+    return bool(re.match(r"^[•·]?\s*[A-Fa-f][\.\、\.]", text))
 
 
 def _parse_option(text: str):
     """从选项行解析 (letter, text)，解析失败返回 None。"""
-    match = re.match(r"^[•·]\s*([A-F])[\.\、\.]\s*(.+)$", text)
+    match = re.match(r"^[•·]\s*([A-Fa-f])[\.\、\.]\s*(.+)$", text)
     if not match:
-        match = re.match(r"^([A-F])[\.\、\.]\s+(.+)$", text)
-    if not match:
-        match = re.match(r"^([A-F])[\.\、\.]\t(.+)$", text)
+        match = re.match(r"^([A-Fa-f])[\.\、\.]\s*(.+)$", text)
     if match:
         return (match.group(1).upper(), match.group(2))
     return None
@@ -63,7 +61,7 @@ def _is_answer_line(text: str) -> bool:
 
 def _parse_answer(text: str):
     """从答案行解析 answer 字符串（如 'ABC'），解析失败返回 None。"""
-    answer_match = re.search(r"([A-F]+)", text)
+    answer_match = re.search(r"([A-Fa-f]+)", text)
     if answer_match:
         return answer_match.group(1).upper()
     return None
