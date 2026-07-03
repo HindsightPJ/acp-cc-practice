@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Any
 
-from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
+from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 
 from quiz_engine import QuizEngine
 from models import Question
@@ -11,8 +11,6 @@ from .base_mode import BaseMode
 from .option_row import OptionRow
 from .practice_session import PracticeSession
 from .practice_panel import PracticePanel
-
-theme = Theme()
 
 
 class WrongBook(BaseMode):

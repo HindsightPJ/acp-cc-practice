@@ -3,9 +3,7 @@
 import math
 import tkinter as tk
 
-from .theme import Theme, font_display, font_ui
-
-theme = Theme()
+from .theme import theme, font_display, font_ui
 
 
 RING_SIZE = 88

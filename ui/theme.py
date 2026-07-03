@@ -390,3 +390,7 @@ class Theme:
             for name in globals()
             if name.isupper() and isinstance(globals()[name], str) and name[0] != "_"
         )
+
+
+# 模块级单例：所有 UI 组件共享同一 Theme 实例（无状态访问器，等价于多次实例化）
+theme = Theme()

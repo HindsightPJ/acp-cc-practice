@@ -11,7 +11,7 @@ import tkinter as tk
 from typing import Callable
 
 from .theme import (
-    Theme,
+    theme,
     font_ui,
     font_ui_semibold,
     font_mono,
@@ -22,8 +22,6 @@ from .theme import (
 from .option_row import OptionRow
 from quiz_engine import QuizEngine
 from .exam_session import ExamSession
-
-theme = Theme()
 
 
 class ExamPanel(tk.Frame):

@@ -3,11 +3,9 @@
 import tkinter as tk
 from typing import Callable
 
-from .theme import Theme, font_ui, font_display
+from .theme import theme, font_ui, font_display
 
 from license import LicenseStatus
-
-theme = Theme()
 
 
 class Header(tk.Frame):

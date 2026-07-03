@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox
 from datetime import datetime
 from typing import Any
 
-from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_card
+from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_card
 
 from quiz_engine import QuizEngine
 from models import Question
@@ -12,8 +12,6 @@ from .base_mode import BaseMode
 from .exam_panel import ExamPanel
 from .exam_report_dialog import ExamReportDialog
 from .exam_session import ExamSession
-
-theme = Theme()
 
 
 class ExamMode(BaseMode):

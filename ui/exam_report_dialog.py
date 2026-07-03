@@ -4,9 +4,7 @@ import tkinter as tk
 from datetime import datetime
 from typing import Any, Callable
 
-from .theme import Theme, font_ui, font_ui_semibold, font_mono, create_primary_button, create_normal_button, create_card
-
-theme = Theme()
+from .theme import theme, font_ui, font_ui_semibold, font_mono, create_primary_button, create_normal_button, create_card
 
 
 class ExamReportDialog:

@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any
 
-from .theme import Theme
+from .theme import theme
 
 from .practice_mode import PracticeMode
 from .exam_mode import ExamMode
@@ -13,8 +13,6 @@ from .license_dialog import LicenseDialog
 from .header import Header
 from app_state import AppState
 from models import Question
-
-theme = Theme()
 
 
 class MainWindow(tk.Tk):

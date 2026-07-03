@@ -8,11 +8,9 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Any, Callable
 
-from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
+from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 from .option_row import OptionRow
 from .practice_session import PracticeSession
-
-theme = Theme()
 
 
 class PracticePanel(tk.Frame):

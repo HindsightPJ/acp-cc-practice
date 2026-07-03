@@ -6,9 +6,7 @@ from typing import Callable
 
 from license import LicenseStatus
 from license.verifier import verify, LicenseVerifier
-from .theme import Theme, font_ui, font_ui_semibold, font_mono
-
-theme = Theme()
+from .theme import theme, font_ui, font_ui_semibold, font_mono
 
 
 _LICENSE_ERROR_MESSAGES = {

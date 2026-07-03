@@ -3,11 +3,9 @@
 import tkinter as tk
 from typing import Any, Callable
 
-from .theme import Theme, font_ui, font_ui_semibold, font_display
+from .theme import theme, font_ui, font_ui_semibold, font_display
 
 from .mastery_ring import MasteryRing
-
-theme = Theme()
 
 
 SIDEBAR_WIDTH = 200

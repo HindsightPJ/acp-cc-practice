@@ -14,9 +14,7 @@ correct / wrong / revealed（正确答案高亮但用户未选）。
 import tkinter as tk
 from typing import Callable
 
-from .theme import Theme, font_ui, font_ui_semibold
-
-theme = Theme()
+from .theme import theme, font_ui, font_ui_semibold
 
 
 class OptionRow(tk.Frame):
