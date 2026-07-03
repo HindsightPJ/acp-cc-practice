@@ -382,18 +382,13 @@ class ExamPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def handle_key_press(self, event) -> Optional[str]:
-        """处理考试键盘事件。
+        """处理考试导航与标记键（选项选择由 ExamMode 经基类统一处理）。
 
         Returns:
             "break" 表示已处理，否则 None。
         """
         if not self.engine or not self.engine.get_current_question():
             return None
-
-        # 选项选择 / Enter（考试模式 Enter 无提交语义，交给 on_submit 仅在按钮触发）
-        result = self._handle_option_key(event)
-        if result == "break":
-            return "break"
 
         keysym = event.keysym
         if keysym == "Left":
@@ -406,34 +401,6 @@ class ExamPanel(tk.Frame):
         key = event.char.upper() if event.char else ""
         if key == "M":
             self._on_mark()
-            return "break"
-
-        return None
-
-    def _handle_option_key(self, event) -> Optional[str]:
-        """处理 A-F / 1-6 选项选择键。"""
-        if not self.engine or not self.engine.get_current_question():
-            return None
-
-        question = self.engine.get_current_question()
-        if question is None:
-            return None
-
-        key = event.char.upper() if event.char else ""
-
-        # 字母选择 (A-F)
-        if key and key in "ABCDEF":
-            card_idx = ord(key) - ord("A")
-            if card_idx < len(question.options):
-                self._on_select_option(key)
-            return "break"
-
-        # 数字选择 (1-6)
-        if key and key in "123456":
-            card_idx = int(key) - 1
-            if card_idx < len(question.options):
-                letter = chr(ord("A") + card_idx)
-                self._on_select_option(letter)
             return "break"
 
         return None

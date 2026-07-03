@@ -42,13 +42,28 @@ class ExamMode(BaseMode):
         self._bind_keyboard()
 
     def _on_key_press(self, event):
-        """键盘事件委托给 ExamPanel（考试进行中）。
+        """键盘分发协议：选项选择走基类统一方法，导航/标记委托 panel。
 
-        考试未开始时 panel 为 None，不处理按键。
+        考试模式语义：可改答案（is_answered_check 恒 False），Enter 无提交
+        语义（交卷仅通过按钮触发，避免误交卷）。
         """
-        if self.panel is not None:
-            return self.panel.handle_key_press(event)
-        return None
+        if self.engine is None or not self.engine.get_current_question():
+            return None
+        if self.panel is None:
+            return None
+
+        # 选项选择：复用基类 _handle_option_key_press，与 PracticeMode/WrongBook 统一
+        result = self._handle_option_key_press(
+            event,
+            on_select=self.exam_select_option_by_letter,
+            on_submit=lambda: None,
+            is_answered_check=lambda: False,
+        )
+        if result == "break":
+            return "break"
+
+        # 导航与标记：委托 panel
+        return self.panel.handle_key_press(event)
 
     # ------------------------------------------------------------------
     # 设置卡片 UI
