@@ -5,9 +5,10 @@ from datetime import datetime
 from typing import Any, Callable
 
 from .theme import theme, font_ui, font_ui_semibold, font_mono, create_primary_button, create_normal_button, create_card
+from .base_dialog import BaseDialog
 
 
-class ExamReportDialog:
+class ExamReportDialog(BaseDialog):
     """考试成绩报告对话框。"""
 
     def __init__(
@@ -23,29 +24,17 @@ class ExamReportDialog:
             report: 考试报告数据
             on_add_wrong: 加入错题本回调
         """
-        self.parent = parent
+        super().__init__(parent, title="考试成绩报告", size="600x550")
         self.report = report
         self.on_add_wrong = on_add_wrong
-        self.dialog: tk.Toplevel | None = None
 
     def show(self) -> None:
         """显示对话框。"""
-        self._build_dialog()
+        self._create_dialog()
+        self._build_content()
 
-    def _build_dialog(self) -> None:
-        self.dialog = tk.Toplevel(self.parent)
-        self.dialog.title("考试成绩报告")
-        self.dialog.geometry("600x550")
-        self.dialog.configure(bg=theme.BG_PAGE)
-        self.dialog.transient(self.parent.winfo_toplevel())
-        self.dialog.grab_set()
-
-        self.dialog.update_idletasks()
-        width = self.dialog.winfo_width()
-        height = self.dialog.winfo_height()
-        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
-        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+    def _build_content(self) -> None:
+        assert self.dialog is not None
 
         header, h_inner = create_card(self.dialog, inner_padx=24, inner_pady=20)
         header.pack(fill=tk.X, padx=20, pady=(20, 0))
@@ -162,7 +151,7 @@ class ExamReportDialog:
         close_btn = create_normal_button(
             self.dialog,
             text="关闭",
-            command=self.dialog.destroy,
+            command=self.close,
             width=12,
             padx=16,
             pady=6,

@@ -7,6 +7,7 @@ from typing import Callable
 from license import LicenseStatus
 from license.verifier import verify, LicenseVerifier
 from .theme import theme, font_ui, font_ui_semibold, font_mono
+from .base_dialog import BaseDialog
 
 
 _LICENSE_ERROR_MESSAGES = {
@@ -43,10 +44,10 @@ def _verify_and_save_license(code: str, license_dir: str) -> tuple[bool, str, bo
     return (False, _get_license_error_message(err), False)
 
 
-class LicenseDialog:
+class LicenseDialog(BaseDialog):
     """注册码输入对话框。
 
-    负责 UI 构建与验证交互；验证逻辑委托给传入的 verify_and_save callback。
+    负责UI 构建与验证交互；验证逻辑委托给传入的 verify_and_save callback。
     """
 
     def __init__(
@@ -62,10 +63,9 @@ class LicenseDialog:
             license_dir: license.dat 保存目录
             verify_and_save: 可选自定义验证回调，签名为 (code, license_dir) -> (success, message, should_close)
         """
-        self.parent = parent
+        super().__init__(parent, title="输入注册码", size="500x420")
         self.license_dir = license_dir
         self.verify_and_save = verify_and_save or _verify_and_save_license
-        self.dialog: tk.Toplevel | None = None
         self._license_entry: tk.Text | None = None
 
     def show(self) -> bool:
@@ -77,15 +77,12 @@ class LicenseDialog:
             messagebox.showerror("错误", "无法读取本机机器码，授权仅支持 Windows。")
             return False
 
-        self._build_dialog(machine_code)
+        self._create_dialog()
+        self._build_content(machine_code)
         return True
 
-    def _build_dialog(self, machine_code: str) -> None:
-        self.dialog = tk.Toplevel(self.parent)
-        self.dialog.title("输入注册码")
-        self.dialog.geometry("500x420")
-        self.dialog.transient(self.parent)
-        self.dialog.grab_set()
+    def _build_content(self, machine_code: str) -> None:
+        assert self.dialog is not None
 
         # 机器码显示
         tk.Label(
@@ -173,12 +170,3 @@ class LicenseDialog:
             messagebox.showerror("失败", message, parent=self.dialog)
         if should_close:
             self.close()
-
-    def close(self) -> None:
-        """关闭对话框。"""
-        if self.dialog is not None:
-            try:
-                self.dialog.destroy()
-            except tk.TclError:
-                pass
-            self.dialog = None
