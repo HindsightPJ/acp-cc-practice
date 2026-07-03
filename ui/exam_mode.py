@@ -1,15 +1,15 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
-from typing import List, Dict, Any, Set, Optional
+from typing import List, Dict, Any, Optional
 
-from .theme import Theme, font_ui, font_ui_semibold, font_mono, create_primary_button, create_normal_button, create_card
+from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_card
 
 from quiz_engine import QuizEngine
 from models import Question
 from data_manager import DataManager
 from .base_mode import BaseMode
-from .option_row import OptionRow
+from .exam_panel import ExamPanel
 from .exam_report_dialog import ExamReportDialog
 from .exam_session import ExamSession
 
@@ -17,6 +17,12 @@ theme = Theme()
 
 
 class ExamMode(BaseMode):
+    """考试模式编排层。
+
+    P0-2: 视图渲染委托给 ExamPanel，本类只负责：
+    设置卡片、启动考试、计时循环、交卷评分、历史保存、报告展示。
+    """
+
     def __init__(
         self,
         parent,
@@ -30,9 +36,23 @@ class ExamMode(BaseMode):
         self.time_remaining = 0
         self.exam_total_seconds = 0
         self.exam_session: Optional[ExamSession] = None
+        self.panel: Optional[ExamPanel] = None
 
         self._setup_mode_ui()
         self._bind_keyboard()
+
+    def _on_key_press(self, event):
+        """键盘事件委托给 ExamPanel（考试进行中）。
+
+        考试未开始时 panel 为 None，不处理按键。
+        """
+        if self.panel is not None:
+            return self.panel.handle_key_press(event)
+        return None
+
+    # ------------------------------------------------------------------
+    # 设置卡片 UI
+    # ------------------------------------------------------------------
 
     def _setup_mode_ui(self):
         self.configure(style="TFrame")
@@ -102,258 +122,12 @@ class ExamMode(BaseMode):
         )
         self.start_btn.pack(side=tk.RIGHT)
 
+        # 考试容器：承载 ExamPanel
         self.exam_container = tk.Frame(self, bg=theme.BG_PAGE)
 
-        timer_bar, timer_inner = create_card(self.exam_container, inner_padx=24, inner_pady=12)
-        timer_bar.pack(fill=tk.X, pady=(0, 12))
-
-        timer_left = tk.Frame(timer_inner, bg=theme.BG_CARD)
-        timer_left.pack(side=tk.LEFT)
-
-        self.timer_label = tk.Label(
-            timer_left, text="60:00", font=font_mono(20), fg=theme.RED, bg=theme.BG_CARD
-        )
-        self.timer_label.pack(side=tk.LEFT, padx=(0, 8))
-
-        timer_hint = tk.Label(
-            timer_left, text="剩余时间", font=font_ui(10), fg=theme.TEXT_MUTED, bg=theme.BG_CARD
-        )
-        timer_hint.pack(side=tk.LEFT)
-
-        self.exam_progress_label = tk.Label(
-            timer_inner,
-            text="第 0 / 100 题",
-            font=font_ui(11),
-            fg=theme.TEXT_SECONDARY,
-            bg=theme.BG_CARD,
-        )
-        self.exam_progress_label.pack(side=tk.RIGHT)
-
-        self.exam_type_label = tk.Label(
-            timer_inner, text="", font=font_ui_semibold(10), fg=theme.ACCENT, bg=theme.BG_CARD
-        )
-        self.exam_type_label.pack(side=tk.RIGHT, padx=(0, 16))
-
-        main_paned = tk.PanedWindow(
-            self.exam_container,
-            orient=tk.HORIZONTAL,
-            bg=theme.BG_PAGE,
-            sashrelief=tk.FLAT,
-            sashwidth=4,
-        )
-        main_paned.pack(fill=tk.BOTH, expand=True)
-
-        left_panel = tk.Frame(main_paned, bg=theme.BG_PAGE)
-        main_paned.add(left_panel, minsize=600)
-
-        question_card, q_inner = create_card(left_panel, inner_pady=16)
-        question_card.pack(fill=tk.X, pady=(0, 12))
-
-        self.exam_question_text = tk.Text(
-            q_inner,
-            height=4,
-            wrap=tk.WORD,
-            font=font_ui(12),
-            bg=theme.BG_CARD,
-            fg=theme.TEXT_PRIMARY,
-            relief=tk.FLAT,
-            padx=0,
-            pady=0,
-            selectbackground=theme.BG_SELECT,
-            insertbackground=theme.TEXT_PRIMARY,
-        )
-        self.exam_question_text.pack(fill=tk.X)
-        self.exam_question_text.config(state=tk.DISABLED)
-
-        options_card, opt_inner = create_card(left_panel, inner_pady=14)
-        options_card.pack(fill=tk.X, pady=(0, 12))
-
-        self.exam_option_cards = []
-        for idx in range(6):
-            letter = chr(ord("A") + idx)
-            row = OptionRow(
-                opt_inner,
-                letter=letter,
-                on_click=lambda sel: self.exam_select_option_by_letter(sel),
-                wraplength=550,
-            )
-            row.pack(fill=tk.X, pady=3)
-            self.exam_option_cards.append(
-                {
-                    "row": row,
-                    "var": tk.IntVar(value=0),
-                    "letter": letter,
-                }
-            )
-
-        action_bar = tk.Frame(left_panel, bg=theme.BG_PAGE)
-        action_bar.pack(fill=tk.X, pady=(0, 8))
-
-        btn_left = tk.Frame(action_bar, bg=theme.BG_PAGE)
-        btn_left.pack(side=tk.LEFT)
-
-        prev_exam_btn = create_normal_button(
-            btn_left,
-            text="上一题 (←)",
-            command=self.exam_prev_question,
-        )
-        prev_exam_btn.pack(side=tk.LEFT, padx=(0, 4))
-
-        next_exam_btn = create_normal_button(
-            btn_left,
-            text="下一题 (→)",
-            command=self.exam_next_question,
-        )
-        next_exam_btn.pack(side=tk.LEFT)
-
-        mark_btn = create_primary_button(
-            action_bar,
-            text="标记 (M)",
-            command=self.toggle_mark_current,
-            bg_color=theme.YELLOW,
-            active_bg=theme.YELLOW_BORDER,
-            padx=12,
-            pady=5,
-        )
-        mark_btn.pack(side=tk.LEFT, padx=(8, 0))
-
-        submit_exam_btn = create_primary_button(
-            action_bar,
-            text="交卷",
-            command=self.submit_exam,
-            bg_color=theme.RED,
-            active_bg="#dc2626",
-            padx=20,
-        )
-        submit_exam_btn.pack(side=tk.RIGHT)
-
-        nav_panel = tk.Frame(
-            main_paned, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
-        main_paned.add(nav_panel, minsize=180)
-
-        nav_inner = tk.Frame(nav_panel, bg=theme.BG_CARD)
-        nav_inner.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
-
-        tk.Label(
-            nav_inner,
-            text="题号导航",
-            font=font_ui_semibold(11),
-            fg=theme.TEXT_PRIMARY,
-            bg=theme.BG_CARD,
-        ).pack(anchor=tk.W, pady=(0, 8))
-
-        tk.Label(
-            nav_inner,
-            text="● 已答  ○ 未答  ★ 标记",
-            font=font_ui(9),
-            fg=theme.TEXT_MUTED,
-            bg=theme.BG_CARD,
-        ).pack(anchor=tk.W, pady=(0, 8))
-
-        nav_scroll = tk.Scrollbar(nav_inner)
-        nav_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.nav_canvas = tk.Canvas(
-            nav_inner, bg=theme.BG_CARD, highlightthickness=0, yscrollcommand=nav_scroll.set
-        )
-        self.nav_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        nav_scroll.config(command=self.nav_canvas.yview)
-
-        self.nav_frame = tk.Frame(self.nav_canvas, bg=theme.BG_CARD)
-        self.nav_canvas.create_window((0, 0), window=self.nav_frame, anchor=tk.NW)
-
-        self.nav_buttons = []
-
-    def _on_key_press(self, event):
-        if self.engine is None or not self.engine.get_current_question():
-            return
-
-        # 复用基类通用选项键盘处理
-        result = self._handle_option_key_press(
-            event,
-            on_select=self.exam_select_option_by_letter,
-            on_submit=lambda: None,
-            is_answered_check=lambda: False,
-        )
-        if result == "break":
-            return "break"
-
-        keysym = event.keysym
-        if keysym == "Left":
-            self.exam_prev_question()
-            return "break"
-
-        if keysym == "Right":
-            self.exam_next_question()
-            return "break"
-
-        key = event.char.upper() if event.char else ""
-        if key == "M":
-            self.toggle_mark_current()
-            return "break"
-
-    def _build_nav_buttons(self, total):
-        for btn in self.nav_buttons:
-            btn.destroy()
-        self.nav_buttons = []
-
-        cols = 5
-        for i in range(total):
-            row = i // cols
-            col = i % cols
-
-            btn = tk.Label(
-                self.nav_frame,
-                text=str(i + 1),
-                font=font_ui(10),
-                width=3,
-                height=1,
-                bg=theme.BG_INPUT,
-                fg=theme.TEXT_SECONDARY,
-                cursor="hand2",
-            )
-            btn.grid(row=row, column=col, padx=2, pady=2)
-            btn.bind("<Button-1>", lambda e, idx=i: self.jump_to_question(idx))
-            self.nav_buttons.append(btn)
-
-        self.nav_frame.update_idletasks()
-        self.nav_canvas.config(scrollregion=self.nav_canvas.bbox(tk.ALL))
-
-    def _update_nav_buttons(self):
-        if self.engine is None or self.exam_session is None:
-            return
-        current = self.engine.get_current_index()  # TD-15: 显式接口
-        for i, btn in enumerate(self.nav_buttons):
-            if i == current:
-                bg = theme.ACCENT
-                fg = theme.SELECTED_TEXT
-            elif self.exam_session.has_answer(i):
-                bg = theme.GREEN_BG
-                fg = theme.GREEN_TEXT
-            else:
-                bg = theme.BG_INPUT
-                fg = theme.TEXT_SECONDARY
-
-            if self.exam_session.is_marked(i):
-                text = f"★{i + 1}"
-            else:
-                text = str(i + 1)
-
-            btn.configure(text=text, bg=bg, fg=fg)
-
-    def toggle_mark_current(self) -> None:
-        if self.engine is None or self.exam_session is None:
-            return
-        self.exam_session.toggle_mark()
-        self._update_nav_buttons()
-
-    def jump_to_question(self, idx: int) -> None:
-        if self.engine is None:
-            return
-        if 0 <= idx < self.engine.queue_length():  # TD-15: 显式接口
-            self.engine.set_current_index(idx)  # TD-15: 显式接口
-            self.load_exam_question()
+    # ------------------------------------------------------------------
+    # 考试编排
+    # ------------------------------------------------------------------
 
     def start_exam(self) -> None:
         self._cancel_all_after_jobs()
@@ -373,10 +147,24 @@ class ExamMode(BaseMode):
         self.timer_running = True
 
         self.start_btn.configure(state=tk.DISABLED, bg=theme.BTN_DISABLED)
+
+        # 创建 ExamPanel 并通过回调连接编排逻辑
+        self.panel = ExamPanel(
+            self.exam_container,
+            engine=self.engine,
+            exam_session=self.exam_session,
+            on_prev=self.exam_prev_question,
+            on_next=self.exam_next_question,
+            on_submit=self.submit_exam,
+            on_mark=self.toggle_mark_current,
+            on_jump=self.jump_to_question,
+            on_select_option=self.exam_select_option_by_letter,
+        )
+        self.panel.pack(fill=tk.BOTH, expand=True)
         self.exam_container.pack(fill=tk.BOTH, expand=True, padx=0, pady=5)
 
-        self._build_nav_buttons(self.engine.queue_length())  # TD-15: 显式接口
-        self.load_exam_question()
+        self.panel.build_nav_buttons(self.engine.queue_length())
+        self.panel.load_question()
         self.update_timer()
 
     def update_timer(self) -> None:
@@ -395,82 +183,27 @@ class ExamMode(BaseMode):
             self.submit_exam(force=True)
             return
 
-        minutes = self.time_remaining // 60
-        seconds = self.time_remaining % 60
-        time_str = f"{minutes:02d}:{seconds:02d}"
-        self.timer_label.configure(text=time_str)
-
-        if self.time_remaining <= 300:
-            color = theme.RED if self.time_remaining % 2 == 0 else "#b91c1c"
-            self.timer_label.configure(fg=color)
+        if self.panel is not None:
+            self.panel.update_timer_display(self.time_remaining, self.exam_total_seconds)
 
         job_id = self.after(1000, self.update_timer)
         self._add_after_job(job_id)
 
     def load_exam_question(self) -> None:
-        if self.engine is None:
+        if self.panel is None:
             return
-        question = self.engine.get_current_question()
-        if not question:
-            return
-
-        self.exam_question_text.config(state=tk.NORMAL)
-        self.exam_question_text.delete(1.0, tk.END)
-        self.exam_question_text.insert(
-            tk.END, f"{self.engine.get_current_index() + 1}. {question.content}"
-        )  # TD-15: 显式接口
-        self.exam_question_text.config(state=tk.DISABLED)
-
-        # 显示题目类型
-        if question.type == "multiple":
-            self.exam_type_label.configure(text="多选题", fg=theme.YELLOW)
-        else:
-            self.exam_type_label.configure(text="单选题", fg=theme.ACCENT)
-
-        options_count = len(question.options)
-        for i, item in enumerate(self.exam_option_cards):
-            if i < options_count:
-                item["row"].pack(fill=tk.X, pady=3)
-                opt = question.options[i]
-                item["row"].update_text(opt.text)
-                item["var"].set(0)
-                item["row"].reset()
-            else:
-                item["row"].pack_forget()
-
-        answered_letters = self.exam_session.get_current_selected() if self.exam_session else ""
-        for i, item in enumerate(self.exam_option_cards):
-            letter = chr(ord("A") + i)
-            if letter in answered_letters:
-                item["var"].set(1)
-                item["row"].set_selected(True)
-
-        progress = self.engine.get_progress()
-        self.exam_progress_label.configure(
-            text=f"第 {progress['current']} / {progress['total']} 题"
-        )
-
-        self._update_nav_buttons()
+        self.panel.load_question()
 
     def exam_select_option_by_letter(self, letter: str) -> None:
-        """点击或键盘触发选项选择。"""
-        if self.engine is None or self.exam_session is None:
+        """选项选择编排：更新 session 状态 + 同步 panel 视图。"""
+        if self.engine is None or self.exam_session is None or self.panel is None:
             return
 
         selected = self.exam_session.select_option(letter)
         if selected is None:
             return
 
-        options_count = len(self.exam_session.get_current_question().options)
-        for i, item in enumerate(self.exam_option_cards):
-            if i >= options_count:
-                continue
-            letter_i = chr(ord("A") + i)
-            is_selected = letter_i in selected
-            item["var"].set(1 if is_selected else 0)
-            item["row"].set_selected(is_selected)
-
-        self._update_nav_buttons()
+        self.panel.sync_option_selection(selected)
 
     def exam_next_question(self) -> None:
         if self.engine is None:
@@ -489,6 +222,23 @@ class ExamMode(BaseMode):
             self.load_exam_question()
         else:
             messagebox.showinfo("提示", "已经是第一题了！")
+
+    def jump_to_question(self, idx: int) -> None:
+        if self.engine is None:
+            return
+        if 0 <= idx < self.engine.queue_length():
+            self.engine.set_current_index(idx)
+            self.load_exam_question()
+
+    def toggle_mark_current(self) -> None:
+        if self.engine is None or self.exam_session is None or self.panel is None:
+            return
+        self.exam_session.toggle_mark()
+        self.panel.update_nav_buttons()
+
+    # ------------------------------------------------------------------
+    # 交卷与报告
+    # ------------------------------------------------------------------
 
     def submit_exam(self, force: bool = False) -> None:
         if not force and not messagebox.askyesno(
