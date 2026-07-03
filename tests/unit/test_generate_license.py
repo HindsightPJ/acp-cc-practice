@@ -2,14 +2,11 @@
 import base64
 import json
 import os
-import sys
-from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'author_tools'))
-import generate_license  # pylint: disable=wrong-import-position
-import keygen  # pylint: disable=wrong-import-position
+import generate_license
+import keygen
 
 
 @pytest.fixture
@@ -43,7 +40,6 @@ def test_generated_license_can_be_verified(setup_env, monkeypatch):
     license_code = generate_license.generate_license_for_machine_code(machine_code)
 
     # 用 verifier 验证
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
     from license import verifier
     monkeypatch.setattr(verifier, 'ED25519_PUBLIC_KEY_HEX', setup_env['ed25519_public_key'])
     monkeypatch.setattr(verifier, 'get_machine_code_or_none', lambda: machine_code)

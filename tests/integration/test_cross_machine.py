@@ -1,16 +1,9 @@
 """跨机器使用注册码应失败。"""
-import sys
-from pathlib import Path
-
 import pytest
 
-ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / 'author_tools'))
-
-import keygen  # pylint: disable=wrong-import-position
-import generate_license  # pylint: disable=wrong-import-position
-from license import verifier, LicenseStatus, LicenseError  # pylint: disable=wrong-import-position
+import keygen
+import generate_license
+from license import verifier, LicenseStatus, LicenseError
 
 
 @pytest.fixture

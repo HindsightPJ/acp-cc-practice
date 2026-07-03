@@ -3,12 +3,7 @@
 验证所有 UI 模块可导入，捕获语法错误、import 链断裂、循环依赖等问题。
 完整的 MainWindow 实例化测试需要虚拟 display（xvfb），留待后续。
 """
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def test_ui_package_importable():

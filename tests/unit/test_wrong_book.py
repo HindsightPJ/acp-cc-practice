@@ -5,14 +5,12 @@
 - _show_practice_result 通过 get_stats() 读取统计
 - P1-4: >=80% 正确率时只移除答对的错题，而非全部错题
 """
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from ui.wrong_book import WrongBook  # pylint: disable=wrong-import-position
+from ui.wrong_book import WrongBook
 
 
 class _ForbidStatsAccess:

@@ -1,14 +1,11 @@
 """data_manager.py 单元测试。"""
 import json
 import os
-import sys
-from pathlib import Path
 
 import pytest
 from cryptography.fernet import Fernet
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from data_manager import DataManager  # pylint: disable=wrong-import-position
+from data_manager import DataManager
 
 
 @pytest.fixture

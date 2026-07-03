@@ -1,8 +1,6 @@
 """verifier.py 单元测试。"""
 import base64
 import os
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -10,10 +8,9 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from license import LicenseError, LicenseStatus  # pylint: disable=wrong-import-position
-from license import verifier  # pylint: disable=wrong-import-position
-from license.crypto_utils import derive_dk  # pylint: disable=wrong-import-position
+from license import LicenseError, LicenseStatus
+from license import verifier
+from license.crypto_utils import derive_dk
 
 
 def _make_license(machine_code: str, key_k: str, private_key_hex: str) -> str:

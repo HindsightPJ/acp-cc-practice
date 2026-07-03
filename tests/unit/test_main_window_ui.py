@@ -3,12 +3,7 @@
 在 headless 环境（无 display）下自动跳过；Windows/有 display 环境可运行。
 gui 标记的测试默认被 pytest 跳过，需单独运行：pytest -m gui
 """
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def _tk_display_available():

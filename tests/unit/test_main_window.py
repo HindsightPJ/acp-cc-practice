@@ -6,20 +6,16 @@
 
 UI 构建部分（tk.Toplevel/Label/Text 等）不在此测试范围。
 """
-import sys
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from ui.license_dialog import (  # pylint: disable=wrong-import-position
+from ui.license_dialog import (
     _get_license_error_message,
     _verify_and_save_license,
     _LICENSE_ERROR_MESSAGES,
 )
-from license import LicenseStatus, LicenseError  # pylint: disable=wrong-import-position
+from license import LicenseStatus, LicenseError
 
 
 # ---------- _get_license_error_message 测试 ----------

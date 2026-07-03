@@ -4,16 +4,13 @@
 - 日志配置使用 RotatingFileHandler 防止 app.log 无限增长
 - TD-31: 日志配置委托给 logging_utils.configure_app_logging
 """
-import sys
 import logging
 import logging.handlers
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from main import _setup_logging  # pylint: disable=wrong-import-position
+from main import _setup_logging
 
 
 def _get_rotating_handlers():

@@ -1,14 +1,11 @@
 """encrypt_questions.py 单元测试。"""
 import json
 import os
-import sys
-from pathlib import Path
 
 import pytest
 from cryptography.fernet import Fernet
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'author_tools'))
-import encrypt_questions  # pylint: disable=wrong-import-position
+import encrypt_questions
 
 
 @pytest.fixture

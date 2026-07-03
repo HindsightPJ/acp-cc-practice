@@ -1,13 +1,10 @@
 """fingerprint.py 单元测试。"""
-import sys
 import hashlib
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from license.fingerprint import (  # pylint: disable=wrong-import-position
+from license.fingerprint import (
     get_machine_guid,
     compute_machine_code,
     get_machine_code_or_none,

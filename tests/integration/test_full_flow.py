@@ -1,22 +1,15 @@
 """端到端集成测试：作者签发 → 客户端验证 → 解密全库。"""
 import json
-import sys
-from pathlib import Path
 
 import pytest
 from cryptography.fernet import Fernet
 
-# 把 acp-cc-practice 根目录加入路径
-ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / 'author_tools'))
-
-import keygen  # pylint: disable=wrong-import-position
-import encrypt_questions  # pylint: disable=wrong-import-position
-import generate_license  # pylint: disable=wrong-import-position
-from license import verifier  # pylint: disable=wrong-import-position
-from license import LicenseStatus  # pylint: disable=wrong-import-position
-from data_manager import DataManager  # pylint: disable=wrong-import-position
+import keygen
+import encrypt_questions
+import generate_license
+from license import verifier
+from license import LicenseStatus
+from data_manager import DataManager
 
 
 @pytest.fixture

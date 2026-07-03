@@ -11,14 +11,10 @@
 - 考试报告生成
 - 背题模式列表
 """
-import sys
-from pathlib import Path
-
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from quiz_engine import QuizEngine  # pylint: disable=wrong-import-position
-from models import Question, Option  # pylint: disable=wrong-import-position
+from quiz_engine import QuizEngine
+from models import Question, Option
 
 
 # ---------- 辅助函数 ----------

@@ -1,6 +1,5 @@
 """keygen.py 单元测试。"""
 import os
-import sys
 import tempfile
 from pathlib import Path
 
@@ -8,9 +7,7 @@ import pytest
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-# 把 author_tools 加入 import 路径
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'author_tools'))
-import keygen  # pylint: disable=wrong-import-position
+import keygen
 
 
 def test_generate_keys_returns_valid_fernet_key():

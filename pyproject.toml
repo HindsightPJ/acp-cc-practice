@@ -23,6 +23,7 @@ build-backend = "setuptools.build_meta"
 # TD-17: pytest 配置
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = [".", "author_tools"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

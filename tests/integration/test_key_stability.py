@@ -1,20 +1,14 @@
 """K 不变时，题库更新后旧注册码仍能解密新 enc。"""
 import json
-import sys
-from pathlib import Path
 
 import pytest
 from cryptography.fernet import Fernet
 
-ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / 'author_tools'))
-
-import keygen  # pylint: disable=wrong-import-position
-import encrypt_questions  # pylint: disable=wrong-import-position
-import generate_license  # pylint: disable=wrong-import-position
-from license import verifier, LicenseStatus  # pylint: disable=wrong-import-position
-from data_manager import DataManager  # pylint: disable=wrong-import-position
+import keygen
+import encrypt_questions
+import generate_license
+from license import verifier, LicenseStatus
+from data_manager import DataManager
 
 
 @pytest.fixture
