@@ -379,7 +379,10 @@ class Theme:
     def __getattr__(self, name: str) -> str:
         if name.startswith("_"):
             raise AttributeError(name)
-        return globals()[name]
+        try:
+            return globals()[name]
+        except KeyError:
+            raise AttributeError(name)
 
     def __dir__(self):
         return sorted(
