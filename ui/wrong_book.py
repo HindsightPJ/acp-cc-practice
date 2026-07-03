@@ -458,4 +458,3 @@ class WrongBook(BaseMode):
             self.wrong_questions = []
             self._populate_tree()
             self.count_label.configure(text="共 0 道错题")
-            messagebox.showinfo("成功", "错题本已清空！")
