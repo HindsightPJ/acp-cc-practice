@@ -46,13 +46,17 @@ acp-cc-practice/
 ├── main.py                  # 入口：检查授权 → 加载 trial/full → 启动 UI
 ├── quiz_engine.py           # 题库引擎：题目队列、作答、统计、报告
 ├── data_manager.py          # 题库加载（trial/full 两段式）+ 进度持久化
+├── models.py                # 数据模型：Question / Option / Progress 等类型定义
+├── app_state.py             # 全局状态：错题本、收藏、考试历史、进度持久化
+├── env_utils.py             # .env 加载工具（作者侧密钥读取）
+├── logging_utils.py         # 结构化日志：log_event / log_error / configure_app_logging
 ├── pyproject.toml           # 项目元数据 + 依赖声明（单一来源）+ 工具配置
 ├── requirements.lock        # 锁定依赖版本（pip-compile 自动生成，可复现安装）
-├── .env.example             # .env 模板（作者密钥，本地保留）
 ├── .gitignore
 ├── license/                 # 授权模块
 │   ├── __init__.py          # LicenseStatus / LicenseError 枚举
 │   ├── fingerprint.py       # 采集机器指纹
+│   ├── crypto_utils.py      # Ed25519 + AES-256-GCM 加解密原语
 │   ├── public_key.py        # 内置公钥（可公开）
 │   └── verifier.py          # 验证注册码 + license.dat 持久化
 ├── author_tools/            # 作者侧工具（入库但不含密钥，密钥在 .env）
@@ -63,19 +67,28 @@ acp-cc-practice/
 │   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
 │   └── questions_meta.json  # 元数据（入库）
-├── tests/                   # 测试套件（181 项：172 单元/集成 + 9 GUI 冒烟）
+├── tests/                   # 测试套件（173 单元/集成 + 9 GUI 冒烟）
 │   ├── unit/                # 单元测试
 │   └── integration/         # 集成测试
 └── ui/
     ├── __init__.py
     ├── main_window.py       # 主窗口：侧栏 + 就绪度环 + 模式切换 + 授权状态栏
-    ├── theme.py             # 设计 Token：色板 / 字体检测 / 按钮
+    ├── theme.py             # 设计 Token：色板 / 字体检测 / 按钮 / 卡片工厂
     ├── option_row.py        # 统一选项行组件（Canvas 真圆字母块）
-    ├── base_mode.py         # 模式基类
-    ├── practice_mode.py     # 练习模式
-    ├── exam_mode.py         # 考试模式（datetime 防计时漂移）
+    ├── base_mode.py         # 模式基类（键盘选项分发模板方法）
+    ├── practice_mode.py     # 练习模式（使用 PracticePanel 渲染）
+    ├── practice_panel.py    # 可复用练习视图组件（PracticeMode / WrongBook 共用）
+    ├── practice_session.py  # 练习会话逻辑（选项管理、提交判定、统计）
+    ├── exam_mode.py         # 考试模式控制器（datetime 防计时漂移）
+    ├── exam_panel.py        # 考试视图层（答题卡、倒计时、选项渲染）
+    ├── exam_session.py      # 考试会话模型（作答状态、计分）
+    ├── exam_report_dialog.py# 考试成绩报告对话框
     ├── review_mode.py       # 背题模式（收藏按钮状态同步）
-    └── wrong_book.py        # 错题本（空状态视图）
+    ├── wrong_book.py        # 错题本（空状态视图 + 专项练习）
+    ├── header.py            # 顶部标题栏组件
+    ├── sidebar.py           # 侧边栏组件（模式导航）
+    ├── mastery_ring.py      # 就绪度环组件（Canvas 弧线绘制）
+    └── license_dialog.py    # 授权输入对话框
 ```
 
 ## 快速开始
