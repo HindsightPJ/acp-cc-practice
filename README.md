@@ -46,7 +46,8 @@ acp-cc-practice/
 ├── main.py                  # 入口：检查授权 → 加载 trial/full → 启动 UI
 ├── quiz_engine.py           # 题库引擎：题目队列、作答、统计、报告
 ├── data_manager.py          # 题库加载（trial/full 两段式）+ 进度持久化
-├── requirements.txt         # 依赖（python-docx + cryptography）
+├── pyproject.toml           # 项目元数据 + 依赖声明（单一来源）+ 工具配置
+├── requirements.lock        # 锁定依赖版本（pip-compile 自动生成，可复现安装）
 ├── .env.example             # .env 模板（作者密钥，本地保留）
 ├── .gitignore
 ├── license/                 # 授权模块
