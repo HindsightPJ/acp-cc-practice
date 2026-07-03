@@ -229,14 +229,10 @@ class ReviewMode(BaseMode):
             self.toggle_answer()
 
     def load_question(self) -> None:
-        current_index = self.engine.get_current_index()
-        if 0 <= current_index < self.engine.queue_length():
-            question = self.engine.get_question_at(current_index)
-        else:
-            return
-
+        question = self.engine.get_current_question()
         if question is None:
             return
+        current_index = self.engine.get_current_index()
 
         self.review_question_text.config(state=tk.NORMAL)
         self.review_question_text.delete(1.0, tk.END)
@@ -279,7 +275,7 @@ class ReviewMode(BaseMode):
             self._add_after_job(job_id)
 
     def toggle_answer(self) -> None:
-        question = self.engine.get_question_at(self.engine.get_current_index())
+        question = self.engine.get_current_question()
         if question is None:
             return
 
@@ -340,7 +336,7 @@ class ReviewMode(BaseMode):
         if not self.data_manager:
             return
 
-        question = self.engine.get_question_at(self.engine.get_current_index())
+        question = self.engine.get_current_question()
         if question is None:
             return
         q_num = question.number
@@ -352,10 +348,10 @@ class ReviewMode(BaseMode):
         """根据当前题是否已收藏，更新按钮文字与配色作为静默反馈。"""
         if not self.engine:
             return
-        current_index = self.engine.get_current_index()
-        if current_index >= self.engine.queue_length():
+        question = self.engine.get_current_question()
+        if question is None:
             return
-        q_num = self.engine.get_question_at(current_index).number
+        q_num = question.number
         is_fav = self.app_state.is_favorite(q_num)
         if is_fav:
             self.favorite_btn.configure(text="已收藏 ✓", fg=theme.ACCENT, bg=theme.ACCENT_LIGHT)
