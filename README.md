@@ -97,7 +97,7 @@ acp-cc-practice/
 
 - Windows 桌面环境（授权机制依赖机器指纹；macOS/Linux 降级试用 20 题）
 - 最终用户：无需安装 Python，直接下载 exe 运行
-- 开发者：Python 3.10+，`pip install -r requirements.txt`
+- 开发者：Python 3.10+，`pip install -e .`
 
 ### 两种使用方式
 
