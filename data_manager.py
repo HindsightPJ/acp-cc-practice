@@ -1,10 +1,8 @@
 from typing import List, Dict, Any, Optional, cast
 import os
-import sys
 import json
 import re
 import logging
-from env_utils import load_env
 from telemetry import log_error
 from models import Question, Option
 
@@ -175,71 +173,6 @@ class DataManager:
 
         return [Question.from_dict(q) for q in raw_questions]
 
-    def load_or_parse_questions(self, docx_path: str) -> List[Question]:
-        """加载题目：优先读加密 questions.enc，解密失败则 fallback 到明文 questions.json → docx 解析。
-
-        解密失败的场景（无 .env 密钥 / 密钥错误 / 文件损坏）都不阻断，
-        便于他人 clone 后用自己的合法题库运行程序。
-
-        P1-2: 打包后（frozen）禁用明文/docx fallback，避免用户篡改题库或绕过加密。
-        开发模式保留 fallback，便于他人 clone 后用自己的合法题库运行程序。
-        """
-        # 1. 优先读加密文件
-        if os.path.exists(self.questions_enc_file):
-            from cryptography.fernet import InvalidToken  # TD-10: 精确捕获解密异常
-
-            try:
-                key = self._load_encryption_key()
-                if key:
-                    from cryptography.fernet import Fernet
-
-                    with open(self.questions_enc_file, "rb") as f:
-                        ciphertext = f.read()
-                    plaintext = Fernet(key.encode()).decrypt(ciphertext)
-                    raw_list = json.loads(plaintext.decode("utf-8"))
-                    return [Question.from_dict(q) for q in raw_list]
-            except (
-                ValueError,
-                OSError,
-                json.JSONDecodeError,
-                UnicodeDecodeError,
-                InvalidToken,
-            ) as e:
-                # TD-10: 收窄异常捕获——密钥格式错误(ValueError) / 文件IO(OSError) /
-                # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
-                # → fallback，不阻断
-                logger.warning("解密 questions.enc 失败，fallback 到明文: %s", e)
-
-        # P1-2: 打包后禁用明文/docx fallback，避免用户篡改题库或绕过加密
-        # 仅开发模式保留 fallback，便于他人 clone 后用自己的合法题库运行程序
-        if getattr(sys, "frozen", False):
-            raise DataLoadError(
-                "题库密文无法解密，请通过作者重新签发注册码或重新下载程序。"
-                "（打包环境不支持明文 fallback）"
-            )
-
-        # 2. fallback 明文 questions.json
-        if os.path.exists(self.questions_file):
-            try:
-                with open(self.questions_file, "r", encoding="utf-8") as f:
-                    raw_list = json.load(f)
-                    return [Question.from_dict(q) for q in raw_list]
-            except json.JSONDecodeError as e:
-                raise DataLoadError(f"题目数据格式错误，请删除 data 文件夹后重新运行: {e}")
-            except PermissionError:
-                raise DataLoadError("无法读取题目文件，请检查文件权限")
-
-        # 3. fallback docx 解析
-        questions = self.parse_docx(docx_path)
-
-        try:
-            with open(self.questions_file, "w", encoding="utf-8") as f:
-                json.dump([q.to_dict() for q in questions], f, ensure_ascii=False, indent=2)
-        except PermissionError:
-            raise DataSaveError(f"无法保存题目数据到 {self.questions_file}，请检查目录权限")
-
-        return questions
-
     def load_meta(self) -> Optional[Dict[str, Any]]:
         """加载 questions_meta.json。
 
@@ -296,22 +229,6 @@ class DataManager:
             # TD-10: 收窄异常捕获——密钥格式错误(ValueError) / 文件IO(OSError) /
             # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
             raise DataLoadError(f"题库密文损坏或密钥不匹配: {e}")
-
-    def _load_encryption_key(self) -> Optional[str]:
-        """从 .env 读取加密密钥。
-
-        优先读取 QUESTIONS_MASTER_KEY（新命名），兼容旧版 QUESTIONS_KEY（已弃用）。
-        使用旧命名时记录弃用警告，提示用户迁移到新命名。
-        """
-        env = load_env(os.path.join(self.base_dir, ".env"))
-        key = env.get("QUESTIONS_MASTER_KEY")
-        if key is None:
-            key = env.get("QUESTIONS_KEY")
-            if key is not None:
-                logger.warning(
-                    "使用了已弃用的环境变量 QUESTIONS_KEY，请迁移到 QUESTIONS_MASTER_KEY"
-                )
-        return key
 
     def save_progress(self, progress_data: Dict[str, Any]) -> None:
         """保存学习进度（Windows 安全：先备份 .bak，再写 .tmp，最后 os.replace）"""
