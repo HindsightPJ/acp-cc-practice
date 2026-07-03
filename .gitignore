@@ -53,7 +53,6 @@ desktop.ini
 # 工程化文件（本地保留，不推送到仓库）
 .github/
 docs/
-tests/
 CONTRIBUTING.md
 TECH_DEBT.md
 requirements-dev.txt
