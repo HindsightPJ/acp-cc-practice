@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from typing import List, Any, Optional, cast
+from typing import List, Any, Optional
 from abc import ABC, abstractmethod
 
 from quiz_engine import QuizEngine
@@ -40,12 +40,7 @@ class BaseMode(ABC, ttk.Frame):
 
     @property
     def app_state(self) -> AppState:
-        """返回应用状态对象（懒加载，兼容 __new__ 构造的测试对象）。"""
-        if not hasattr(self, "_state"):
-            self._state = AppState(
-                cast(DataManager, getattr(self, "data_manager", None)),
-                getattr(self, "progress", {}),
-            )
+        """返回应用状态对象。"""
         return self._state
 
     def _add_after_job(self, job_id) -> None:
