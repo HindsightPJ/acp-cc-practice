@@ -52,6 +52,8 @@ acp-cc-practice/
 ├── logging_utils.py         # 结构化日志：log_event / log_error / configure_app_logging
 ├── pyproject.toml           # 项目元数据 + 依赖声明（单一来源）+ 工具配置
 ├── requirements.lock        # 锁定依赖版本（pip-compile 自动生成，可复现安装）
+├── acp-cc-practice.spec     # PyInstaller 打包配置
+├── .github/workflows/ci.yml # CI：ruff + mypy + pytest 强制检查
 ├── .gitignore
 ├── license/                 # 授权模块
 │   ├── __init__.py          # LicenseStatus / LicenseError 枚举
@@ -189,6 +191,7 @@ python main.py
 ```
 acp-cc-practice/
 ├── .gitignore
+├── .github/workflows/ci.yml # CI：ruff + mypy + pytest
 ├── LICENSE.md
 ├── README.md
 ├── main.py
@@ -238,7 +241,7 @@ acp-cc-practice/
     └── license_dialog.py
 ```
 
-**发布产物**：`dist/acp-cc-practice.exe`（约 15.5 MB，无 cmd 窗口）— 打包好的可执行文件，可直接分发给最终用户，无需安装 Python 环境。作为 GitHub Release 二进制附件发布，不纳入源码仓库。
+**发布产物**：`dist/acp-cc-practice.exe`（约 22 MB，无 cmd 窗口）— 打包好的可执行文件，可直接分发给最终用户，无需安装 Python 环境。作为 GitHub Release 二进制附件发布，不纳入源码仓库。
 
 **不入库的文件**：`.env`、`data/progress.json`、`data/license.dat`、`data/app.log`、`data/questions.json`、`author_tools/issued_licenses.json`、`build/`、`dist/`、`__pycache__/`、`.pytest_cache/`
 
