@@ -4,7 +4,7 @@ TD-Refactor: 从 PracticeMode 和 WrongBook 中提取的通用练习逻辑，
 实现 UI 与业务逻辑解耦，消除重复代码。
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from quiz_engine import QuizEngine
 from app_state import AppState
@@ -29,11 +29,11 @@ class PracticeSession:
     def __init__(self, engine: QuizEngine, app_state: AppState) -> None:
         self.engine = engine
         self.app_state = app_state
-        self.selected_answers: List[str] = []
+        self.selected_answers: list[str] = []
         self.current_question_type = "single"
         self.is_answered = False
 
-    def load_current_question(self) -> Optional[Question]:
+    def load_current_question(self) -> Question | None:
         """加载当前题目，返回题目数据供 UI 更新。
         
         Returns:
@@ -74,7 +74,7 @@ class PracticeSession:
         """检查选项是否被选中。"""
         return letter in self.selected_answers
 
-    def submit_answer(self) -> Optional[Dict[str, Any]]:
+    def submit_answer(self) -> dict[str, Any] | None:
         """提交答案，返回判题结果。
         
         Returns:
@@ -125,11 +125,11 @@ class PracticeSession:
         self.engine.start_practice_mode(shuffle=shuffle)
         self.reset_selection()
 
-    def get_progress(self) -> Dict[str, Any]:
+    def get_progress(self) -> dict[str, Any]:
         """获取当前练习进度。"""
         return self.engine.get_progress()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取当前练习统计。"""
         return self.engine.get_stats()
 
@@ -149,6 +149,6 @@ class PracticeSession:
         """移动到上一题。"""
         self.engine.prev_question()
 
-    def get_correct_question_numbers(self) -> List[int]:
+    def get_correct_question_numbers(self) -> list[int]:
         """获取本次练习中答对的题号列表。"""
         return self.engine.get_correct_question_numbers()

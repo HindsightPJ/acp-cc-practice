@@ -1,7 +1,7 @@
 """顶部 Header 组件：模式标题、授权状态、全局统计、激活按钮。"""
 
 import tkinter as tk
-from typing import Optional, Callable
+from typing import Callable
 
 from .theme import Theme, font_ui, font_display
 
@@ -23,7 +23,7 @@ class Header(tk.Frame):
         license_status=None,
         total_count: int = 0,
         trial_count: int = 0,
-        on_activate_click: Optional[Callable[[], None]] = None,
+        on_activate_click: Callable[[], None] | None = None,
         mode_title: str = "练习",
     ) -> None:
         """初始化 Header。
@@ -42,7 +42,7 @@ class Header(tk.Frame):
         self.total_count = total_count
         self.trial_count = trial_count
         self.on_activate_click = on_activate_click
-        self.activate_btn: Optional[tk.Button] = None
+        self.activate_btn: tk.Button | None = None
 
         self._build()
         self.set_mode_title(mode_title)
@@ -119,7 +119,7 @@ class Header(tk.Frame):
         )
 
     def set_license_status(
-        self, license_status, total_count: Optional[int] = None, trial_count: Optional[int] = None
+        self, license_status, total_count: int | None = None, trial_count: int | None = None
     ) -> None:
         """更新授权状态显示。
 

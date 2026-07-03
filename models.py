@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -20,13 +20,13 @@ class Option:
     text: str
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Option":
+    def from_dict(cls, data: dict[str, Any]) -> "Option":
         return cls(
             letter=str(data.get("letter", "")).upper(),
             text=str(data.get("text", "")),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"letter": self.letter, "text": self.text}
 
 
@@ -36,13 +36,13 @@ class Question:
 
     number: int
     content: str
-    options: List[Option] = field(default_factory=list)
+    options: list[Option] = field(default_factory=list)
     answer: str = ""
     type: str = "single"  # "single" or "multiple"
     explanation: str = ""
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Question":
+    def from_dict(cls, data: dict[str, Any]) -> "Question":
         raw_options = data.get("options", []) or []
         options = [Option.from_dict(opt) if isinstance(opt, dict) else Option("", "") for opt in raw_options]
         answer = str(data.get("answer", "") or "").upper()
@@ -58,7 +58,7 @@ class Question:
             explanation=str(data.get("explanation", "")),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "number": self.number,
             "content": self.content,
@@ -69,7 +69,7 @@ class Question:
         }
 
     @property
-    def option_letters(self) -> List[str]:
+    def option_letters(self) -> list[str]:
         """返回所有选项字母列表。"""
         return [opt.letter for opt in self.options if opt.letter]
 

@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
-from typing import Any, Optional
+from typing import Any
 
 from .theme import Theme, font_ui, create_normal_button
 
@@ -19,8 +19,8 @@ class PracticeMode(BaseMode):
         self,
         parent,
         questions: list[Question],
-        data_manager: Optional[DataManager],
-        progress: Optional[Any],
+        data_manager: DataManager | None,
+        progress: Any | None,
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.engine: QuizEngine = QuizEngine(questions)

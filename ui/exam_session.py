@@ -4,8 +4,6 @@ P3: 将 ExamMode 中分散的选项选择、答案记录逻辑集中到这里，
 使考试模式也能复用与练习模式相同的选项处理思路，并便于统一键盘处理。
 """
 
-from typing import Dict, List, Optional, Set
-
 from quiz_engine import QuizEngine
 from models import Question
 
@@ -15,10 +13,10 @@ class ExamSession:
 
     def __init__(self, engine: QuizEngine) -> None:
         self.engine = engine
-        self.answers: Dict[int, str] = {}
-        self.marked: Set[int] = set()
+        self.answers: dict[int, str] = {}
+        self.marked: set[int] = set()
 
-    def get_current_question(self) -> Optional[Question]:
+    def get_current_question(self) -> Question | None:
         """获取当前题目。"""
         return self.engine.get_current_question()
 
@@ -37,7 +35,7 @@ class ExamSession:
             return False
         return question.type == "multiple"
 
-    def select_option(self, letter: str) -> Optional[str]:
+    def select_option(self, letter: str) -> str | None:
         """切换当前题目的选项选择状态。
 
         Args:

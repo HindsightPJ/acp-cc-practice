@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from .theme import Theme
 
@@ -20,11 +20,11 @@ theme = Theme()
 class MainWindow(tk.Tk):
     def __init__(
         self,
-        questions: List[Question],
+        questions: list[Question],
         data_manager,
         license_status=None,
-        meta: Optional[Dict[str, Any]] = None,
-        license_dir: Optional[str] = None,
+        meta: dict[str, Any] | None = None,
+        license_dir: str | None = None,
     ) -> None:
         super().__init__()
 
@@ -32,7 +32,7 @@ class MainWindow(tk.Tk):
         self.geometry("1200x760")
         self.minsize(1000, 640)
 
-        self.questions: List[Question] = questions
+        self.questions: list[Question] = questions
         self.data_manager = data_manager
         # TD-30: 用 AppState 封装进度，UI 不再直接操作原始 dict
         self.app_state = AppState(data_manager, data_manager.load_progress())
@@ -42,9 +42,9 @@ class MainWindow(tk.Tk):
         # 若未传入，fallback 到 data_manager.data_dir（开发模式可用）
         self.license_dir = license_dir or data_manager.data_dir
 
-        self.current_frame: Optional[tk.Frame] = None
+        self.current_frame: tk.Frame | None = None
         self._active_nav = "practice"
-        self.sidebar: Optional[Sidebar] = None
+        self.sidebar: Sidebar | None = None
 
         self.configure_ui()
         self.create_widgets()

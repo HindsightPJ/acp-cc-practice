@@ -6,7 +6,7 @@ P2: 将 PracticeMode 与 WrongBook 错题练习中重复的练习视图抽离为
 
 import tkinter as tk
 from tkinter import messagebox
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 from .option_row import OptionRow
@@ -36,7 +36,7 @@ class PracticePanel(tk.Frame):
         self,
         parent,
         session: PracticeSession,
-        on_finish: Optional[Callable[[], None]] = None,
+        on_finish: Callable[[], None] | None = None,
         show_explanation: bool = True,
         show_progress_bar: bool = True,
         show_prev_button: bool = True,
@@ -370,7 +370,7 @@ class PracticePanel(tk.Frame):
     # 键盘支持
     # ------------------------------------------------------------------
 
-    def handle_key_press(self, event) -> Optional[str]:
+    def handle_key_press(self, event) -> str | None:
         """处理键盘事件。
 
         Returns:

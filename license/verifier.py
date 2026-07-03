@@ -20,7 +20,6 @@
 import base64
 import os
 import logging
-from typing import Optional, Tuple
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -44,7 +43,7 @@ ENCRYPTED_K_LEN = NONCE_LEN + K_LEN + GCM_TAG_LEN  # 12 + 44 + 16 = 72
 EXPECTED_RAW_LEN = SIGNATURE_LEN + SALT_LEN + ENCRYPTED_K_LEN  # 152
 
 
-def verify(license_code: str) -> Tuple[LicenseStatus, Optional[str], Optional[LicenseError]]:
+def verify(license_code: str) -> tuple[LicenseStatus, str | None, LicenseError | None]:
     """验证注册码。
 
     Args:
@@ -110,7 +109,7 @@ class LicenseVerifier:
     def __init__(self, data_dir: str) -> None:
         self.license_file: str = os.path.join(data_dir, "license.dat")
 
-    def check_local_license(self) -> Tuple[LicenseStatus, Optional[str], bool]:
+    def check_local_license(self) -> tuple[LicenseStatus, str | None, bool]:
         """检查本地 license.dat。
 
         P1-7: 当 license.dat 损坏（base64 解码失败 / 长度不对）时，

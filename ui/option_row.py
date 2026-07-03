@@ -12,7 +12,7 @@ correct / wrong / revealed（正确答案高亮但用户未选）。
 """
 
 import tkinter as tk
-from typing import Optional, Callable
+from typing import Callable
 
 from .theme import Theme, font_ui, font_ui_semibold
 
@@ -27,7 +27,7 @@ class OptionRow(tk.Frame):
         parent,
         letter: str,
         text: str = "",
-        on_click: Optional[Callable[[str], None]] = None,
+        on_click: Callable[[str], None] | None = None,
         wraplength: int = 700,
         **kwargs,
     ):
@@ -40,7 +40,7 @@ class OptionRow(tk.Frame):
 
         # 状态
         self.is_selected = False
-        self.is_correct: Optional[bool] = None  # None=未判分；True/False=已判分
+        self.is_correct: bool | None = None  # None=未判分；True/False=已判分
         self.is_answered_selected = False  # 提交后用户是否选了此项
 
         self.configure(
@@ -225,8 +225,8 @@ class OptionRow(tk.Frame):
         row_bg: str,
         text_fg: str,
         icon: str,
-        border_color: Optional[str] = None,
-        border_thickness: Optional[int] = None,
+        border_color: str | None = None,
+        border_thickness: int | None = None,
     ) -> None:
         if border_color is not None:
             self.configure(

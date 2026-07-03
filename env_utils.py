@@ -5,10 +5,9 @@ data_manager.py / author_tools/encrypt_questions.py / author_tools/generate_lice
 """
 
 import os
-from typing import Dict
 
 
-def load_env(path: str) -> Dict[str, str]:
+def load_env(path: str) -> dict[str, str]:
     """解析 .env 文件为 dict。
 
     支持的特性：
@@ -25,7 +24,7 @@ def load_env(path: str) -> Dict[str, str]:
     """
     if not os.path.exists(path):
         return {}
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     try:
         with open(path, "r", encoding="utf-8") as f:
             for raw_line in f:

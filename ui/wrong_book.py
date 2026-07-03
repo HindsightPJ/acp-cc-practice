@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 
@@ -19,18 +19,18 @@ class WrongBook(BaseMode):
     def __init__(
         self,
         parent,
-        questions: List[Question],
-        data_manager: Optional[DataManager],
-        progress: Optional[Any],
+        questions: list[Question],
+        data_manager: DataManager | None,
+        progress: Any | None,
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
 
         self.wrong_questions = self._get_wrong_questions_list()
-        self.practice_engine: Optional[QuizEngine] = None
-        self._practice_window: Optional[tk.Toplevel] = None
-        self._detail_windows: List[tk.Toplevel] = []
-        self._practice_session: Optional[PracticeSession] = None
-        self._practice_panel: Optional[PracticePanel] = None
+        self.practice_engine: QuizEngine | None = None
+        self._practice_window: tk.Toplevel | None = None
+        self._detail_windows: list[tk.Toplevel] = []
+        self._practice_session: PracticeSession | None = None
+        self._practice_panel: PracticePanel | None = None
 
         self._setup_mode_ui()
 
@@ -54,7 +54,7 @@ class WrongBook(BaseMode):
             self._practice_window = None
         super().destroy()
 
-    def _get_wrong_questions_list(self) -> List[Question]:
+    def _get_wrong_questions_list(self) -> list[Question]:
         wrong_nums = set(self.app_state.get_wrong_questions())
         return [q for q in self.questions if q.number in wrong_nums]
 

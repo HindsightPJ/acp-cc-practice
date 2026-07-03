@@ -8,7 +8,7 @@ P0-2: 从 ExamMode 拆出的纯视图层，负责考试进行中的 UI 渲染：
 """
 
 import tkinter as tk
-from typing import Callable, Optional
+from typing import Callable
 
 from .theme import (
     Theme,
@@ -65,12 +65,12 @@ class ExamPanel(tk.Frame):
 
         self.exam_option_cards: list[dict] = []
         self.nav_buttons: list[tk.Label] = []
-        self.timer_label: Optional[tk.Label] = None
-        self.exam_progress_label: Optional[tk.Label] = None
-        self.exam_type_label: Optional[tk.Label] = None
-        self.exam_question_text: Optional[tk.Text] = None
-        self.nav_canvas: Optional[tk.Canvas] = None
-        self.nav_frame: Optional[tk.Frame] = None
+        self.timer_label: tk.Label | None = None
+        self.exam_progress_label: tk.Label | None = None
+        self.exam_type_label: tk.Label | None = None
+        self.exam_question_text: tk.Text | None = None
+        self.nav_canvas: tk.Canvas | None = None
+        self.nav_frame: tk.Frame | None = None
 
         self._build_ui()
 
@@ -381,7 +381,7 @@ class ExamPanel(tk.Frame):
     # 键盘处理
     # ------------------------------------------------------------------
 
-    def handle_key_press(self, event) -> Optional[str]:
+    def handle_key_press(self, event) -> str | None:
         """处理考试导航与标记键（选项选择由 ExamMode 经基类统一处理）。
 
         Returns:

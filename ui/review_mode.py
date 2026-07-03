@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 
@@ -17,9 +17,9 @@ class ReviewMode(BaseMode):
     def __init__(
         self,
         parent,
-        questions: List[Question],
-        data_manager: Optional[DataManager] = None,
-        progress: Optional[Any] = None,
+        questions: list[Question],
+        data_manager: DataManager | None = None,
+        progress: Any | None = None,
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.showing_answer = False

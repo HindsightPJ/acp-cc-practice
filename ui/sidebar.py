@@ -1,7 +1,7 @@
 """侧边栏组件：品牌、导航、就绪度环、错题指示器。"""
 
 import tkinter as tk
-from typing import List, Dict, Any, Optional, Callable
+from typing import Any, Callable
 
 from .theme import Theme, font_ui, font_ui_semibold, font_display
 
@@ -23,8 +23,8 @@ class Sidebar(tk.Frame):
     def __init__(
         self,
         parent,
-        nav_defs: List[tuple],
-        on_nav_clicked: Optional[Callable[[str], None]] = None,
+        nav_defs: list[tuple],
+        on_nav_clicked: Callable[[str], None] | None = None,
     ) -> None:
         """初始化侧边栏。
 
@@ -38,9 +38,9 @@ class Sidebar(tk.Frame):
         self._nav_defs = nav_defs
         self._on_nav_clicked = on_nav_clicked
         self._active_nav = nav_defs[0][0] if nav_defs else None
-        self._nav_refs: Dict[str, Dict[str, Any]] = {}
-        self.mastery_ring: Optional[MasteryRing] = None
-        self.wrong_indicator: Optional[tk.Label] = None
+        self._nav_refs: dict[str, dict[str, Any]] = {}
+        self.mastery_ring: MasteryRing | None = None
+        self.wrong_indicator: tk.Label | None = None
         self._build()
 
     def _build(self):

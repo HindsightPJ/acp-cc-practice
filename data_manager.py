@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, cast
+from typing import Any, cast
 import os
 import json
 import re
@@ -83,7 +83,7 @@ def _parse_explanation(text: str):
 
 
 class DataManager:
-    def __init__(self, base_dir: str, user_data_dir: Optional[str] = None) -> None:
+    def __init__(self, base_dir: str, user_data_dir: str | None = None) -> None:
         """初始化数据管理器。
 
         Args:
@@ -105,14 +105,14 @@ class DataManager:
         if not os.path.exists(self.user_data_dir):
             os.makedirs(self.user_data_dir, exist_ok=True)
 
-    def parse_docx(self, docx_path: str) -> List[Question]:
+    def parse_docx(self, docx_path: str) -> list[Question]:
         """解析Word文档，提取所有题目（TD-11: 检测/解析逻辑已抽取到模块级函数）。"""
         if Document is None:
             raise ImportError("请先安装python-docx库: pip install python-docx")
 
         doc = Document(docx_path)
-        raw_questions: List[Dict[str, Any]] = []
-        current_question: Optional[Dict[str, Any]] = None
+        raw_questions: list[dict[str, Any]] = []
+        current_question: dict[str, Any] | None = None
 
         for para in doc.paragraphs:
             text = para.text.strip()
@@ -166,14 +166,14 @@ class DataManager:
             raw_questions.append(current_question)
 
         # 去重：同一题号保留后出现的版本（通常是修正版）
-        seen: Dict[int, Dict[str, Any]] = {}
+        seen: dict[int, dict[str, Any]] = {}
         for q in raw_questions:
             seen[q["number"]] = q
         raw_questions = [seen[k] for k in sorted(seen)]
 
         return [Question.from_dict(q) for q in raw_questions]
 
-    def load_meta(self) -> Optional[Dict[str, Any]]:
+    def load_meta(self) -> dict[str, Any] | None:
         """加载 questions_meta.json。
 
         Returns:
@@ -184,11 +184,11 @@ class DataManager:
             return None
         try:
             with open(meta_path, "r", encoding="utf-8") as f:
-                return cast(Dict[str, Any], json.load(f))
+                return cast(dict[str, Any], json.load(f))
         except (json.JSONDecodeError, OSError):
             return None
 
-    def load_trial_questions(self) -> List[Question]:
+    def load_trial_questions(self) -> list[Question]:
         """加载 questions_trial.json（前 20 题明文）。"""
         trial_path = os.path.join(self.data_dir, "questions_trial.json")
         if not os.path.exists(trial_path):
@@ -202,7 +202,7 @@ class DataManager:
         except PermissionError:
             raise DataLoadError("无法读取试用题库，请检查文件权限")
 
-    def load_full_questions(self, key: str) -> List[Question]:
+    def load_full_questions(self, key: str) -> list[Question]:
         """用 K 解密 questions.enc 加载全库。
 
         Args:
@@ -230,7 +230,7 @@ class DataManager:
             # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
             raise DataLoadError(f"题库密文损坏或密钥不匹配: {e}")
 
-    def save_progress(self, progress_data: Dict[str, Any]) -> None:
+    def save_progress(self, progress_data: dict[str, Any]) -> None:
         """保存学习进度（Windows 安全：先备份 .bak，再写 .tmp，最后 os.replace）"""
         tmp_file = self.progress_file + ".tmp"
         bak_file = self.progress_file + ".bak"
@@ -259,7 +259,7 @@ class DataManager:
             log_error(logger, "无法保存进度数据", exc=e, progress_file=self.progress_file)
             raise DataSaveError(f"无法保存进度数据: {e}")
 
-    def load_progress(self) -> Dict[str, Any]:
+    def load_progress(self) -> dict[str, Any]:
         """加载学习进度；遇到损坏文件自动备份为 .corrupt-{timestamp} 便于排查。
 
         若 progress.json 不存在但 .bak 存在（崩溃场景），自动从 .bak 恢复。
@@ -267,7 +267,7 @@ class DataManager:
         if os.path.exists(self.progress_file):
             try:
                 with open(self.progress_file, "r", encoding="utf-8") as f:
-                    return cast(Dict[str, Any], json.load(f))
+                    return cast(dict[str, Any], json.load(f))
             except json.JSONDecodeError as e:
                 log_error(logger, "进度文件损坏，已备份", exc=e, progress_file=self.progress_file)
                 self._backup_corrupt_progress()
@@ -282,7 +282,7 @@ class DataManager:
             try:
                 os.replace(bak_file, self.progress_file)
                 with open(self.progress_file, "r", encoding="utf-8") as f:
-                    return cast(Dict[str, Any], json.load(f))
+                    return cast(dict[str, Any], json.load(f))
             except (OSError, json.JSONDecodeError) as e:
                 logger.warning("从 .bak 恢复失败: %s", e)
 

@@ -4,7 +4,7 @@ UI 层通过 AppState 读写学习进度，不再直接调用 data_manager.save_
 也不再直接访问原始 progress dict。
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from data_manager import DataManager, DataSaveError
 
@@ -17,10 +17,10 @@ class AppState:
     """
 
     def __init__(
-        self, data_manager: DataManager, progress: Optional[Dict[str, Any]] = None
+        self, data_manager: DataManager, progress: dict[str, Any] | None = None
     ) -> None:
         self._data_manager = data_manager
-        self._progress: Dict[str, Any] = progress if progress is not None else {}
+        self._progress: dict[str, Any] = progress if progress is not None else {}
         self._ensure_defaults()
 
     def _ensure_defaults(self) -> None:
@@ -32,7 +32,7 @@ class AppState:
         self._progress.setdefault("settings", {})
 
     # ---------- 练习统计 ----------
-    def get_practice_stats(self) -> Dict[str, int]:
+    def get_practice_stats(self) -> dict[str, int]:
         return dict(self._progress.get("practice_stats", {"correct": 0, "wrong": 0, "total": 0}))
 
     def increment_practice_stats(self, is_correct: bool) -> None:
@@ -44,7 +44,7 @@ class AppState:
             stats["wrong"] = stats.get("wrong", 0) + 1
 
     # ---------- 错题 ----------
-    def get_wrong_questions(self) -> List[int]:
+    def get_wrong_questions(self) -> list[int]:
         return list(self._progress.get("wrong_questions", []))
 
     def add_wrong_question(self, q_num: int) -> None:
@@ -57,14 +57,14 @@ class AppState:
         if q_num in wrong:
             wrong.remove(q_num)
 
-    def set_wrong_questions(self, q_nums: List[int]) -> None:
+    def set_wrong_questions(self, q_nums: list[int]) -> None:
         self._progress["wrong_questions"] = list(q_nums)
 
     def is_wrong_question(self, q_num: int) -> bool:
         return q_num in self._progress.get("wrong_questions", [])
 
     # ---------- 收藏 ----------
-    def get_favorites(self) -> List[int]:
+    def get_favorites(self) -> list[int]:
         return list(self._progress.get("favorites", []))
 
     def add_favorite(self, q_num: int) -> None:
@@ -90,10 +90,10 @@ class AppState:
         return q_num in self._progress.get("favorites", [])
 
     # ---------- 考试历史 ----------
-    def get_exam_history(self) -> List[Dict[str, Any]]:
+    def get_exam_history(self) -> list[dict[str, Any]]:
         return list(self._progress.get("exam_history", []))
 
-    def add_exam_history(self, entry: Dict[str, Any]) -> None:
+    def add_exam_history(self, entry: dict[str, Any]) -> None:
         history = self._progress.setdefault("exam_history", [])
         history.append(entry)
         # 仅保留最近 20 条，避免进度文件无限增长

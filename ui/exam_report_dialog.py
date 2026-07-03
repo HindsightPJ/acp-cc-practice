@@ -2,7 +2,7 @@
 
 import tkinter as tk
 from datetime import datetime
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Callable
 
 from .theme import Theme, font_ui, font_ui_semibold, font_mono, create_primary_button, create_normal_button, create_card
 
@@ -15,8 +15,8 @@ class ExamReportDialog:
     def __init__(
         self,
         parent,
-        report: Dict[str, Any],
-        on_add_wrong: Optional[Callable[[Dict[str, Any]], None]] = None,
+        report: dict[str, Any],
+        on_add_wrong: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         """初始化对话框。
 
@@ -28,7 +28,7 @@ class ExamReportDialog:
         self.parent = parent
         self.report = report
         self.on_add_wrong = on_add_wrong
-        self.dialog: Optional[tk.Toplevel] = None
+        self.dialog: tk.Toplevel | None = None
 
     def show(self) -> None:
         """显示对话框。"""

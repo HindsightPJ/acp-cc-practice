@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from typing import List, Any, Optional
+from typing import Any
 from abc import ABC, abstractmethod
 
 from quiz_engine import QuizEngine
@@ -23,15 +23,15 @@ class BaseMode(ABC, ttk.Frame):
     def __init__(
         self,
         parent,
-        questions: List[Question],
-        data_manager: Optional[DataManager],
-        progress: Optional[Any],
+        questions: list[Question],
+        data_manager: DataManager | None,
+        progress: Any | None,
     ):
         super().__init__(parent)
-        self.questions: List[Question] = questions
+        self.questions: list[Question] = questions
         self.data_manager = data_manager
-        self._after_jobs: List[Any] = []  # 跟踪所有 after 回调
-        self.engine: Optional[QuizEngine] = None  # 基类保证属性存在，子类覆盖
+        self._after_jobs: list[Any] = []  # 跟踪所有 after 回调
+        self.engine: QuizEngine | None = None  # 基类保证属性存在，子类覆盖
 
         if isinstance(progress, AppState):
             self._state = progress
@@ -95,8 +95,8 @@ class BaseMode(ABC, ttk.Frame):
         on_select,
         on_submit,
         is_answered_check,
-        engine: Optional[QuizEngine] = None,
-    ) -> Optional[str]:
+        engine: QuizEngine | None = None,
+    ) -> str | None:
         """通用的选项选择键盘处理 - 处理 A-F、1-6、Enter 按键。
 
         Args:
@@ -162,14 +162,14 @@ class BaseMode(ABC, ttk.Frame):
             return "break"
         return None
 
-    def next_question(self) -> Optional[Question]:
+    def next_question(self) -> Question | None:
         """下一题"""
         if self.engine and self.engine.has_next():
             self.engine.next_question()
             return self.engine.get_current_question()
         return None
 
-    def prev_question(self) -> Optional[Question]:
+    def prev_question(self) -> Question | None:
         """上一题"""
         if self.engine and self.engine.has_prev():
             self.engine.prev_question()

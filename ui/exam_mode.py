@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from .theme import Theme, font_ui, font_ui_semibold, create_primary_button, create_card
 
@@ -26,17 +26,17 @@ class ExamMode(BaseMode):
     def __init__(
         self,
         parent,
-        questions: List[Question],
-        data_manager: Optional[DataManager],
-        progress: Optional[Any],
+        questions: list[Question],
+        data_manager: DataManager | None,
+        progress: Any | None,
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
-        self.engine: Optional[QuizEngine] = None
+        self.engine: QuizEngine | None = None
         self.timer_running = False
         self.time_remaining = 0
         self.exam_total_seconds = 0
-        self.exam_session: Optional[ExamSession] = None
-        self.panel: Optional[ExamPanel] = None
+        self.exam_session: ExamSession | None = None
+        self.panel: ExamPanel | None = None
 
         self._setup_mode_ui()
         self._bind_keyboard()
@@ -275,7 +275,7 @@ class ExamMode(BaseMode):
             self._save_exam_history(report)
             self.show_exam_report(report)
 
-    def _save_exam_history(self, report: Dict[str, Any]) -> None:
+    def _save_exam_history(self, report: dict[str, Any]) -> None:
         self.app_state.add_exam_history(
             {
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -288,12 +288,12 @@ class ExamMode(BaseMode):
         )
         self.app_state.save()
 
-    def show_exam_report(self, report: Dict[str, Any]) -> None:
+    def show_exam_report(self, report: dict[str, Any]) -> None:
         """显示考试成绩报告对话框。"""
         dialog = ExamReportDialog(self, report, on_add_wrong=self.add_wrong_to_book)
         dialog.show()
 
-    def add_wrong_to_book(self, report: Dict[str, Any]) -> None:
+    def add_wrong_to_book(self, report: dict[str, Any]) -> None:
         added = 0
         for q in report["wrong_questions"]:
             q_num = q.number

@@ -2,7 +2,7 @@
 
 import tkinter as tk
 from tkinter import messagebox
-from typing import Optional, Callable, Tuple
+from typing import Callable
 
 from license import LicenseStatus
 from license.verifier import verify, LicenseVerifier
@@ -26,7 +26,7 @@ def _get_license_error_message(err) -> str:
     return _LICENSE_ERROR_MESSAGES.get(err_key, "授权失败。")
 
 
-def _verify_and_save_license(code: str, license_dir: str) -> Tuple[bool, str, bool]:
+def _verify_and_save_license(code: str, license_dir: str) -> tuple[bool, str, bool]:
     """验证注册码并持久化。
 
     Args:
@@ -55,7 +55,7 @@ class LicenseDialog:
         self,
         parent,
         license_dir: str,
-        verify_and_save: Optional[Callable[[str, str], Tuple[bool, str, bool]]] = None,
+        verify_and_save: Callable[[str, str], tuple[bool, str, bool]] | None = None,
     ) -> None:
         """初始化对话框。
 
@@ -67,8 +67,8 @@ class LicenseDialog:
         self.parent = parent
         self.license_dir = license_dir
         self.verify_and_save = verify_and_save or _verify_and_save_license
-        self.dialog: Optional[tk.Toplevel] = None
-        self._license_entry: Optional[tk.Text] = None
+        self.dialog: tk.Toplevel | None = None
+        self._license_entry: tk.Text | None = None
 
     def show(self) -> bool:
         """显示对话框；若无法读取机器码则报错并返回 False。"""

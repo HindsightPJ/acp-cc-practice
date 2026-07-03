@@ -6,10 +6,10 @@
 
 import logging
 import traceback
-from typing import Any, Dict, Optional
+from typing import Any
 
 
-def _format_context(context: Optional[Dict[str, Any]]) -> str:
+def _format_context(context: dict[str, Any] | None) -> str:
     """把上下文字典序列化为可读的 key=value 字符串。"""
     if not context:
         return ""
@@ -35,7 +35,7 @@ def log_event(logger: logging.Logger, event: str, **context: Any) -> None:
 def log_error(
     logger: logging.Logger,
     message: str,
-    exc: Optional[BaseException] = None,
+    exc: BaseException | None = None,
     **context: Any,
 ) -> None:
     """记录带上下文的错误日志。
