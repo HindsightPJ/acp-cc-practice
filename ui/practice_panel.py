@@ -71,7 +71,7 @@ class PracticePanel(tk.Frame):
         self.progress_label.pack(side=tk.LEFT)
 
         if self.show_type_label:
-            self.type_label = tk.Label(
+            self.type_label: tk.Label | None = tk.Label(
                 toolbar,
                 text="",
                 font=font_ui_semibold(11),
@@ -86,9 +86,9 @@ class PracticePanel(tk.Frame):
             progress_bg = tk.Frame(self, bg=theme.BORDER, height=3)
             progress_bg.pack(fill=tk.X, pady=(0, 16))
             progress_bg.pack_propagate(False)
-            self.progress_bar_fill = tk.Frame(progress_bg, bg=theme.ACCENT, width=0, height=3)
+            self.progress_bar_fill: tk.Frame | None = tk.Frame(progress_bg, bg=theme.ACCENT, width=0, height=3)
             self.progress_bar_fill.place(x=0, y=0, relheight=1.0)
-            self.progress_value = tk.DoubleVar(value=0)
+            self.progress_value: tk.DoubleVar | None = tk.DoubleVar(value=0)
         else:
             self.progress_bar_fill = None
             self.progress_value = None
@@ -185,7 +185,7 @@ class PracticePanel(tk.Frame):
             exp_scrollbar = tk.Scrollbar(exp_container)
             exp_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-            self.explanation_text = tk.Text(
+            self.explanation_text: tk.Text | None = tk.Text(
                 exp_container,
                 wrap=tk.WORD,
                 font=font_ui(11),

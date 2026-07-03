@@ -1,6 +1,7 @@
 import platform
 import tkinter as tk
 from tkinter import font as tkfont
+from typing import cast
 
 
 def _list_system_fonts():
@@ -380,7 +381,7 @@ class Theme:
         if name.startswith("_"):
             raise AttributeError(name)
         try:
-            return globals()[name]
+            return cast(str, globals()[name])
         except KeyError:
             raise AttributeError(name)
 

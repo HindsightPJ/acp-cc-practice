@@ -278,9 +278,10 @@ class ExamPanel(tk.Frame):
                 cursor="hand2",
             )
             btn.grid(row=row, column=col, padx=2, pady=2)
-            btn.bind("<Button-1>", lambda e, idx=i: self._on_jump(idx))
+            btn.bind("<Button-1>", lambda e, idx=i: self._on_jump(idx))  # type: ignore[misc]
             self.nav_buttons.append(btn)
 
+        assert self.nav_frame is not None
         self.nav_frame.update_idletasks()
         if self.nav_canvas is not None:
             self.nav_canvas.config(scrollregion=self.nav_canvas.bbox(tk.ALL))
@@ -361,10 +362,11 @@ class ExamPanel(tk.Frame):
         Args:
             selected: 已选字母排序串，如 "AC"
         """
-        if not self.engine or not self.engine.get_current_question():
+        current = self.engine.get_current_question()
+        if not self.engine or not current:
             return
 
-        options_count = len(self.engine.get_current_question().options)
+        options_count = len(current.options)
         for i, item in enumerate(self.exam_option_cards):
             if i >= options_count:
                 continue

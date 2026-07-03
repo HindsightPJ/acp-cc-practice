@@ -33,6 +33,7 @@ class BaseMode(ABC, ttk.Frame):
         if isinstance(progress, AppState):
             self._state = progress
         else:
+            assert data_manager is not None, "data_manager required when progress is not AppState"
             self._state = AppState(data_manager, progress)
 
     @property

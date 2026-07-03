@@ -151,4 +151,4 @@ class PracticeSession:
 
     def get_correct_question_numbers(self) -> list[int]:
         """获取本次练习中答对的题号列表。"""
-        return self.engine.get_correct_question_numbers()
+        return list(self.engine.get_correct_question_numbers())

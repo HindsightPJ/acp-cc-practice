@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 try:
     from docx import Document
 except ImportError:
-    Document = None
+    Document = None  # type: ignore[assignment]
 
 
 class DataLoadError(Exception):

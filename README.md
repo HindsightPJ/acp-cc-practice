@@ -189,16 +189,21 @@ python main.py
 ```
 acp-cc-practice/
 ├── .gitignore
-├── .env.example
 ├── LICENSE.md
 ├── README.md
 ├── main.py
 ├── data_manager.py
 ├── quiz_engine.py
-├── requirements.txt
+├── models.py
+├── app_state.py
+├── env_utils.py
+├── logging_utils.py
+├── pyproject.toml                # 项目元数据 + 依赖 + 工具配置
+├── requirements.lock             # 锁定依赖版本（pip-compile 生成）
 ├── license/
 │   ├── __init__.py
 │   ├── fingerprint.py            # 机器指纹
+│   ├── crypto_utils.py           # Ed25519 + AES-256-GCM 加解密
 │   ├── public_key.py
 │   └── verifier.py
 ├── author_tools/
@@ -219,9 +224,18 @@ acp-cc-practice/
     ├── option_row.py
     ├── base_mode.py
     ├── practice_mode.py
+    ├── practice_panel.py
+    ├── practice_session.py
     ├── exam_mode.py
+    ├── exam_panel.py
+    ├── exam_session.py
+    ├── exam_report_dialog.py
     ├── review_mode.py
-    └── wrong_book.py
+    ├── wrong_book.py
+    ├── header.py
+    ├── sidebar.py
+    ├── mastery_ring.py
+    └── license_dialog.py
 ```
 
 **发布产物**：`dist/acp-cc-practice.exe`（约 15.5 MB，无 cmd 窗口）— 打包好的可执行文件，可直接分发给最终用户，无需安装 Python 环境。作为 GitHub Release 二进制附件发布，不纳入源码仓库。
