@@ -121,8 +121,11 @@ acp-cc-practice/
 ### 从源码运行（开发者）
 
 ```bash
-# 1. 安装依赖
-pip install -r requirements.txt
+# 1. 安装依赖（运行时）
+pip install -e .
+
+# 或含开发工具（pytest/mypy/ruff）
+pip install -e ".[dev]"
 
 # 2. 启动
 python main.py

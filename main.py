@@ -9,7 +9,7 @@ from typing import cast
 from data_manager import DataManager, DataLoadError
 from license import LicenseStatus
 from license.verifier import LicenseVerifier
-from telemetry import configure_app_logging, log_error
+from logging_utils import configure_app_logging, log_error
 from ui.main_window import MainWindow
 
 

@@ -2,7 +2,7 @@
 
 覆盖范围：
 - 日志配置使用 RotatingFileHandler 防止 app.log 无限增长
-- TD-31: 日志配置委托给 telemetry.configure_app_logging
+- TD-31: 日志配置委托给 logging_utils.configure_app_logging
 """
 import sys
 import logging

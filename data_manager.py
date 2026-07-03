@@ -3,7 +3,7 @@ import os
 import json
 import re
 import logging
-from telemetry import log_error
+from logging_utils import log_error
 from models import Question, Option
 
 logger = logging.getLogger(__name__)
