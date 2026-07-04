@@ -274,9 +274,6 @@ class ReviewMode(BaseMode):
             messagebox.showerror("错误", "请输入有效的数字！")
 
     def toggle_favorite(self) -> None:
-        if not self.data_manager:
-            return
-
         question = self.engine.get_current_question()
         if question is None:
             return

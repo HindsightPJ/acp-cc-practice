@@ -122,3 +122,18 @@ def test_filter_button_text(mode):
     mode.toggle_favorites_filter()
 
     assert mode.filter_fav_btn.cget('text') == '显示全部'
+
+
+def test_toggle_favorite_works_without_data_manager(root, monkeypatch):
+    """data_manager 为 None 但传入 AppState 时，收藏切换仍应生效。"""
+    monkeypatch.setattr('ui.base_mode.AppState', _MockAppState)
+    questions = [_make_question(1), _make_question(2)]
+    app_state = _MockAppState(None, {})
+    mode = ReviewMode(root, questions, None, app_state)
+    mode.pack()
+
+    assert not mode.app_state.is_favorite(1)
+    mode.toggle_favorite()
+    assert mode.app_state.is_favorite(1)
+
+    mode.destroy()
