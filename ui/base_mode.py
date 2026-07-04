@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 from typing import Any
 from abc import ABC, abstractmethod
@@ -15,7 +15,13 @@ class BaseMode(ABC, ttk.Frame):
 
     TD-30: 引入 AppState 解耦 UI 与状态管理。progress 参数既可以是旧的 dict，
     也可以是 AppState 实例；基类统一包装为状态对象供子类使用。
+
+    P2-9: 防抖保存三件套（_save_progress_delayed/_do_save_progress/flush_pending_save）
+    统一在基类实现，子类通过覆盖 _save_failure_message 定制文案。
     """
+
+    # P2-9: 子类可覆盖此属性定制保存失败提示文案
+    _save_failure_message: str = "进度保存失败，请检查磁盘空间或文件权限。"
 
     def __init__(
         self,
@@ -29,6 +35,8 @@ class BaseMode(ABC, ttk.Frame):
         self.data_manager = data_manager
         self._after_jobs: list[Any] = []  # 跟踪所有 after 回调
         self.engine: QuizEngine | None = None  # 基类保证属性存在，子类覆盖
+        # P2-9: 防抖保存标记，统一在基类管理
+        self._pending_save: bool = False
 
         if isinstance(progress, AppState):
             self._state = progress
@@ -54,9 +62,45 @@ class BaseMode(ABC, ttk.Frame):
                 pass  # widget 已销毁或 job 已执行
         self._after_jobs.clear()
 
+    # ------------------------------------------------------------------
+    # 防抖保存（P2-9: 从 PracticeMode/ReviewMode 提取的公共逻辑）
+    # ------------------------------------------------------------------
+
+    def _save_progress_delayed(self) -> None:
+        """标记有待保存的进度，2 秒后落盘（期间新的调用会重置计时器）。"""
+        self._cancel_all_after_jobs()
+        self._pending_save = True
+        job_id = self.after(2000, self._do_save_progress)
+        self._add_after_job(job_id)
+
+    def _do_save_progress(self) -> None:
+        """延迟计时器到期时执行实际保存。"""
+        # P2-16: 先保存成功再重置 _pending_save，避免保存失败时
+        # 标记被清空导致后续无法重试（数据丢失风险）
+        if self.app_state.save_safe():
+            self._pending_save = False
+        else:
+            messagebox.showwarning(
+                "保存失败",
+                self._save_failure_message,
+                parent=self,
+            )
+
     def flush_pending_save(self) -> None:
-        """销毁前强制保存延迟的进度数据，子类可覆盖。"""
-        pass
+        """切 tab / 销毁前强制保存延迟的进度，避免数据丢失。
+
+        基类 BaseMode.destroy() 会调用此方法，无需子类显式调用。
+        """
+        if self._pending_save:
+            self._cancel_all_after_jobs()
+            if self.app_state.save_safe():
+                self._pending_save = False
+            else:
+                messagebox.showwarning(
+                    "保存失败",
+                    f"{self._save_failure_message}\n\n本次进度可能未落盘。",
+                    parent=self,
+                )
 
     def destroy(self) -> None:
         """窗口销毁时清理所有待执行的回调和事件绑定"""

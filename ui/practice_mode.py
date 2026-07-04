@@ -13,6 +13,9 @@ from .practice_panel import PracticePanel
 
 
 class PracticeMode(BaseMode):
+    # P2-9: 覆盖基类的保存失败提示文案
+    _save_failure_message = "学习进度保存失败，请检查磁盘空间或文件权限。"
+
     def __init__(
         self,
         parent,
@@ -22,7 +25,6 @@ class PracticeMode(BaseMode):
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.engine: QuizEngine = QuizEngine(questions)
-        self._pending_save = False
 
         # 使用 PracticeSession 管理练习逻辑
         self.session = PracticeSession(self.engine, self.app_state)
@@ -119,35 +121,3 @@ class PracticeMode(BaseMode):
 
     def prev_question(self) -> None:
         self.panel.prev_question()
-
-    def _save_progress_delayed(self):
-        self._cancel_all_after_jobs()
-        self._pending_save = True
-        job_id = self.after(2000, self._do_save_progress)
-        self._add_after_job(job_id)
-
-    def _do_save_progress(self):
-        self._pending_save = False
-        # P0-4: 保存失败时提示用户（after 回调中抛异常会被 Tk 默认处理，体验差）
-        if not self.app_state.save_safe():
-            messagebox.showwarning(
-                "保存失败",
-                "学习进度保存失败，请检查磁盘空间或文件权限。",
-                parent=self,
-            )
-
-    def flush_pending_save(self) -> None:
-        """切 tab 前强制保存延迟的进度，避免数据丢失。"""
-        if self._pending_save:
-            self._cancel_all_after_jobs()
-            # P2-16: 先保存成功再重置 _pending_save，避免保存失败时
-            # 标记被清空导致后续无法重试（数据丢失风险）
-            if self.app_state.save_safe():
-                self._pending_save = False
-            else:
-                # P0-4: 保存失败时提示用户（不再静默吞错，否则用户以为已落盘）
-                messagebox.showwarning(
-                    "保存失败",
-                    "学习进度保存失败，请检查磁盘空间或文件权限。\n\n本次进度可能未落盘。",
-                    parent=self,
-                )

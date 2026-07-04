@@ -12,6 +12,9 @@ from .question_detail_card import QuestionDetailCard
 
 
 class ReviewMode(BaseMode):
+    # P2-9: 覆盖基类的保存失败提示文案
+    _save_failure_message = "收藏状态保存失败，请检查磁盘空间或文件权限。"
+
     def __init__(
         self,
         parent,
@@ -24,8 +27,6 @@ class ReviewMode(BaseMode):
         self.auto_show_answer = False
         # P0-5: 是否处于"只看收藏"筛选模式（影响队列来源 + 按钮文案）
         self.filtering_favorites: bool = False
-        # P1-3: 收藏状态延迟落盘标志（避免连续收藏触发多次磁盘写入）
-        self._pending_save: bool = False
         # P1-7: 题号→题目索引，收藏筛选时 O(M) 查找替代 O(N) 全量遍历
         self._question_by_number: dict[int, Question] = {q.number: q for q in questions}
 
@@ -281,45 +282,6 @@ class ReviewMode(BaseMode):
         # P0-5: 筛选模式下，取消收藏的题目应从队列移除，保持"所见即所藏"
         if self.filtering_favorites and not now_favorited:
             self._refresh_favorites_queue()
-
-    # ------------------------------------------------------------------
-    # 延迟保存（P1-3: 复用 PracticeMode 的三段式防抖模式）
-    # ------------------------------------------------------------------
-
-    def _save_progress_delayed(self) -> None:
-        """标记有待保存的进度，2 秒后落盘（期间新的调用会重置计时器）。"""
-        self._cancel_all_after_jobs()
-        self._pending_save = True
-        job_id = self.after(2000, self._do_save_progress)
-        self._add_after_job(job_id)
-
-    def _do_save_progress(self) -> None:
-        """延迟计时器到期时执行实际保存。"""
-        self._pending_save = False
-        if not self.app_state.save_safe():
-            messagebox.showwarning(
-                "保存失败",
-                "收藏状态保存失败，请检查磁盘空间或文件权限。",
-                parent=self,
-            )
-
-    def flush_pending_save(self) -> None:
-        """切 tab / 销毁前强制保存延迟的进度，避免数据丢失。
-
-        基类 BaseMode.destroy() 会调用此方法，无需子类显式调用。
-        """
-        if self._pending_save:
-            self._cancel_all_after_jobs()
-            # P2-16: 先保存成功再重置 _pending_save，避免保存失败时
-            # 标记被清空导致后续无法重试（数据丢失风险）
-            if self.app_state.save_safe():
-                self._pending_save = False
-            else:
-                messagebox.showwarning(
-                    "保存失败",
-                    "收藏状态保存失败，请检查磁盘空间或文件权限。\n\n本次进度可能未落盘。",
-                    parent=self,
-                )
 
     def _refresh_favorites_queue(self) -> None:
         """筛选模式下根据当前收藏列表刷新队列。
