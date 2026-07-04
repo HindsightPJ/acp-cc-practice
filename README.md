@@ -69,14 +69,13 @@ acp-cc-practice/
 │   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
 │   └── questions_meta.json  # 元数据（入库）
-├── tests/                   # 测试套件（173 单元/集成 + 9 GUI 冒烟）
+├── tests/                   # 测试套件（约 250 单元/集成 + 若干 GUI 冒烟）
 │   ├── unit/                # 单元测试
 │   └── integration/         # 集成测试
 └── ui/
     ├── __init__.py
     ├── main_window.py       # 主窗口：侧栏 + 就绪度环 + 模式切换 + 授权状态栏
     ├── theme.py             # 设计 Token：色板 / 字体检测 / 按钮 / 卡片工厂
-    ├── option_row.py        # 统一选项行组件（Canvas 真圆字母块）
     ├── base_mode.py         # 模式基类（键盘选项分发模板方法）
     ├── practice_mode.py     # 练习模式（使用 PracticePanel 渲染）
     ├── practice_panel.py    # 可复用练习视图组件（PracticeMode / WrongBook 共用）
@@ -87,6 +86,9 @@ acp-cc-practice/
     ├── exam_report_dialog.py# 考试成绩报告对话框
     ├── review_mode.py       # 背题模式（收藏按钮状态同步）
     ├── wrong_book.py        # 错题本（空状态视图 + 专项练习）
+    ├── option_row.py        # 统一选项行组件（Canvas 真圆字母块）
+    ├── question_detail_card.py # 题目详情卡片（四种模式共用）
+    ├── mode_toolbar.py      # 模式工具栏组件
     ├── header.py            # 顶部标题栏组件
     ├── sidebar.py           # 侧边栏组件（模式导航）
     ├── mastery_ring.py      # 就绪度环组件（Canvas 弧线绘制）
@@ -191,9 +193,11 @@ python main.py
 ```
 acp-cc-practice/
 ├── .gitignore
-├── .github/workflows/ci.yml # CI：ruff + mypy + pytest
+├── .github/workflows/ci.yml      # CI：ruff + mypy + pytest
 ├── LICENSE.md
 ├── README.md
+├── CLAUDE.md                     # Agent 规则手册
+├── AGENTS.md -> CLAUDE.md        # 软链，与 CLAUDE.md 同源
 ├── main.py
 ├── data_manager.py
 ├── quiz_engine.py
@@ -220,11 +224,13 @@ acp-cc-practice/
 ├── tests/
 │   ├── unit/                     # 单元测试
 │   └── integration/              # 集成测试
+├── docs/
+│   ├── architecture.md           # 架构与授权协议
+│   └── test_coverage_report.md   # 覆盖率报告
 └── ui/
     ├── __init__.py
     ├── main_window.py
     ├── theme.py
-    ├── option_row.py
     ├── base_mode.py
     ├── practice_mode.py
     ├── practice_panel.py
@@ -235,10 +241,14 @@ acp-cc-practice/
     ├── exam_report_dialog.py
     ├── review_mode.py
     ├── wrong_book.py
+    ├── option_row.py
+    ├── question_detail_card.py
+    ├── mode_toolbar.py
     ├── header.py
     ├── sidebar.py
     ├── mastery_ring.py
-    └── license_dialog.py
+    ├── license_dialog.py
+    └── base_dialog.py
 ```
 
 **发布产物**：`dist/acp-cc-practice.exe`（约 22 MB，无 cmd 窗口）— 打包好的可执行文件，可直接分发给最终用户，无需安装 Python 环境。作为 GitHub Release 二进制附件发布，不纳入源码仓库。

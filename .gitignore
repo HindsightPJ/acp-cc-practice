@@ -51,9 +51,6 @@ desktop.ini
 *.doc
 
 # 工程化文件（本地保留，不推送到仓库）
-docs/
-CONTRIBUTING.md
-TECH_DEBT.md
 requirements-dev.txt
 .env.example
 
