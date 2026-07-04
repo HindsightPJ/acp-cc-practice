@@ -4,9 +4,12 @@ UI 层通过 AppState 读写学习进度，不再直接调用 data_manager.save_
 也不再直接访问原始 progress dict。
 """
 
+import logging
 from typing import Any
 
 from data_manager import DataManager, DataSaveError
+
+logger = logging.getLogger(__name__)
 
 
 class AppState:
@@ -113,9 +116,15 @@ class AppState:
         """立即保存进度到 data_manager。"""
         self._data_manager.save_progress(self._progress)
 
-    def save_safe(self) -> None:
-        """保存进度并静默捕获保存错误，适用于销毁等不可阻塞的场景。"""
+    def save_safe(self) -> bool:
+        """保存进度并捕获保存错误，返回是否成功。
+
+        P0-4: 不再静默吞错——失败时记录 warning 日志（便于事后排查），
+        调用方根据返回值决定是否向用户显示提示。
+        """
         try:
             self.save()
-        except (OSError, ValueError, DataSaveError):
-            pass
+            return True
+        except (OSError, ValueError, DataSaveError) as e:
+            logger.warning("保存学习进度失败: %s", e)
+            return False

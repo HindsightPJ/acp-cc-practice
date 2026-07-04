@@ -128,11 +128,23 @@ class PracticeMode(BaseMode):
 
     def _do_save_progress(self):
         self._pending_save = False
-        self.app_state.save()
+        # P0-4: 保存失败时提示用户（after 回调中抛异常会被 Tk 默认处理，体验差）
+        if not self.app_state.save_safe():
+            messagebox.showwarning(
+                "保存失败",
+                "学习进度保存失败，请检查磁盘空间或文件权限。",
+                parent=self,
+            )
 
     def flush_pending_save(self) -> None:
         """切 tab 前强制保存延迟的进度，避免数据丢失。"""
         if self._pending_save:
             self._cancel_all_after_jobs()
             self._pending_save = False
-            self.app_state.save_safe()
+            # P0-4: 保存失败时提示用户（不再静默吞错，否则用户以为已落盘）
+            if not self.app_state.save_safe():
+                messagebox.showwarning(
+                    "保存失败",
+                    "学习进度保存失败，请检查磁盘空间或文件权限。\n\n本次进度可能未落盘。",
+                    parent=self,
+                )
