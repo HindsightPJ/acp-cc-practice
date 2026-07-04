@@ -419,6 +419,18 @@ class ExamMode(BaseMode):
             self._save_exam_history(report)
             self.show_exam_report(report)
 
+        # P2-3: 交卷后重置 UI，允许用户在同实例中重新开考
+        # （此前 start_btn 永久禁用，用户必须切 tab 才能再考一次）
+        self._reset_exam_ui()
+
+    def _reset_exam_ui(self) -> None:
+        """交卷后清理考试 UI，恢复初始状态以便重新开考。"""
+        if self.panel is not None:
+            self.panel.destroy()
+            self.panel = None
+        self.exam_container.pack_forget()
+        self.start_btn.configure(state=tk.NORMAL, bg=theme.BTN_PRIMARY)
+
     def _save_exam_history(self, report: dict[str, Any]) -> None:
         self.app_state.add_exam_history(
             {
