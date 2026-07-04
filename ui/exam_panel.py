@@ -267,6 +267,7 @@ class ExamPanel(tk.Frame):
             row = i // cols
             col = i % cols
 
+            # P0-7: takefocus=True 让题号按钮可通过 Tab 获得键盘焦点
             btn = tk.Label(
                 self.nav_frame,
                 text=str(i + 1),
@@ -276,9 +277,13 @@ class ExamPanel(tk.Frame):
                 bg=theme.BG_INPUT,
                 fg=theme.TEXT_SECONDARY,
                 cursor="hand2",
+                takefocus=True,
             )
             btn.grid(row=row, column=col, padx=2, pady=2)
             btn.bind("<Button-1>", lambda e, idx=i: self._on_jump(idx))  # type: ignore[misc]
+            # P0-7: 键盘激活——Return / Space 跳转到对应题号
+            btn.bind("<Return>", lambda e, idx=i: self._on_jump(idx))  # type: ignore[misc]
+            btn.bind("<space>", lambda e, idx=i: self._on_jump(idx))  # type: ignore[misc]
             self.nav_buttons.append(btn)
 
         assert self.nav_frame is not None

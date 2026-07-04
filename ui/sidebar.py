@@ -88,6 +88,7 @@ class Sidebar(tk.Frame):
         indicator = tk.Frame(item, bg=theme.INK, width=3)
         indicator.pack(side=tk.LEFT, fill=tk.Y)
 
+        # P0-7: takefocus=True 让 nav item 可通过 Tab 获得键盘焦点
         label = tk.Label(
             item,
             text=tab_text,
@@ -98,6 +99,7 @@ class Sidebar(tk.Frame):
             anchor="w",
             padx=14,
             pady=10,
+            takefocus=True,
         )
         label.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
@@ -112,6 +114,10 @@ class Sidebar(tk.Frame):
             w.bind("<Button-1>", lambda e, t=tab_id: self._handle_nav_click(t))  # type: ignore[misc]
             w.bind("<Enter>", lambda e, t=tab_id: self._on_nav_hover(t))  # type: ignore[misc]
             w.bind("<Leave>", lambda e, t=tab_id: self._on_nav_leave(t))  # type: ignore[misc]
+
+        # P0-7: 键盘激活——Return / Space 触发与点击相同的 _handle_nav_click
+        label.bind("<Return>", lambda e, t=tab_id: self._handle_nav_click(t))  # type: ignore[misc]
+        label.bind("<space>", lambda e, t=tab_id: self._handle_nav_click(t))  # type: ignore[misc]
 
     def _handle_nav_click(self, tab_id: str) -> None:
         """处理导航项点击：更新高亮、执行命令、触发外部回调。"""
