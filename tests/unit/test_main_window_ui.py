@@ -261,8 +261,9 @@ def test_sidebar_nav_click_triggers_callback(clean_root):
     sidebar.destroy()
 
 
-def test_license_dialog_verify_callback(clean_root):
+def test_license_dialog_verify_callback(clean_root, monkeypatch):
     """LicenseDialog 验证按钮调用自定义回调并正确关闭对话框。"""
+    import time
     from ui.license_dialog import LicenseDialog
 
     calls = []
@@ -270,6 +271,9 @@ def test_license_dialog_verify_callback(clean_root):
     def fake_verify(code, license_dir, machine_code=None):
         calls.append((code, license_dir, machine_code))
         return (True, 'OK', True)
+
+    # P2-6: mock messagebox 避免 _on_verify_done 弹窗阻塞测试
+    monkeypatch.setattr('tkinter.messagebox.showinfo', lambda *a, **k: None)
 
     dialog = LicenseDialog(clean_root, '/tmp/test-license-dir',
                            verify_and_save=fake_verify)
@@ -280,6 +284,14 @@ def test_license_dialog_verify_callback(clean_root):
     dialog._build_content('machine-code')
     dialog._license_entry.insert('1.0', 'test-code')
     dialog._on_verify()
+
+    # P2-6: 验证改为异步，轮询处理 after 回调直到 dialog 关闭（最多 2s）
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        clean_root.update()
+        if dialog.dialog is None:
+            break
+        time.sleep(0.01)
 
     assert calls == [('test-code', '/tmp/test-license-dir', 'test-machine-code')]
     # 验证成功后对话框应已关闭

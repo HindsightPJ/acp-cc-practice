@@ -1,5 +1,7 @@
 """注册码输入对话框组件。"""
 
+import queue
+import threading
 import tkinter as tk
 from tkinter import messagebox
 from typing import Callable
@@ -72,8 +74,12 @@ class LicenseDialog(BaseDialog):
         self.license_dir = license_dir
         self.verify_and_save = verify_and_save or _verify_and_save_license
         self._license_entry: tk.Text | None = None
+        # P2-6: 保存验证按钮引用，异步验证期间禁用避免重复点击
+        self._verify_btn: tk.Button | None = None
+        # P2-6: 子线程与主线程之间的结果传递通道
+        self._verify_queue: queue.Queue = queue.Queue()
         # P0-2: 缓存 show() 时采集的机器码，_on_verify 时复用，
-        # 避免 verify() 内部再次启动 PowerShell 子进程（耗时 0.2~5 秒）。
+        # 避免 verify() 内部再次启动 PowerShell 子进程采集（耗时 0.2~5 秒）。
         self._machine_code: str | None = None
 
     def show(self) -> bool:
@@ -143,7 +149,8 @@ class LicenseDialog(BaseDialog):
 
         btn_frame = tk.Frame(self.dialog, bg=theme.BG_PAGE)
         btn_frame.pack(fill="x", padx=15, pady=(0, 15))
-        tk.Button(
+        # P2-6: 保存验证按钮引用，异步验证期间禁用避免重复点击
+        self._verify_btn = tk.Button(
             btn_frame,
             text="验证",
             command=self._on_verify,
@@ -154,7 +161,8 @@ class LicenseDialog(BaseDialog):
             cursor="hand2",
             activebackground=theme.ACCENT_HOVER,
             activeforeground="white",
-        ).pack(side="right")
+        )
+        self._verify_btn.pack(side="right")
         tk.Button(
             btn_frame,
             text="取消",
@@ -173,11 +181,52 @@ class LicenseDialog(BaseDialog):
         if not code:
             messagebox.showwarning("提示", "请输入注册码", parent=self.dialog)
             return
-        # P0-2: 传入 show() 时缓存的 machine_code，避免 verify() 内部再次
-        # 启动 PowerShell 子进程采集（消除注册码验证时的第二次 PowerShell 调用）。
-        success, message, should_close = self.verify_and_save(
-            code, self.license_dir, self._machine_code
-        )
+
+        # P2-6: 异步执行 PBKDF2（60 万次迭代，0.3-1 秒），
+        # 避免在主线程中执行导致 UI 冻结。期间禁用验证按钮防止重复提交。
+        if self._verify_btn is not None:
+            self._verify_btn.configure(state=tk.DISABLED, text="验证中...")
+
+        machine_code = self._machine_code
+        license_dir = self.license_dir
+        verify_fn = self.verify_and_save
+        result_queue = self._verify_queue
+
+        def worker() -> None:
+            try:
+                result = verify_fn(code, license_dir, machine_code)
+            except Exception as exc:  # noqa: BLE001 - 兜底，确保结果能回传主线程
+                result = (False, f"验证过程出错: {exc}", False)
+            result_queue.put(result)
+
+        threading.Thread(target=worker, daemon=True).start()
+        # 主线程轮询 queue，避免子线程直接调用 tkinter（非线程安全）
+        self._poll_verify_result()
+
+    def _poll_verify_result(self) -> None:
+        """轮询验证结果 queue（在主线程中执行）。"""
+        if self.dialog is None:
+            return  # dialog 已关闭，停止轮询
+        try:
+            result = self._verify_queue.get_nowait()
+        except queue.Empty:
+            self.dialog.after(100, self._poll_verify_result)
+            return
+        self._on_verify_done(result)
+
+    def _on_verify_done(self, result: tuple[bool, str, bool]) -> None:
+        """子线程完成后的回调（在主线程中执行）。
+
+        Args:
+            result: (success, message, should_close)
+        """
+        success, message, should_close = result
+        # dialog 可能在异步期间被用户关闭，此时无需再弹窗
+        if self.dialog is None:
+            return
+        # 恢复按钮状态
+        if self._verify_btn is not None:
+            self._verify_btn.configure(state=tk.NORMAL, text="验证")
         if success:
             messagebox.showinfo("成功", message, parent=self.dialog)
         else:
