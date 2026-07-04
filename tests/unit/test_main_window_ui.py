@@ -261,6 +261,35 @@ def test_sidebar_nav_click_triggers_callback(clean_root):
     sidebar.destroy()
 
 
+def test_sidebar_same_tab_click_does_not_rebuild(clean_root):
+    """P2-24: 重复点击当前 tab 不应再次触发 command 和 on_nav_clicked。"""
+    from ui.sidebar import Sidebar
+
+    commands = []
+    clicks = []
+    nav_defs = [
+        ('practice', '练习', lambda: commands.append('practice_cmd')),
+        ('exam', '考试', lambda: commands.append('exam_cmd')),
+    ]
+    sidebar = Sidebar(
+        clean_root, nav_defs,
+        on_nav_clicked=lambda t: clicks.append(t))
+    sidebar.pack()
+
+    # 首次切到 exam
+    sidebar._handle_nav_click('exam')
+    assert commands == ['exam_cmd']
+    assert clicks == ['exam']
+
+    # 重复点击 exam：不应再触发回调或重建 mode
+    sidebar._handle_nav_click('exam')
+    assert commands == ['exam_cmd']
+    assert clicks == ['exam']
+    assert sidebar._active_nav == 'exam'
+
+    sidebar.destroy()
+
+
 def test_license_dialog_verify_callback(clean_root, monkeypatch):
     """LicenseDialog 验证按钮调用自定义回调并正确关闭对话框。"""
     import time
