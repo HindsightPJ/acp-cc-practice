@@ -380,7 +380,9 @@ class WrongBook(BaseMode):
 
     def _on_practice_key_press(self, event):
         """错题练习键盘事件处理 - 复用 PracticePanel 的键盘处理。"""
-        if not self._practice_panel or not self.practice_engine:
+        # P2-12: 入口同时校验 _practice_session，避免 lambda 内访问
+        # self._practice_session.is_answered 时因 session 为 None 抛 AttributeError
+        if not self._practice_panel or not self.practice_engine or not self._practice_session:
             return
 
         result = self._handle_option_key_press(
