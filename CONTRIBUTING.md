@@ -10,7 +10,7 @@
 pip install -e ".[dev]"
 ```
 
-包含运行依赖（`python-docx`、`cryptography`）+ 开发依赖（`pytest`、`mypy`、`ruff`）。
+包含运行依赖（`python-docx`、`cryptography`）+ 开发依赖（`pytest`、`pytest-cov`、`mypy`、`ruff`）。
 
 ### 运行测试
 
@@ -28,7 +28,7 @@ pytest -m gui
 pytest tests/unit/test_quiz_engine.py -v
 ```
 
-当前非 GUI 测试数：约 250 项。
+当前非 GUI 测试数：约 251 项（总计 312 项，含 GUI 测试）。
 
 ## 项目结构
 

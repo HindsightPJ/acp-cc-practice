@@ -21,15 +21,18 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install mypy ruff pytest cryptography python-docx
+          pip install mypy ruff pytest pytest-cov cryptography python-docx
 
       - name: Ruff check
         run: ruff check .
 
       - name: Mypy type check
-        run: mypy .
+        run: mypy --disallow-untyped-defs .
         env:
           MYPYPATH: "."
 
       - name: Pytest (non-GUI)
         run: pytest tests/ -q --tb=short -m "not gui"
+
+      - name: Coverage
+        run: pytest tests/ -q --tb=short -m "not gui" --cov=quiz_engine --cov=data_manager --cov=env_utils --cov=license --cov=author_tools --cov-fail-under=70

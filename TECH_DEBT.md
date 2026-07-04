@@ -3,7 +3,7 @@
 > 本文档记录 v1.0 发布时已知的代码质量问题与限制。
 > 按风险等级和修复 ROI 排序，作为后续迭代的依据。
 >
-> 最后更新：2026-07-04（类型注解清理完成，P0-P2 全部修复）
+> 最后更新：2026-07-04（类型注解清理完成，P0-P2 全部修复；同步 TD-05/TD-08/TD-18/TD-25 完成状态；覆盖率报告已更新至核心模块 83%）
 
 ---
 
@@ -50,12 +50,12 @@
   ```
 - **修复**：抽取为 `_fatal_error(msg)` 辅助函数
 
-### TD-05: `.env` 解析三套实现
+### TD-05: `.env` 解析三套实现 ✅ 已修复
 
+- **完成**：合并为公共函数 `load_env(path) -> dict` 并抽取到 `env_utils.py`；`data_manager.py`、`author_tools/encrypt_questions.py`、`author_tools/generate_license.py` 统一导入使用；支持引号包裹值与行内注释
 - **位置**：`data_manager.py:212-225` / `author_tools/encrypt_questions.py:29-43` / `author_tools/generate_license.py:39-56`
 - **问题**：三处各自用裸字符串解析 `.env`，行为可能不一致（引号、注释处理不同）
 - **风险**：`data_manager._load_encryption_key` 不支持引号和行内注释，用户误写 `QUESTIONS_MASTER_KEY="xxx"` 会保留引号导致解密失败
-- **修复**：合并为公共函数 `load_env(path) -> dict`
 
 ### TD-06: 基类方法被完全覆盖未调 `super()` ✅ 已修复
 
@@ -80,12 +80,12 @@
 - **P1-3 更新**：`wmic` 在 Windows 11 22H2+ 已弃用，`get_bios_serial()` 已迁移到 PowerShell CIM（`Get-CimInstance Win32_BIOS`）；机器码算法不变，不影响已签发的注册码
 - **注意**：破坏性更改——机器码算法变化，已签发的注册码需重新签发
 
-### TD-08: `save_license` 非原子写入
+### TD-08: `save_license` 非原子写入 ✅ 已修复
 
+- **完成**：`LicenseVerifier.save_license` 改用 tmp + `os.replace` 原子写入模式，与 `data_manager.save_progress` 保持一致
 - **位置**：`license/verifier.py:150-162`
 - **问题**：直接 `open('w')` 写入，与 `data_manager.save_progress` 的原子写入模式（tmp + `os.replace`）不一致
 - **风险**：断电可能导致 `license.dat` 损坏
-- **修复**：复用 tmp + `os.replace` 模式
 
 ### TD-09: `generate_license.py` 写记录非原子 ✅ 已修复
 
@@ -174,6 +174,7 @@
 
 - **问题**：无 `pytest-cov` 配置，无法量化测试覆盖
 - **修复**：添加 `pytest-cov` + 配置最低覆盖率阈值
+- **完成**：`pyproject.toml` 添加 [tool.coverage.*]；CI 启用 `--cov-fail-under=70`；核心模块覆盖率 83%（quiz_engine 98%、env_utils 100%、data_manager 88%）
 
 ### TD-19: 无 UI 冒烟测试 ⏳ 部分修复
 
@@ -220,10 +221,10 @@
 - **问题**：仅用 `>=`，`cryptography` 大版本升级可能导致 API 失效
 - **修复**：改为 `cryptography>=41.0.0,<46` 或生成 `requirements.lock`
 
-### TD-25: 无 `pyproject.toml`
+### TD-25: 无 `pyproject.toml` ✅ 已修复
 
+- **完成**：新增 `pyproject.toml`，含项目元数据、`[project]` 依赖、`[dev]` extras、pytest / coverage / mypy / ruff 工具配置
 - **问题**：项目无正式打包元数据（名称、版本、作者、Python 最低版本）
-- **修复**：添加 `pyproject.toml`
 
 ---
 
