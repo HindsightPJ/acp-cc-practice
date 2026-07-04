@@ -2,7 +2,6 @@
 
 覆盖收藏切换、延迟保存、只看收藏筛选模式等子类行为。
 """
-import tkinter as tk
 from unittest.mock import MagicMock
 
 import pytest
@@ -37,15 +36,6 @@ class _MockAppState:
         return sorted(self._favorites)
 
 
-@pytest.fixture(scope='module')
-def root():
-    """模块级共享 Tk 实例。"""
-    r = tk.Tk()
-    r.withdraw()
-    yield r
-    r.destroy()
-
-
 @pytest.fixture
 def mode(root, monkeypatch):
     """提供一个已初始化的 ReviewMode 实例。"""
@@ -66,7 +56,7 @@ def test_toggle_favorite_adds_and_saves_delayed(mode):
 
     assert mode.app_state.is_favorite(1)
     assert mode._pending_save is True
-    assert len(mode._after_jobs) == 1
+    assert mode._save_job_id is not None
 
 
 def test_toggle_favorite_removes_and_refreshes_filter(mode):

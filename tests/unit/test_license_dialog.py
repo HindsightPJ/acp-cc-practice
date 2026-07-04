@@ -1,4 +1,4 @@
-"""main_window.py 模块级纯逻辑单元测试（TD-11 拆分配套）。
+"""license_dialog.py 模块级纯逻辑单元测试（TD-11 拆分配套）。
 
 仅测试从 _show_license_dialog 抽取出的纯逻辑函数：
   - _get_license_error_message: 错误码 → 用户可读消息

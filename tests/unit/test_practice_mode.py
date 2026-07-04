@@ -2,7 +2,6 @@
 
 覆盖练习提交后的延迟保存触发、子类 _save_failure_message 生效等。
 """
-import tkinter as tk
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,15 +19,6 @@ class _MockAppState:
 
     def __init__(self, data_manager, progress):
         self.save_safe = MagicMock(return_value=True)
-
-
-@pytest.fixture(scope='module')
-def root():
-    """模块级共享 Tk 实例。"""
-    r = tk.Tk()
-    r.withdraw()
-    yield r
-    r.destroy()
 
 
 @pytest.fixture
@@ -49,7 +39,7 @@ def test_submit_answer_triggers_delayed_save(mode):
         mode.submit_answer()
 
     assert mode._pending_save is True
-    assert len(mode._after_jobs) == 1
+    assert mode._save_job_id is not None
 
 
 def test_save_failure_message_is_practice_specific(mode, monkeypatch):

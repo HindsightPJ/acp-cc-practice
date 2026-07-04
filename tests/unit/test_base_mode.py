@@ -11,15 +11,6 @@ import pytest
 from ui.base_mode import BaseMode
 
 
-@pytest.fixture(scope='module')
-def root():
-    """模块级共享 Tk 实例。"""
-    r = tk.Tk()
-    r.withdraw()
-    yield r
-    r.destroy()
-
-
 class _TestMode(BaseMode):
     """测试用最小子类，满足抽象基类要求。"""
 
@@ -58,27 +49,27 @@ def mode(root, monkeypatch):
 
 
 def test_save_progress_delayed_sets_pending_flag_and_schedules_job(mode):
-    """调用 _save_progress_delayed 后 _pending_save=True 且 _after_jobs 非空。"""
+    """调用 _save_progress_delayed 后 _pending_save=True 且 _save_job_id 非空。"""
     assert not mode._pending_save
-    assert mode._after_jobs == []
+    assert mode._save_job_id is None
 
     mode._save_progress_delayed()
 
     assert mode._pending_save is True
-    assert len(mode._after_jobs) == 1
+    assert mode._save_job_id is not None
 
 
 def test_save_progress_delayed_cancels_previous_job(mode):
     """连续调用 _save_progress_delayed 会取消上一个 after job。"""
     mode._save_progress_delayed()
-    first_job = mode._after_jobs[0]
+    first_job = mode._save_job_id
 
     mode._save_progress_delayed()
-    second_job = mode._after_jobs[0]
+    second_job = mode._save_job_id
 
     # 旧的 job 应被取消
     assert first_job != second_job
-    assert len(mode._after_jobs) == 1
+    assert mode._save_job_id is not None
 
 
 def test_do_save_progress_resets_pending_on_success(mode):
