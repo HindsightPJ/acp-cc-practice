@@ -135,8 +135,141 @@ class ExamMode(BaseMode):
         )
         self.start_btn.pack(side=tk.RIGHT)
 
+        # P0-6: 考试历史卡片——展示最近 20 条考试记录（日期/题数/正确/错误/正确率/用时）
+        self._setup_history_card()
+
         # 考试容器：承载 ExamPanel
         self.exam_container = tk.Frame(self, bg=theme.BG_PAGE)
+
+    # ------------------------------------------------------------------
+    # 考试历史卡片（P0-6）
+    # ------------------------------------------------------------------
+
+    def _setup_history_card(self) -> None:
+        """构建考试历史卡片，展示最近 20 条考试记录。"""
+        history_card, h_inner = create_card(self, inner_padx=20, inner_pady=16)
+        history_card.pack(fill=tk.X, pady=(0, 16))
+        self._history_card = history_card
+
+        header = tk.Frame(h_inner, bg=theme.BG_CARD)
+        header.pack(fill=tk.X, pady=(0, 10))
+
+        h_title = tk.Label(
+            header,
+            text="最近考试历史",
+            font=font_ui_semibold(13),
+            fg=theme.TEXT_PRIMARY,
+            bg=theme.BG_CARD,
+        )
+        h_title.pack(side=tk.LEFT)
+
+        self.history_count_label = tk.Label(
+            header,
+            text="",
+            font=font_ui(10),
+            fg=theme.TEXT_MUTED,
+            bg=theme.BG_CARD,
+        )
+        self.history_count_label.pack(side=tk.LEFT, padx=(8, 0))
+
+        # 空状态提示（无历史时显示）
+        self.history_empty_label = tk.Label(
+            h_inner,
+            text="暂无考试记录，开始一场模拟考试后将在此显示成绩。",
+            font=font_ui(11),
+            fg=theme.TEXT_MUTED,
+            bg=theme.BG_CARD,
+        )
+        self.history_empty_label.pack(fill=tk.X, pady=(8, 0))
+
+        # Treeview 表格（带滚动条）
+        tree_frame = tk.Frame(h_inner, bg=theme.BG_CARD)
+        self._history_tree_frame = tree_frame
+
+        columns = ("date", "total", "correct", "wrong", "accuracy", "time")
+        self.history_tree = ttk.Treeview(
+            tree_frame,
+            columns=columns,
+            show="headings",
+            height=6,
+            selectmode="browse",
+        )
+
+        # 列标题与宽度（anchor 必须用字符串字面量以满足 mypy Literal 类型要求）
+        self.history_tree.heading("date", text="日期")
+        self.history_tree.column("date", width=130, anchor="w", stretch=False)
+        self.history_tree.heading("total", text="题数")
+        self.history_tree.column("total", width=60, anchor="center", stretch=False)
+        self.history_tree.heading("correct", text="正确")
+        self.history_tree.column("correct", width=60, anchor="center", stretch=False)
+        self.history_tree.heading("wrong", text="错误")
+        self.history_tree.column("wrong", width=60, anchor="center", stretch=False)
+        self.history_tree.heading("accuracy", text="正确率")
+        self.history_tree.column("accuracy", width=80, anchor="center", stretch=False)
+        self.history_tree.heading("time", text="用时")
+        self.history_tree.column("time", width=100, anchor="center", stretch=False)
+
+        # 行样式：交替背景色提升可读性
+        self.history_tree.tag_configure("odd", background=theme.BG_CARD)
+        self.history_tree.tag_configure("even", background=theme.BG_HOVER)
+
+        # 滚动条
+        vsb = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.history_tree.yview)
+        self.history_tree.configure(yscrollcommand=vsb.set)
+
+        self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 初始刷新一次（如果有历史则显示 Treeview，否则只显示空状态提示）
+        self._refresh_history_view()
+
+    def _refresh_history_view(self) -> None:
+        """根据当前 app_state 中的考试历史刷新表格。"""
+        if not hasattr(self, "history_tree"):
+            return
+
+        # 清空旧行
+        for item in self.history_tree.get_children():
+            self.history_tree.delete(item)
+
+        history = self.app_state.get_exam_history()
+        # 最新记录在最上方（get_exam_history 按时间正序，倒序展示更直观）
+        history_reversed = list(reversed(history))
+
+        count = len(history_reversed)
+        if count == 0:
+            self.history_count_label.configure(text="")
+            self.history_empty_label.pack(fill=tk.X, pady=(8, 0))
+            self._history_tree_frame.pack_forget()
+            return
+
+        # 有数据：隐藏空状态提示，显示表格
+        self.history_empty_label.pack_forget()
+        self.history_count_label.configure(text=f"共 {count} 条记录（最多保留 20 条）")
+        if not self._history_tree_frame.winfo_ismapped():
+            self._history_tree_frame.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
+
+        for idx, entry in enumerate(history_reversed):
+            tag = "even" if idx % 2 == 0 else "odd"
+            # accuracy 保留 1 位小数
+            acc = entry.get("accuracy", 0)
+            try:
+                acc_text = f"{float(acc):.1f}%"
+            except (TypeError, ValueError):
+                acc_text = "—"
+            self.history_tree.insert(
+                "",
+                tk.END,
+                values=(
+                    entry.get("date", "—"),
+                    entry.get("total_questions", "—"),
+                    entry.get("correct", "—"),
+                    entry.get("wrong", "—"),
+                    acc_text,
+                    entry.get("time_used", "—"),
+                ),
+                tags=(tag,),
+            )
 
     # ------------------------------------------------------------------
     # 考试编排
@@ -285,6 +418,8 @@ class ExamMode(BaseMode):
             }
         )
         self.app_state.save()
+        # P0-6: 保存后刷新历史卡片，让用户立即看到本次成绩
+        self._refresh_history_view()
 
     def show_exam_report(self, report: dict[str, Any]) -> None:
         """显示考试成绩报告对话框。"""
