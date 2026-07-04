@@ -65,6 +65,8 @@ class ExamPanel(tk.Frame):
         self.nav_buttons: list[tk.Label] = []
         self.timer_label: tk.Label | None = None
         self.exam_progress_label: tk.Label | None = None
+        # P1-6: 跟踪上一次的 current_index，支持增量更新题号导航按钮
+        self._last_current_index: int = -1
         self.exam_type_label: tk.Label | None = None
         self.exam_question_text: tk.Text | None = None
         self.nav_canvas: tk.Canvas | None = None
@@ -292,25 +294,38 @@ class ExamPanel(tk.Frame):
             self.nav_canvas.config(scrollregion=self.nav_canvas.bbox(tk.ALL))
 
     def update_nav_buttons(self) -> None:
-        """根据 engine 与 session 状态刷新题号导航。"""
+        """根据 engine 与 session 状态刷新题号导航（全量，用于初始化/reset）。"""
         current = self.engine.get_current_index()
         for i, btn in enumerate(self.nav_buttons):
-            if i == current:
-                bg = theme.ACCENT
-                fg = theme.SELECTED_TEXT
-            elif self.exam_session.has_answer(i):
-                bg = theme.GREEN_BG
-                fg = theme.GREEN_TEXT
-            else:
-                bg = theme.BG_INPUT
-                fg = theme.TEXT_SECONDARY
+            self._apply_nav_button_style(i, btn, current)
+        # P1-6: 全量刷新后同步 _last_current_index
+        self._last_current_index = current
 
-            if self.exam_session.is_marked(i):
-                text = f"★{i + 1}"
-            else:
-                text = str(i + 1)
+    def _update_single_nav_button(self, idx: int) -> None:
+        """增量更新单个题号按钮的样式（P1-6: 避免全量遍历）。"""
+        if not (0 <= idx < len(self.nav_buttons)):
+            return
+        current = self.engine.get_current_index()
+        self._apply_nav_button_style(idx, self.nav_buttons[idx], current)
 
-            btn.configure(text=text, bg=bg, fg=fg)
+    def _apply_nav_button_style(self, i: int, btn: tk.Label, current: int) -> None:
+        """根据索引、当前位置和 session 状态应用按钮样式。"""
+        if i == current:
+            bg = theme.ACCENT
+            fg = theme.SELECTED_TEXT
+        elif self.exam_session.has_answer(i):
+            bg = theme.GREEN_BG
+            fg = theme.GREEN_TEXT
+        else:
+            bg = theme.BG_INPUT
+            fg = theme.TEXT_SECONDARY
+
+        if self.exam_session.is_marked(i):
+            text = f"★{i + 1}"
+        else:
+            text = str(i + 1)
+
+        btn.configure(text=text, bg=bg, fg=fg)
 
     def load_question(self) -> None:
         """加载当前题目到视图。"""
@@ -359,7 +374,13 @@ class ExamPanel(tk.Frame):
                 text=f"第 {progress['current']} / {progress['total']} 题"
             )
 
-        self.update_nav_buttons()
+        # P1-6: 切题时增量更新——只刷新旧 current 和新 current 两个按钮，
+        # 避免 100~200 个按钮的全量 configure（每次 Tcl IPC）
+        current = self.engine.get_current_index()
+        if 0 <= self._last_current_index < len(self.nav_buttons) and self._last_current_index != current:
+            self._update_single_nav_button(self._last_current_index)
+        self._update_single_nav_button(current)
+        self._last_current_index = current
 
     def sync_option_selection(self, selected: str) -> None:
         """根据已选字母串同步选项 UI（纯视图，不修改状态）。
@@ -380,7 +401,8 @@ class ExamPanel(tk.Frame):
             item["var"].set(1 if is_selected else 0)
             item["row"].set_selected(is_selected)
 
-        self.update_nav_buttons()
+        # P1-6: 选项选择只改变当前题的已答状态，只需更新当前按钮
+        self._update_single_nav_button(self.engine.get_current_index())
 
     # ------------------------------------------------------------------
     # 键盘处理

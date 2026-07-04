@@ -387,7 +387,8 @@ class ExamMode(BaseMode):
         if self.engine is None or self.exam_session is None or self.panel is None:
             return
         self.exam_session.toggle_mark()
-        self.panel.update_nav_buttons()
+        # P1-6: 标记只改变当前题状态，增量更新当前按钮即可
+        self.panel._update_single_nav_button(self.engine.get_current_index())
 
     # ------------------------------------------------------------------
     # 交卷与报告
