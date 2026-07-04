@@ -3,6 +3,8 @@
 聚焦 save_safe 的新行为（P0-4: 不再静默吞错）：
   - 成功时返回 True
   - 失败时返回 False，不抛异常，记录 warning 日志
+
+P1-1: count 方法返回值与 len(get_xxx()) 一致，但 O(1) 读取。
 """
 from unittest.mock import MagicMock
 
@@ -50,3 +52,73 @@ def test_save_safe_logs_warning_on_failure(app_state, caplog):
     with caplog.at_level("WARNING", logger="app_state"):
         app_state.save_safe()
     assert any("保存学习进度失败" in record.message for record in caplog.records)
+
+
+# ---------- P1-1: count 方法测试 ----------
+
+def test_wrong_count_empty(app_state):
+    """空错题本时 wrong_count 返回 0。"""
+    assert app_state.wrong_count() == 0
+
+
+def test_wrong_count_after_add(app_state):
+    """添加错题后 wrong_count 反映数量。"""
+    app_state.add_wrong_question(1)
+    app_state.add_wrong_question(2)
+    app_state.add_wrong_question(3)
+    assert app_state.wrong_count() == 3
+
+
+def test_wrong_count_dedup(app_state):
+    """重复添加同一题号不重复计数。"""
+    app_state.add_wrong_question(1)
+    app_state.add_wrong_question(1)
+    assert app_state.wrong_count() == 1
+
+
+def test_wrong_count_after_remove(app_state):
+    """移除错题后 wrong_count 反映数量。"""
+    app_state.add_wrong_question(1)
+    app_state.add_wrong_question(2)
+    app_state.remove_wrong_question(1)
+    assert app_state.wrong_count() == 1
+
+
+def test_wrong_count_matches_len_get_wrong_questions(app_state):
+    """wrong_count() 与 len(get_wrong_questions()) 结果一致。"""
+    app_state.add_wrong_question(10)
+    app_state.add_wrong_question(20)
+    assert app_state.wrong_count() == len(app_state.get_wrong_questions())
+
+
+def test_favorites_count_empty(app_state):
+    """空收藏时 favorites_count 返回 0。"""
+    assert app_state.favorites_count() == 0
+
+
+def test_favorites_count_after_toggle(app_state):
+    """切换收藏后 favorites_count 反映数量。"""
+    app_state.toggle_favorite(1)
+    app_state.toggle_favorite(2)
+    assert app_state.favorites_count() == 2
+    app_state.toggle_favorite(1)  # 取消
+    assert app_state.favorites_count() == 1
+
+
+def test_exam_history_count_empty(app_state):
+    """空考试历史时 exam_history_count 返回 0。"""
+    assert app_state.exam_history_count() == 0
+
+
+def test_exam_history_count_after_add(app_state):
+    """添加考试历史后 exam_history_count 反映数量。"""
+    app_state.add_exam_history({"date": "2026-01-01", "correct": 80})
+    app_state.add_exam_history({"date": "2026-01-02", "correct": 90})
+    assert app_state.exam_history_count() == 2
+
+
+def test_exam_history_count_capped_at_20(app_state):
+    """考试历史超过 20 条时 exam_history_count 反映截断后的数量。"""
+    for i in range(25):
+        app_state.add_exam_history({"date": f"2026-01-{i:02d}", "correct": i})
+    assert app_state.exam_history_count() == 20

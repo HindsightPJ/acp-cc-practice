@@ -119,7 +119,7 @@ class MainWindow(tk.Tk):
         correct = practice_stats.get("correct", 0)
         total_practiced = practice_stats.get("total", 0)
         accuracy = (correct / total_practiced * 100) if total_practiced > 0 else 0
-        wrong_count = len(self.app_state.get_wrong_questions())
+        wrong_count = self.app_state.wrong_count()
         self.header.update_stats(total_practiced, accuracy, wrong_count)
 
     def _refresh_mastery(self) -> None:
@@ -140,7 +140,7 @@ class MainWindow(tk.Tk):
         coverage = min(coverage, 1.0)
         mastery = coverage * accuracy
 
-        wrong_count = len(self.app_state.get_wrong_questions())
+        wrong_count = self.app_state.wrong_count()
         if self.sidebar is not None:
             self.sidebar.set_mastery(mastery)
             self.sidebar.set_wrong_indicator(

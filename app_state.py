@@ -50,6 +50,10 @@ class AppState:
     def get_wrong_questions(self) -> list[int]:
         return list(self._progress.get("wrong_questions", []))
 
+    def wrong_count(self) -> int:
+        """返回错题数量（P1-1: O(1) 读取，避免仅为取长度而 O(N) 浅拷贝）。"""
+        return len(self._progress.get("wrong_questions", []))
+
     def add_wrong_question(self, q_num: int) -> None:
         wrong = self._progress.setdefault("wrong_questions", [])
         if q_num not in wrong:
@@ -69,6 +73,10 @@ class AppState:
     # ---------- 收藏 ----------
     def get_favorites(self) -> list[int]:
         return list(self._progress.get("favorites", []))
+
+    def favorites_count(self) -> int:
+        """返回收藏数量（P1-1: O(1) 读取，避免仅为取长度而 O(N) 浅拷贝）。"""
+        return len(self._progress.get("favorites", []))
 
     def add_favorite(self, q_num: int) -> None:
         favorites = self._progress.setdefault("favorites", [])
@@ -95,6 +103,10 @@ class AppState:
     # ---------- 考试历史 ----------
     def get_exam_history(self) -> list[dict[str, Any]]:
         return list(self._progress.get("exam_history", []))
+
+    def exam_history_count(self) -> int:
+        """返回考试历史记录数（P1-1: O(1) 读取，避免仅为取长度而 O(N) 浅拷贝）。"""
+        return len(self._progress.get("exam_history", []))
 
     def add_exam_history(self, entry: dict[str, Any]) -> None:
         history = self._progress.setdefault("exam_history", [])
