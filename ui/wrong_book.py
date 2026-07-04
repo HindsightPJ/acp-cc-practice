@@ -24,24 +24,33 @@ class WrongBook(BaseMode):
         super().__init__(parent, questions, data_manager, progress)
 
         self.wrong_questions = self._get_wrong_questions_list()
+        # P1-8: 题号→题目索引，O(1) 查找替代线性扫描
+        self._wrong_by_number: dict[int, Question] = {q.number: q for q in self.wrong_questions}
         self.practice_engine: QuizEngine | None = None
         self._practice_window: tk.Toplevel | None = None
-        self._detail_windows: list[tk.Toplevel] = []
         self._practice_session: PracticeSession | None = None
         self._practice_panel: PracticePanel | None = None
+        # P1-8: 详情对话框懒加载 + 复用（withdraw/deiconify 替代 destroy/create）
+        self._detail_dialog: tk.Toplevel | None = None
+        self._detail_card: QuestionDetailCard | None = None
+        self._detail_header_label: tk.Label | None = None
+        self._current_detail_q_num: int | None = None
 
         self._setup_mode_ui()
 
     def destroy(self) -> None:
         """切 tab 销毁 WrongBook 时，主动关闭所有子窗口，
         避免幽灵窗口持有 engine 引用造成状态分裂。"""
-        for dw in self._detail_windows:
+        # P1-8: 清理懒加载的详情对话框
+        if self._detail_dialog is not None:
             try:
-                dw.grab_release()
-                dw.destroy()
+                self._detail_dialog.grab_release()
+                self._detail_dialog.destroy()
             except tk.TclError:
                 pass
-        self._detail_windows.clear()
+            self._detail_dialog = None
+            self._detail_card = None
+            self._detail_header_label = None
 
         if self._practice_window is not None:
             try:
@@ -195,19 +204,43 @@ class WrongBook(BaseMode):
         item = self.tree.item(selection[0])
         q_num = item["values"][0]
 
-        question = next((q for q in self.wrong_questions if q.number == q_num), None)
+        # P1-8: O(1) dict 查找替代线性扫描
+        question = self._wrong_by_number.get(q_num)
         if not question:
             return
 
+        self._current_detail_q_num = q_num
+        self._ensure_detail_dialog()  # 懒加载创建（仅首次）
+
+        # _ensure_detail_dialog 保证以下三个属性已初始化
+        assert self._detail_dialog is not None
+        assert self._detail_card is not None
+        assert self._detail_header_label is not None
+
+        # 复用已有对话框：更新标题 + 内容 + 显示
+        self._detail_dialog.title(f"第{q_num}题")
+        self._detail_header_label.configure(text=f"第 {q_num} 题")
+        self._detail_card.show_question(question, reveal_answer=True)
+
+        self._detail_dialog.deiconify()
+        self._detail_dialog.grab_set()
+        # 提到最前，确保不被父窗口遮挡
+        self._detail_dialog.lift()
+
+    def _ensure_detail_dialog(self) -> None:
+        """懒加载创建详情对话框（仅创建一次，后续 withdraw/deiconify 复用）。
+
+        P1-8: 避免每次双击都新建 Toplevel + QuestionDetailCard 的创建开销。
+        """
+        if self._detail_dialog is not None:
+            return
+
         detail_window = tk.Toplevel(self)
-        detail_window.title(f"第{q_num}题")
+        detail_window.title("题目详情")
         detail_window.geometry("600x500")
         detail_window.configure(bg=theme.BG_PAGE)
         detail_window.transient(self.winfo_toplevel())
-        detail_window.grab_set()
-
-        self._detail_windows.append(detail_window)
-        detail_window.protocol("WM_DELETE_WINDOW", lambda: self._close_detail_window(detail_window))
+        detail_window.protocol("WM_DELETE_WINDOW", self._close_detail_dialog)
 
         detail_window.update_idletasks()
         width = detail_window.winfo_width()
@@ -219,15 +252,16 @@ class WrongBook(BaseMode):
         header, h_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
         header.pack(fill=tk.X, padx=20, pady=(20, 0))
 
-        tk.Label(
+        self._detail_header_label = tk.Label(
             h_inner,
-            text=f"第 {q_num} 题",
+            text="",
             font=font_ui_semibold(14),
             fg=theme.TEXT_PRIMARY,
             bg=theme.BG_CARD,
-        ).pack(anchor=tk.W)
+        )
+        self._detail_header_label.pack(anchor=tk.W)
 
-        detail_card = QuestionDetailCard(
+        self._detail_card = QuestionDetailCard(
             detail_window,
             on_option_click=None,
             option_wraplength=480,
@@ -237,8 +271,7 @@ class WrongBook(BaseMode):
             option_inner_pady=14,
             option_pady=2,
         )
-        detail_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=12)
-        detail_card.show_question(question, reveal_answer=True)
+        self._detail_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=12)
 
         btn_frame = tk.Frame(detail_window, bg=theme.BG_PAGE)
         btn_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
@@ -246,7 +279,7 @@ class WrongBook(BaseMode):
         master_btn = create_primary_button(
             btn_frame,
             text="标记为已掌握",
-            command=lambda: self._mark_as_mastered(q_num, detail_window),
+            command=self._mark_as_mastered,
             bg_color=theme.GREEN,
             active_bg="#16a34a",
         )
@@ -255,30 +288,39 @@ class WrongBook(BaseMode):
         close_btn = create_normal_button(
             btn_frame,
             text="关闭",
-            command=lambda: self._close_detail_window(detail_window),
+            command=self._close_detail_dialog,
         )
         close_btn.pack(side=tk.RIGHT)
 
-    def _close_detail_window(self, window):
-        """安全关闭详情窗口并从跟踪列表移除。"""
+        self._detail_dialog = detail_window
+        detail_window.withdraw()  # 初始隐藏，等 show_question 后再 deiconify
+
+    def _close_detail_dialog(self) -> None:
+        """隐藏详情对话框（复用实例，不销毁）。"""
+        if self._detail_dialog is None:
+            return
         try:
-            if window in self._detail_windows:
-                self._detail_windows.remove(window)
-            window.grab_release()
-            window.destroy()
+            self._detail_dialog.grab_release()
+            self._detail_dialog.withdraw()
         except tk.TclError:
             pass
 
-    def _mark_as_mastered(self, q_num, window):
+    def _mark_as_mastered(self) -> None:
+        """标记当前详情对话框显示的题目为已掌握，从错题本移除。"""
+        if self._current_detail_q_num is None:
+            return
+        q_num = self._current_detail_q_num
         if self.app_state.is_wrong_question(q_num):
             self.app_state.remove_wrong_question(q_num)
             self.app_state.save()
 
             self.wrong_questions = self._get_wrong_questions_list()
+            # P1-8: 重建题号索引，保持与 wrong_questions 同步
+            self._wrong_by_number = {q.number: q for q in self.wrong_questions}
             self._populate_tree()
             self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
 
-            self._close_detail_window(window)
+            self._close_detail_dialog()
             messagebox.showinfo("成功", "该题已从错题本移除！")
 
     def start_practice_wrong(self) -> None:
@@ -369,6 +411,8 @@ class WrongBook(BaseMode):
 
             self.app_state.save()
             self.wrong_questions = self._get_wrong_questions_list()
+            # P1-8: 重建题号索引，保持与 wrong_questions 同步
+            self._wrong_by_number = {q.number: q for q in self.wrong_questions}
             self._populate_tree()
             self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
 
@@ -395,5 +439,7 @@ class WrongBook(BaseMode):
             self.app_state.save()
 
             self.wrong_questions = []
+            # P1-8: 清空索引
+            self._wrong_by_number = {}
             self._populate_tree()
             self.count_label.configure(text="共 0 道错题")
