@@ -88,6 +88,11 @@ class PracticeSession:
         if question is None:
             return None
 
+        # P2-1: 在 engine.submit_answer 写入前判断是否首次提交，
+        # 避免切走再切回重新提交时 increment_practice_stats 双倍计数
+        current_idx = self.engine.get_current_index()
+        is_first_submission = not self.engine.is_answered(current_idx)
+
         answer_str = "".join(sorted(self.selected_answers))
         result = self.engine.submit_answer(answer_str)
         if result is None:
@@ -95,14 +100,16 @@ class PracticeSession:
 
         self.is_answered = True
 
-        # 记录错题
-        if not result["is_correct"]:
-            q_num = question.number
-            if not self.app_state.is_wrong_question(q_num):
-                self.app_state.add_wrong_question(q_num)
+        # P2-1: 仅首次提交该题时更新统计与错题本，重复提交只刷新 UI 显示
+        if is_first_submission:
+            # 记录错题
+            if not result["is_correct"]:
+                q_num = question.number
+                if not self.app_state.is_wrong_question(q_num):
+                    self.app_state.add_wrong_question(q_num)
 
-        # 更新练习统计
-        self.app_state.increment_practice_stats(result["is_correct"])
+            # 更新练习统计
+            self.app_state.increment_practice_stats(result["is_correct"])
 
         return result
 

@@ -115,6 +115,13 @@ class QuizEngine:
         """获取题目队列长度（TD-15: 显式接口，替代 len(engine.questions_queue)）。"""
         return len(self.questions_queue)
 
+    def is_answered(self, index: int) -> bool:
+        """指定索引的题目是否已作答（TD-15: 显式接口，替代直接访问 answers_record）。
+
+        P2-1: 供 PracticeSession 判断是否首次提交，避免重复计数。
+        """
+        return index in self.answers_record
+
     def get_question_at(self, index: int) -> Question | None:
         """获取指定索引的题目（TD-15: 显式接口，替代 engine.questions_queue[i]）。
 
