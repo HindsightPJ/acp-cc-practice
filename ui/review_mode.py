@@ -26,6 +26,8 @@ class ReviewMode(BaseMode):
         self.filtering_favorites: bool = False
         # P1-3: 收藏状态延迟落盘标志（避免连续收藏触发多次磁盘写入）
         self._pending_save: bool = False
+        # P1-7: 题号→题目索引，收藏筛选时 O(M) 查找替代 O(N) 全量遍历
+        self._question_by_number: dict[int, Question] = {q.number: q for q in questions}
 
         self.engine: QuizEngine = QuizEngine(questions)
         self.engine.set_questions_queue(questions)  # TD-15: 显式接口
@@ -323,7 +325,11 @@ class ReviewMode(BaseMode):
         - 仍有收藏：替换队列，索引归零并加载第一题
         """
         fav_nums = self.app_state.get_favorites()
-        fav_questions = [q for q in self.questions if q.number in set(fav_nums)]
+        # P1-7: 用 _question_by_number 索引 O(M) 查找，避免 O(N) 全量遍历
+        fav_questions = sorted(
+            (self._question_by_number[n] for n in fav_nums if n in self._question_by_number),
+            key=lambda q: q.number,
+        )
         if not fav_questions:
             # 收藏被清空：退出筛选模式，恢复全量
             self.filtering_favorites = False
@@ -354,8 +360,11 @@ class ReviewMode(BaseMode):
                 parent=self,
             )
             return
-        fav_set = set(fav_nums)
-        fav_questions = [q for q in self.questions if q.number in fav_set]
+        # P1-7: 用 _question_by_number 索引 O(M) 查找，避免 O(N) 全量遍历
+        fav_questions = sorted(
+            (self._question_by_number[n] for n in fav_nums if n in self._question_by_number),
+            key=lambda q: q.number,
+        )
         if not fav_questions:
             # 收藏的题号在当前题库中不存在（如授权前的试用题库），同样提示
             messagebox.showinfo(
