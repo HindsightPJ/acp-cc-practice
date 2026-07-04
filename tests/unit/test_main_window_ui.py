@@ -290,9 +290,17 @@ def test_sidebar_same_tab_click_does_not_rebuild(clean_root):
     sidebar.destroy()
 
 
+def _run_license_dialog_until_done(dialog, root, timeout: float = 2.0):
+    """辅助函数：驱动 LicenseDialog 的 after 轮询直到 dialog 关闭或超时。"""
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline and dialog.dialog is not None:
+        root.update()
+        time.sleep(0.01)
+
+
 def test_license_dialog_verify_callback(clean_root, monkeypatch):
     """LicenseDialog 验证按钮调用自定义回调并正确关闭对话框。"""
-    import time
     from ui.license_dialog import LicenseDialog
 
     calls = []
@@ -315,13 +323,68 @@ def test_license_dialog_verify_callback(clean_root, monkeypatch):
     dialog._on_verify()
 
     # P2-6: 验证改为异步，轮询处理 after 回调直到 dialog 关闭（最多 2s）
-    deadline = time.time() + 2.0
-    while time.time() < deadline:
-        clean_root.update()
-        if dialog.dialog is None:
-            break
-        time.sleep(0.01)
+    _run_license_dialog_until_done(dialog, clean_root)
 
     assert calls == [('test-code', '/tmp/test-license-dir', 'test-machine-code')]
     # 验证成功后对话框应已关闭
     assert dialog.dialog is None
+
+
+def test_license_dialog_verify_failure_keeps_dialog_open(clean_root, monkeypatch):
+    """P2-6 / TC-02: 验证失败时对话框不关闭且按钮恢复为可点击。"""
+    from ui.license_dialog import LicenseDialog
+
+    error_calls = []
+
+    def fake_verify_failure(code, license_dir, machine_code=None):
+        return (False, 'invalid code', False)
+
+    monkeypatch.setattr('tkinter.messagebox.showerror', lambda *a, **k: error_calls.append((a, k)))
+
+    dialog = LicenseDialog(clean_root, '/tmp/test-license-dir',
+                           verify_and_save=fake_verify_failure)
+    dialog._machine_code = 'test-machine-code'
+    dialog._create_dialog()
+    dialog._build_content('machine-code')
+    dialog._license_entry.insert('1.0', 'bad-code')
+
+    verify_btn = dialog._verify_btn
+    assert verify_btn is not None
+    assert verify_btn.cget('text') == '验证'
+
+    dialog._on_verify()
+
+    _run_license_dialog_until_done(dialog, clean_root)
+
+    # 失败后应弹出错误且对话框保留
+    assert len(error_calls) == 1
+    assert dialog.dialog is not None
+    # 按钮状态恢复
+    assert verify_btn.cget('state') == 'normal'
+    assert verify_btn.cget('text') == '验证'
+
+
+def test_license_dialog_verify_empty_code_shows_warning(clean_root, monkeypatch):
+    """TC-02: 空注册码应直接提示且不启动后台线程。"""
+    from ui.license_dialog import LicenseDialog
+
+    warn_calls = []
+
+    def fake_verify(_code, _license_dir, _machine_code=None):
+        raise AssertionError('verify should not be called for empty code')
+
+    monkeypatch.setattr('tkinter.messagebox.showwarning', lambda *a, **k: warn_calls.append((a, k)))
+
+    dialog = LicenseDialog(clean_root, '/tmp/test-license-dir',
+                           verify_and_save=fake_verify)
+    dialog._create_dialog()
+    dialog._build_content('machine-code')
+    # 留空
+    dialog._license_entry.delete('1.0', 'end')
+    dialog._on_verify()
+
+    clean_root.update()
+
+    assert len(warn_calls) == 1
+    # 不应启动轮询（queue 为空）
+    assert dialog._verify_queue.empty()

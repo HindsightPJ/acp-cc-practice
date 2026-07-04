@@ -44,9 +44,17 @@ class _MockAppState:
 def mode(root, monkeypatch):
     """提供一个已初始化的 _TestMode 实例。"""
     monkeypatch.setattr('ui.base_mode.AppState', _MockAppState)
-    mode = _TestMode(root, [], MagicMock(), {})
-    mode.pack()
-    return mode
+    widget = _TestMode(root, [], MagicMock(), {})
+    widget.pack()
+    yield widget
+    # teardown: 取消未执行的 after 回调并清空 pending 标记，
+    # 避免 destroy() 触发 flush_pending_save 时因 mock save_safe=False 而弹窗阻塞。
+    widget._cancel_all_after_jobs()
+    widget._pending_save = False
+    try:
+        widget.destroy()
+    except tk.TclError:
+        pass
 
 
 def test_save_progress_delayed_sets_pending_flag_and_schedules_job(mode):
