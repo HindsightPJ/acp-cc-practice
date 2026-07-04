@@ -140,9 +140,12 @@ class PracticeMode(BaseMode):
         """切 tab 前强制保存延迟的进度，避免数据丢失。"""
         if self._pending_save:
             self._cancel_all_after_jobs()
-            self._pending_save = False
-            # P0-4: 保存失败时提示用户（不再静默吞错，否则用户以为已落盘）
-            if not self.app_state.save_safe():
+            # P2-16: 先保存成功再重置 _pending_save，避免保存失败时
+            # 标记被清空导致后续无法重试（数据丢失风险）
+            if self.app_state.save_safe():
+                self._pending_save = False
+            else:
+                # P0-4: 保存失败时提示用户（不再静默吞错，否则用户以为已落盘）
                 messagebox.showwarning(
                     "保存失败",
                     "学习进度保存失败，请检查磁盘空间或文件权限。\n\n本次进度可能未落盘。",

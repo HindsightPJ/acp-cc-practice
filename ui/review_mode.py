@@ -310,8 +310,11 @@ class ReviewMode(BaseMode):
         """
         if self._pending_save:
             self._cancel_all_after_jobs()
-            self._pending_save = False
-            if not self.app_state.save_safe():
+            # P2-16: 先保存成功再重置 _pending_save，避免保存失败时
+            # 标记被清空导致后续无法重试（数据丢失风险）
+            if self.app_state.save_safe():
+                self._pending_save = False
+            else:
                 messagebox.showwarning(
                     "保存失败",
                     "收藏状态保存失败，请检查磁盘空间或文件权限。\n\n本次进度可能未落盘。",
