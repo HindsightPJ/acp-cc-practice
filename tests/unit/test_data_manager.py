@@ -345,3 +345,58 @@ def test_parse_explanation_with_colon_variants(tmp_path, monkeypatch):
     questions = dm.parse_docx('fake.docx')
 
     assert questions[0].explanation == '这是半角冒号的解析'
+
+
+# ---------- P2-7: load_progress 类型校验 ----------
+
+def test_load_progress_with_non_dict_json_returns_default(tmp_path):
+    """P2-7: progress.json 被篡改为 JSON 数组时应返回默认值而非崩溃。
+
+    场景：用户或外部工具将 progress.json 内容改为 `[1, 2, 3]`，
+    load_progress 应识别为损坏并返回默认 dict，避免 AppState 崩溃。
+    """
+    user_data_dir = tmp_path / 'data'
+    user_data_dir.mkdir()
+    (user_data_dir / 'progress.json').write_text('[1, 2, 3]', encoding='utf-8')
+
+    dm = DataManager(base_dir=str(tmp_path))
+    progress = dm.load_progress()
+
+    # 应返回默认 dict 结构
+    assert isinstance(progress, dict)
+    assert 'wrong_questions' in progress
+    assert 'practice_stats' in progress
+
+
+def test_load_progress_with_string_json_returns_default(tmp_path):
+    """P2-7: progress.json 为 JSON 字符串时应返回默认值。"""
+    user_data_dir = tmp_path / 'data'
+    user_data_dir.mkdir()
+    (user_data_dir / 'progress.json').write_text('"corrupted"', encoding='utf-8')
+
+    dm = DataManager(base_dir=str(tmp_path))
+    progress = dm.load_progress()
+
+    assert isinstance(progress, dict)
+    assert 'wrong_questions' in progress
+
+
+def test_load_progress_with_valid_dict_loads_normally(tmp_path):
+    """P2-7: 正常的 dict 结构 progress.json 应正常加载。"""
+    user_data_dir = tmp_path / 'data'
+    user_data_dir.mkdir()
+    valid_progress = {
+        'wrong_questions': [10, 20],
+        'practice_stats': {'correct': 5, 'wrong': 3, 'total': 8},
+        'exam_history': [],
+        'favorites': [10],
+    }
+    (user_data_dir / 'progress.json').write_text(
+        json.dumps(valid_progress, ensure_ascii=False), encoding='utf-8'
+    )
+
+    dm = DataManager(base_dir=str(tmp_path))
+    progress = dm.load_progress()
+
+    assert progress['wrong_questions'] == [10, 20]
+    assert progress['practice_stats']['correct'] == 5

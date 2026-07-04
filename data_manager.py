@@ -265,7 +265,13 @@ class DataManager:
         if os.path.exists(self.progress_file):
             try:
                 with open(self.progress_file, "r", encoding="utf-8") as f:
-                    return cast(dict[str, Any], json.load(f))
+                    data = json.load(f)
+                # P2-7: 校验根节点为 dict，避免被篡改为 list/str 后 AppState 崩溃
+                if not isinstance(data, dict):
+                    raise json.JSONDecodeError(
+                        f"进度文件根节点应为对象，实际为 {type(data).__name__}", "", 0
+                    )
+                return cast(dict[str, Any], data)
             except json.JSONDecodeError as e:
                 log_error(logger, "进度文件损坏，已备份", exc=e, progress_file=self.progress_file)
                 self._backup_corrupt_progress()
@@ -280,7 +286,13 @@ class DataManager:
             try:
                 os.replace(bak_file, self.progress_file)
                 with open(self.progress_file, "r", encoding="utf-8") as f:
-                    return cast(dict[str, Any], json.load(f))
+                    data = json.load(f)
+                # P2-7: 同样校验 .bak 恢复的数据
+                if not isinstance(data, dict):
+                    raise json.JSONDecodeError(
+                        f"备份文件根节点应为对象，实际为 {type(data).__name__}", "", 0
+                    )
+                return cast(dict[str, Any], data)
             except (OSError, json.JSONDecodeError) as e:
                 logger.warning("从 .bak 恢复失败: %s", e)
 
