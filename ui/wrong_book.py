@@ -202,7 +202,12 @@ class WrongBook(BaseMode):
             return
 
         item = self.tree.item(selection[0])
-        q_num = item["values"][0]
+        # P2-5: Treeview values 跨平台类型不一致（Windows str, macOS/Linux int），
+        # 显式转换为 int，避免 _wrong_by_number.get(q_num) 类型不匹配返回 None
+        try:
+            q_num = int(item["values"][0])
+        except (ValueError, IndexError, TypeError):
+            return
 
         # P1-8: O(1) dict 查找替代线性扫描
         question = self._wrong_by_number.get(q_num)
