@@ -12,7 +12,7 @@ correct / wrong / revealed（正确答案高亮但用户未选）。
 """
 
 import tkinter as tk
-from typing import Callable
+from typing import Any, Callable
 
 from .theme import theme, font_ui, font_ui_semibold
 
@@ -22,13 +22,13 @@ class OptionRow(tk.Frame):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Widget,
         letter: str,
         text: str = "",
         on_click: Callable[[str], None] | None = None,
         wraplength: int = 700,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(parent, bg=theme.BG_CARD, **kwargs)
 
         self.letter = letter
@@ -92,15 +92,15 @@ class OptionRow(tk.Frame):
             w.bind("<Button-1>", self._on_click)
 
     # -------------------------------------------------------------- 事件
-    def _on_enter(self, event=None) -> None:
+    def _on_enter(self, event: tk.Event | None = None) -> None:
         if not self.is_selected and self.is_correct is None:
             self._apply_hover_style()
 
-    def _on_leave(self, event=None) -> None:
+    def _on_leave(self, event: tk.Event | None = None) -> None:
         if not self.is_selected and self.is_correct is None:
             self._apply_idle_style()
 
-    def _on_click(self, event=None) -> None:
+    def _on_click(self, event: tk.Event | None = None) -> None:
         if self.on_click:
             self.on_click(self.letter)
 

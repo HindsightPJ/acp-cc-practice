@@ -23,7 +23,7 @@ class ExamMode(BaseMode):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         questions: list[Question],
         data_manager: DataManager | None,
         progress: Any | None,
@@ -41,7 +41,7 @@ class ExamMode(BaseMode):
         self._setup_mode_ui()
         self._bind_keyboard()
 
-    def _on_key_press(self, event):
+    def _on_key_press(self, event: tk.Event) -> str | None:
         """键盘分发协议：选项选择走基类统一方法，导航/标记委托 panel。
 
         考试模式语义：可改答案（is_answered_check 恒 False），Enter 无提交
@@ -71,7 +71,7 @@ class ExamMode(BaseMode):
     # 设置卡片 UI
     # ------------------------------------------------------------------
 
-    def _setup_mode_ui(self):
+    def _setup_mode_ui(self) -> None:
         self.configure(style="TFrame")
 
         settings_card, s_inner = create_card(self, inner_padx=24, inner_pady=20)

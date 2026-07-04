@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from typing import Any
+from typing import Any, Callable
 from abc import ABC, abstractmethod
 
 from quiz_engine import QuizEngine
@@ -25,11 +25,11 @@ class BaseMode(ABC, ttk.Frame):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         questions: list[Question],
         data_manager: DataManager | None,
         progress: Any | None,
-    ):
+    ) -> None:
         super().__init__(parent)
         self.questions: list[Question] = questions
         self.data_manager = data_manager
@@ -53,7 +53,7 @@ class BaseMode(ABC, ttk.Frame):
         """返回应用状态对象。"""
         return self._state
 
-    def _add_after_job(self, job_id) -> None:
+    def _add_after_job(self, job_id: str) -> None:
         """添加非保存类 after 作业并跟踪"""
         self._after_jobs.append(job_id)
 
@@ -136,7 +136,7 @@ class BaseMode(ABC, ttk.Frame):
         self.bind("<Key>", self._on_key_press)
         self.bind("<Button-1>", self._on_global_click)
 
-    def _on_global_click(self, event) -> None:
+    def _on_global_click(self, event: tk.Event) -> None:
         """点击模式空白区域时设置焦点到模式容器。
 
         仅当点击目标是模式容器本身（而非子控件）时才抢焦点，避免用户
@@ -163,10 +163,10 @@ class BaseMode(ABC, ttk.Frame):
 
     def _handle_option_key_press(
         self,
-        event,
-        on_select,
-        on_submit,
-        is_answered_check,
+        event: tk.Event,
+        on_select: Callable[[str], None],
+        on_submit: Callable[[], None],
+        is_answered_check: Callable[[], bool],
         engine: QuizEngine | None = None,
     ) -> str | None:
         """通用的选项选择键盘处理 - 处理 A-F、1-6、Enter 按键。
@@ -217,7 +217,7 @@ class BaseMode(ABC, ttk.Frame):
 
         return None
 
-    def _on_key_press(self, event):
+    def _on_key_press(self, event: tk.Event) -> str | None:
         """键盘事件处理 - 子类可覆盖。
 
         导航键（Left/Right）的默认实现映射到 prev_question/next_question。

@@ -119,7 +119,7 @@ def _load_app_data_async(
         result_queue.put(LoadFailure(f"加载失败: {e}", "unknown"))
 
 
-def main():
+def main() -> None:
     base_dir = _resolve_base_dir()
     user_data_dir = _resolve_user_data_dir()
     _setup_logging(user_data_dir)

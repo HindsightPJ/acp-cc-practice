@@ -17,8 +17,8 @@ class Header(tk.Frame):
 
     def __init__(
         self,
-        parent,
-        license_status=None,
+        parent: tk.Misc,
+        license_status: LicenseStatus | None = None,
         total_count: int = 0,
         trial_count: int = 0,
         on_activate_click: Callable[[], None] | None = None,
@@ -117,7 +117,10 @@ class Header(tk.Frame):
         )
 
     def set_license_status(
-        self, license_status, total_count: int | None = None, trial_count: int | None = None
+        self,
+        license_status: LicenseStatus | None,
+        total_count: int | None = None,
+        trial_count: int | None = None,
     ) -> None:
         """更新授权状态显示。
 

@@ -1,17 +1,17 @@
 import platform
 import tkinter as tk
 from tkinter import font as tkfont
-from typing import cast
+from typing import Any, Callable, cast
 
 
-def _list_system_fonts():
+def _list_system_fonts() -> set[str]:
     """查询系统真实可用字体集合。
 
     复用已有 Tk root（若存在），避免创建多余 root 导致 Tcl 状态冲突。
     无头环境或无 root 时返回空集合，由 fallback 兜底。
     """
     try:
-        root = tk._default_root
+        root = getattr(tk, "_default_root", None)
         if root is not None:
             return set(tkfont.families(root))
         return set()
@@ -24,7 +24,7 @@ _AVAILABLE_FONTS = None
 _FONTS_CACHE = None
 
 
-def _get_fonts():
+def _get_fonts() -> dict[str, str]:
     """懒加载字体配置：首次调用时检测系统字体，避免模块导入时创建 Tk root。"""
     global _FONTS_CACHE
     if _FONTS_CACHE is None:
@@ -32,7 +32,7 @@ def _get_fonts():
     return _FONTS_CACHE
 
 
-def _detect_fonts_impl():
+def _detect_fonts_impl() -> dict[str, str]:
     """Glassmorphism 极简风字体栈：Inter 优先，fallback 到系统现代字体。
 
     Inter 是 Google 免费字体，粗细对比鲜明，是现代 UI 设计的首选。
@@ -46,7 +46,7 @@ def _detect_fonts_impl():
     system = platform.system()
     available = _AVAILABLE_FONTS
 
-    def _pick(preferred, fallback):
+    def _pick(preferred: list[str], fallback: str) -> str:
         # 从优先级列表里挑第一个系统真实安装的字体
         for name in preferred:
             if name in available:
@@ -241,7 +241,7 @@ TAB_ACTIVE_BORDER = "#2563eb"
 TAB_INACTIVE_FG = "#8e8e93"
 
 
-def font_ui(size=11, bold=False):
+def font_ui(size: int = 11, bold: bool = False) -> tuple[str, int, str] | tuple[str, int]:
     """正文/UI 字体。极简风默认 regular，必要时显式 bold。"""
     name = _get_fonts()["ui"]
     if bold:
@@ -249,21 +249,21 @@ def font_ui(size=11, bold=False):
     return (name, size)
 
 
-def font_ui_semibold(size=11):
+def font_ui_semibold(size: int = 11) -> tuple[str, int, str]:
     """标签/按钮的次级强调字重（Tkinter 仅支持 bold，故复用）。"""
     return (_get_fonts()["ui"], size, "bold")
 
 
-def font_emoji(size=14):
+def font_emoji(size: int = 14) -> tuple[str, int]:
     return (_get_fonts()["emoji"], size)
 
 
-def font_mono(size=12):
+def font_mono(size: int = 12) -> tuple[str, int]:
     """计时器/数字数据用等宽，避免布局漂移。"""
     return (_get_fonts()["mono"], size)
 
 
-def font_display(size=16, bold=True):
+def font_display(size: int = 16, bold: bool = True) -> tuple[str, int, str] | tuple[str, int]:
     """标题字体——使用 display 字族，字号偏大。"""
     if bold:
         return (_get_fonts()["display"], size, "bold")
@@ -276,15 +276,15 @@ def font_display(size=16, bold=True):
 
 
 def create_primary_button(
-    parent,
-    text="",
-    command=None,
-    bg_color=None,
-    active_bg=None,
-    width=0,
-    padx=16,
-    pady=6,
-):
+    parent: tk.Misc,
+    text: str = "",
+    command: Callable[[], None] | None = None,
+    bg_color: str | None = None,
+    active_bg: str | None = None,
+    width: int = 0,
+    padx: int = 16,
+    pady: int = 6,
+) -> tk.Button:
     """创建主按钮（白字 + 强调色底，默认教育蓝）。
 
     bg_color 可替换为 RED / GREEN / PURPLE 等语义色，用于交卷、标记等特殊场景。
@@ -294,7 +294,7 @@ def create_primary_button(
     btn = tk.Button(
         parent,
         text=text,
-        command=command,
+        command=cast(str | Callable[[], Any], command),
         font=font_ui_semibold(11),
         fg="#ffffff",
         bg=bg,
@@ -307,10 +307,10 @@ def create_primary_button(
         cursor="hand2",
     )
 
-    def on_enter(e):
+    def on_enter(e: tk.Event) -> None:
         btn.configure(bg=active)
 
-    def on_leave(e):
+    def on_leave(e: tk.Event) -> None:
         btn.configure(bg=bg)
 
     btn.bind("<Enter>", on_enter)
@@ -319,19 +319,19 @@ def create_primary_button(
 
 
 def create_normal_button(
-    parent,
-    text="",
-    command=None,
-    font_size=10,
-    padx=12,
-    pady=5,
-    width=0,
-):
+    parent: tk.Misc,
+    text: str = "",
+    command: Callable[[], None] | None = None,
+    font_size: int = 10,
+    padx: int = 12,
+    pady: int = 5,
+    width: int = 0,
+) -> tk.Button:
     """创建普通按钮（深色字 + 白底，轻量视觉）。"""
     btn = tk.Button(
         parent,
         text=text,
-        command=command,
+        command=cast(str | Callable[[], Any], command),
         font=font_ui(font_size),
         fg=BTN_NORMAL_FG,
         bg=BTN_NORMAL,
@@ -344,10 +344,10 @@ def create_normal_button(
         cursor="hand2",
     )
 
-    def on_enter(e):
+    def on_enter(e: tk.Event) -> None:
         btn.configure(bg=BTN_NORMAL_HOVER)
 
-    def on_leave(e):
+    def on_leave(e: tk.Event) -> None:
         btn.configure(bg=BTN_NORMAL)
 
     btn.bind("<Enter>", on_enter)
@@ -355,7 +355,9 @@ def create_normal_button(
     return btn
 
 
-def create_card(parent, inner_padx=20, inner_pady=16):
+def create_card(
+    parent: tk.Misc, inner_padx: int = 20, inner_pady: int = 16
+) -> tuple[tk.Frame, tk.Frame]:
     """创建带边框的卡片容器，返回 (card, inner)。
 
     card 是外层边框 Frame（未 pack），inner 是内层内容 Frame（已设置 padding）。
@@ -385,7 +387,7 @@ class Theme:
         except KeyError:
             raise AttributeError(name)
 
-    def __dir__(self):
+    def __dir__(self) -> list[str]:
         return sorted(
             name
             for name in globals()

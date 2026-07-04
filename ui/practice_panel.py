@@ -36,7 +36,7 @@ class PracticePanel(tk.Frame):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         session: PracticeSession,
         on_finish: Callable[[], None] | None = None,
         on_submit: Callable[[], None] | None = None,
@@ -296,7 +296,7 @@ class PracticePanel(tk.Frame):
 
         self._update_stats()
 
-    def _on_configure(self, event) -> None:
+    def _on_configure(self, event: tk.Event) -> None:
         """窗口 resize 时更新缓存宽度、进度条宽度、选项文本换行宽度。"""
         self._cached_width = event.width
         # resize 时立即用新宽度重绘进度条（无需等下次切题）
@@ -322,7 +322,7 @@ class PracticePanel(tk.Frame):
     # 键盘支持
     # ------------------------------------------------------------------
 
-    def handle_key_press(self, event) -> str | None:
+    def handle_key_press(self, event: tk.Event) -> str | None:
         """处理键盘事件。
 
         Returns:

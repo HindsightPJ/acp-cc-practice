@@ -20,8 +20,8 @@ class Sidebar(tk.Frame):
 
     def __init__(
         self,
-        parent,
-        nav_defs: list[tuple],
+        parent: tk.Misc,
+        nav_defs: list[tuple[str, str, Callable[[], None] | None]],
         on_nav_clicked: Callable[[str], None] | None = None,
     ) -> None:
         """初始化侧边栏。
@@ -41,7 +41,7 @@ class Sidebar(tk.Frame):
         self.wrong_indicator: tk.Label | None = None
         self._build()
 
-    def _build(self):
+    def _build(self) -> None:
         # 品牌
         brand = tk.Frame(self, bg=theme.INK)
         brand.pack(fill=tk.X, padx=20, pady=(20, 16))
@@ -81,7 +81,13 @@ class Sidebar(tk.Frame):
         )
         self.wrong_indicator.pack(pady=(0, 20))
 
-    def _build_nav_item(self, parent, tab_id: str, tab_text: str, command) -> None:
+    def _build_nav_item(
+        self,
+        parent: tk.Misc,
+        tab_id: str,
+        tab_text: str,
+        command: Callable[[], None] | None,
+    ) -> None:
         item = tk.Frame(parent, bg=theme.INK, cursor="hand2")
         item.pack(fill=tk.X, pady=2)
 
@@ -166,7 +172,7 @@ class Sidebar(tk.Frame):
         if self.mastery_ring is not None:
             self.mastery_ring.set_mastery(mastery)
 
-    def set_wrong_indicator(self, text: str, fg=None) -> None:
+    def set_wrong_indicator(self, text: str, fg: str | None = None) -> None:
         """更新错题指示器文本与颜色。"""
         if self.wrong_indicator is not None:
             kwargs = {"text": text}

@@ -17,7 +17,7 @@ class ModeToolbar(tk.Frame):
     调用方负责创建和 pack 子控件。
     """
 
-    def __init__(self, parent) -> None:
+    def __init__(self, parent: tk.Misc) -> None:
         super().__init__(parent, bg=theme.BG_PAGE)
         self.pack(fill=tk.X, pady=(0, 12))
 

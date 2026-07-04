@@ -43,7 +43,7 @@ class ExamPanel(tk.Frame):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         engine: QuizEngine,
         exam_session: ExamSession,
         on_prev: Callable[[], None],
@@ -281,7 +281,7 @@ class ExamPanel(tk.Frame):
         self.nav_frame = tk.Frame(self.nav_canvas, bg=theme.BG_CARD)
         self.nav_canvas.create_window((0, 0), window=self.nav_frame, anchor=tk.NW)
 
-    def _on_configure(self, event) -> None:
+    def _on_configure(self, event: tk.Event) -> None:
         """窗口 resize 时同步更新选项文本换行宽度，避免内容被截断。"""
         new_wrap = max(200, event.width - 140)
         for item in self.exam_option_cards:
@@ -466,7 +466,7 @@ class ExamPanel(tk.Frame):
     # 键盘处理
     # ------------------------------------------------------------------
 
-    def handle_key_press(self, event) -> str | None:
+    def handle_key_press(self, event: tk.Event) -> str | None:
         """处理考试导航与标记键（选项选择由 ExamMode 经基类统一处理）。
 
         Returns:

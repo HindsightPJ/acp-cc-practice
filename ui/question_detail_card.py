@@ -54,7 +54,7 @@ class QuestionDetailCard(tk.Frame):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         on_option_click: Callable[[str], None] | None = None,
         question_height: int = 4,
         option_wraplength: int = 700,
@@ -178,7 +178,7 @@ class QuestionDetailCard(tk.Frame):
             exp_scrollbar.config(command=self.explanation_text.yview)
             self.explanation_text.config(state=tk.DISABLED)
 
-    def _on_configure(self, event) -> None:
+    def _on_configure(self, event: tk.Event) -> None:
         """窗口 resize 时同步更新选项文本换行宽度，避免内容被截断。"""
         new_wrap = max(200, event.width - 100)
         for card in self.option_cards:

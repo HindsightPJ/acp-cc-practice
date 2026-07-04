@@ -13,7 +13,7 @@ class ExamReportDialog(BaseDialog):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         report: dict[str, Any],
         on_add_wrong: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:

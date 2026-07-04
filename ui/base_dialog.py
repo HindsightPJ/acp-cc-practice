@@ -20,7 +20,7 @@ class BaseDialog:
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         title: str,
         size: str = "500x400",
         center: bool = True,

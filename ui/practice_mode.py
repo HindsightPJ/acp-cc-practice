@@ -19,7 +19,7 @@ class PracticeMode(BaseMode):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         questions: list[Question],
         data_manager: DataManager | None,
         progress: Any | None,
@@ -34,7 +34,7 @@ class PracticeMode(BaseMode):
         self.start_new_session()
         self._bind_keyboard()
 
-    def _setup_mode_ui(self):
+    def _setup_mode_ui(self) -> None:
         """构建练习模式 UI。"""
         self.configure(style="TFrame")
 
@@ -70,11 +70,11 @@ class PracticeMode(BaseMode):
         self.panel = PracticePanel(
             self,
             session=self.session,
-            on_finish=lambda: messagebox.showinfo("提示", "已完成所有题目！"),
+            on_finish=lambda: (messagebox.showinfo("提示", "已完成所有题目！"), None)[1],
         )
         self.panel.pack(fill=tk.BOTH, expand=True)
 
-    def _on_key_press(self, event):
+    def _on_key_press(self, event: tk.Event) -> str | None:
         # 先尝试通用的选项键盘处理
         result = self._handle_option_key_press(
             event,

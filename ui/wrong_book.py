@@ -17,7 +17,7 @@ from .mode_toolbar import ModeToolbar
 class WrongBook(BaseMode):
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         questions: list[Question],
         data_manager: DataManager | None,
         progress: Any | None,
@@ -68,7 +68,7 @@ class WrongBook(BaseMode):
         wrong_nums = set(self.app_state.get_wrong_questions())
         return [q for q in self.questions if q.number in wrong_nums]
 
-    def _setup_mode_ui(self):
+    def _setup_mode_ui(self) -> None:
         self.configure(style="TFrame")
 
         toolbar = ModeToolbar(self)
@@ -171,7 +171,7 @@ class WrongBook(BaseMode):
 
         self.tree.bind("<Double-1>", self.view_question_detail)
 
-    def _populate_tree(self):
+    def _populate_tree(self) -> None:
         """全量重建 Treeview（初始化/清空时使用）。"""
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -209,7 +209,7 @@ class WrongBook(BaseMode):
         self._wrong_by_number = {q.number: q for q in self.wrong_questions}
         self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
 
-    def _update_empty_state(self):
+    def _update_empty_state(self) -> None:
         """错题为空时显示空状态视图，否则显示题目列表。"""
         if not hasattr(self, "list_inner"):
             return
@@ -220,7 +220,7 @@ class WrongBook(BaseMode):
             self.empty_state.pack_forget()
             self.list_inner.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
 
-    def view_question_detail(self, event) -> None:
+    def view_question_detail(self, event: tk.Event) -> None:
         selection = self.tree.selection()
         if not selection:
             return
@@ -394,29 +394,30 @@ class WrongBook(BaseMode):
         self._bind_practice_keyboard(practice_window)
         self._practice_panel.load_current_question()
 
-    def _bind_practice_keyboard(self, window):
+    def _bind_practice_keyboard(self, window: tk.Toplevel) -> None:
         """绑定错题练习窗口的键盘事件。"""
         window.focus_set()
         window.bind("<Key>", self._on_practice_key_press)
         window.bind("<Button-1>", self._on_practice_global_click)
 
-    def _on_practice_global_click(self, event):
+    def _on_practice_global_click(self, event: tk.Event) -> None:
         """全局点击设置焦点到练习窗口。"""
         if self._practice_window is not None and self._practice_window.winfo_exists():
             self._practice_window.focus_set()
 
-    def _on_practice_key_press(self, event):
+    def _on_practice_key_press(self, event: tk.Event) -> str | None:
         """错题练习键盘事件处理 - 复用 PracticePanel 的键盘处理。"""
         # P2-12: 入口同时校验 _practice_session，避免 lambda 内访问
         # self._practice_session.is_answered 时因 session 为 None 抛 AttributeError
-        if not self._practice_panel or not self.practice_engine or not self._practice_session:
-            return
+        session = self._practice_session
+        if not self._practice_panel or not self.practice_engine or not session:
+            return None
 
         result = self._handle_option_key_press(
             event,
             on_select=self._practice_panel.handle_option_click,
             on_submit=self._practice_panel.submit_answer,
-            is_answered_check=lambda: self._practice_session.is_answered,
+            is_answered_check=lambda: session.is_answered,
             engine=self.practice_engine,
         )
 
@@ -426,7 +427,7 @@ class WrongBook(BaseMode):
         # 方向键导航交给面板
         return self._practice_panel.handle_key_press(event)
 
-    def _show_practice_result(self):
+    def _show_practice_result(self) -> None:
         if not self._practice_session:
             return
 
@@ -479,7 +480,7 @@ class WrongBook(BaseMode):
         ):
             self._close_practice_window()
 
-    def _close_practice_window(self):
+    def _close_practice_window(self) -> None:
         """关闭错题练习子窗口。"""
         if self._practice_window is not None:
             try:

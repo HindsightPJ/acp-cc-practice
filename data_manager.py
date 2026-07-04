@@ -29,7 +29,7 @@ class DataSaveError(Exception):
 # ---------- parse_docx 辅助函数（TD-11: 从 parse_docx 抽取）----------
 
 
-def _parse_question_header(text: str):
+def _parse_question_header(text: str) -> tuple[int, str] | None:
     """从题目行解析 (number, content)，非题目行返回 None。"""
     if not re.match(r"^\d+[\.\、．]", text):
         return None
@@ -44,7 +44,7 @@ def _is_option_line(text: str) -> bool:
     return bool(re.match(r"^[•·]?\s*[A-Fa-f][\.\、\.]", text))
 
 
-def _parse_option(text: str):
+def _parse_option(text: str) -> tuple[str, str] | None:
     """从选项行解析 (letter, text)，解析失败返回 None。"""
     match = re.match(r"^[•·]\s*([A-Fa-f])[\.\、\.]\s*(.+)$", text)
     if not match:
@@ -59,7 +59,7 @@ def _is_answer_line(text: str) -> bool:
     return "正确答案" in text or "答案" in text
 
 
-def _parse_answer(text: str):
+def _parse_answer(text: str) -> str | None:
     """从答案行解析 answer 字符串（如 'ABC'），解析失败返回 None。"""
     answer_match = re.search(r"([A-Fa-f]+)", text)
     if answer_match:
@@ -72,7 +72,7 @@ def _is_explanation_line(text: str) -> bool:
     return "解析" in text or "解释" in text
 
 
-def _parse_explanation(text: str):
+def _parse_explanation(text: str) -> str | None:
     """从解析行解析 explanation，解析失败返回 None。"""
     explanation_match = re.match(r"(?:解析|解释)[：:]\s*(.+)$", text)
     if explanation_match:

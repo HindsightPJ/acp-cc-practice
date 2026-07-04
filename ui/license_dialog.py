@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Callable
 
-from license import LicenseStatus
+from license import LicenseError, LicenseStatus
 from license.verifier import verify, LicenseVerifier
 from .theme import theme, font_ui, font_ui_semibold, font_mono
 from .base_dialog import BaseDialog
@@ -21,7 +21,7 @@ _LICENSE_ERROR_MESSAGES = {
 }
 
 
-def _get_license_error_message(err) -> str:
+def _get_license_error_message(err: LicenseError | None) -> str:
     """根据 LicenseError 枚举返回用户可读消息。"""
     err_key = err.value if err else None
     return _LICENSE_ERROR_MESSAGES.get(err_key, "授权失败。")
@@ -58,7 +58,7 @@ class LicenseDialog(BaseDialog):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         license_dir: str,
         verify_and_save: Callable[[str, str, str | None], tuple[bool, str, bool]] | None = None,
     ) -> None:

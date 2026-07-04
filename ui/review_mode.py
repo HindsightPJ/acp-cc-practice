@@ -18,7 +18,7 @@ class ReviewMode(BaseMode):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Misc,
         questions: list[Question],
         data_manager: DataManager | None = None,
         progress: Any | None = None,
@@ -40,7 +40,7 @@ class ReviewMode(BaseMode):
         self.load_question()
         self._bind_keyboard()
 
-    def _setup_mode_ui(self):
+    def _setup_mode_ui(self) -> None:
         self.configure(style="TFrame")
 
         toolbar = ModeToolbar(self)
@@ -176,7 +176,7 @@ class ReviewMode(BaseMode):
         )
         self.favorite_btn.pack(side=tk.LEFT)
 
-    def _on_key_press(self, event):
+    def _on_key_press(self, event: tk.Event) -> str | None:
         if self._is_input_focused():
             return None
 
@@ -189,7 +189,7 @@ class ReviewMode(BaseMode):
         # 导航键（Left/Right）交给基类处理（TD-06: 复用 super() 避免重复）
         return super()._on_key_press(event)
 
-    def _toggle_auto_show(self):
+    def _toggle_auto_show(self) -> None:
         self.auto_show_answer = self.auto_var.get()
         if self.auto_show_answer and not self.showing_answer:
             self.toggle_answer()
@@ -359,7 +359,7 @@ class ReviewMode(BaseMode):
                 text="只看收藏", fg=theme.BTN_NORMAL_FG, bg=theme.BTN_NORMAL
             )
 
-    def _sync_favorite_button(self):
+    def _sync_favorite_button(self) -> None:
         """根据当前题是否已收藏，更新按钮文字与配色作为静默反馈。"""
         if not self.engine:
             return

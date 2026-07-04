@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Any
+from typing import Any, Callable
 
 from .theme import theme
 
@@ -12,6 +12,8 @@ from .sidebar import Sidebar
 from .license_dialog import LicenseDialog
 from .header import Header
 from app_state import AppState
+from data_manager import DataManager
+from license import LicenseStatus
 from models import Question
 
 
@@ -19,8 +21,8 @@ class MainWindow(tk.Tk):
     def __init__(
         self,
         questions: list[Question],
-        data_manager,
-        license_status=None,
+        data_manager: DataManager,
+        license_status: LicenseStatus | None = None,
         meta: dict[str, Any] | None = None,
         license_dir: str | None = None,
     ) -> None:
@@ -40,7 +42,7 @@ class MainWindow(tk.Tk):
         # 若未传入，fallback 到 data_manager.data_dir（开发模式可用）
         self.license_dir = license_dir or data_manager.data_dir
 
-        self.current_frame: tk.Frame | None = None
+        self.current_frame: tk.Widget | None = None
         self._active_nav = "practice"
         self.sidebar: Sidebar | None = None
 
@@ -63,7 +65,7 @@ class MainWindow(tk.Tk):
         body = tk.Frame(self, bg=theme.BG_PAGE)
         body.pack(fill=tk.BOTH, expand=True)
 
-        nav_defs = [
+        nav_defs: list[tuple[str, str, Callable[[], None] | None]] = [
             ("practice", "练习", self.show_practice_mode),
             ("exam", "考试", self.show_exam_mode),
             ("review", "背题", self.show_review_mode),
@@ -166,7 +168,7 @@ class MainWindow(tk.Tk):
         # P0-3: timer_running 为 True 表示考试进行中（开始按钮已禁用、计时器在跑）
         return bool(self.current_frame.timer_running)
 
-    def _switch_to(self, mode_title: str, factory) -> None:
+    def _switch_to(self, mode_title: str, factory: Callable[[], tk.Widget]) -> None:
         # P0-3: 考试进行中切 tab 会丢失 answers/marked/时间，先确认
         if self._is_exam_in_progress():
             if not messagebox.askyesno(
@@ -181,8 +183,9 @@ class MainWindow(tk.Tk):
         self.clear_content()
         self._active_nav = mode_title
         self._update_nav_highlight()
-        self.current_frame = factory()
-        self.current_frame.pack(fill=tk.BOTH, expand=True)
+        new_frame = factory()
+        self.current_frame = new_frame
+        new_frame.pack(fill=tk.BOTH, expand=True)
         # 切 tab 后刷新就绪度环（进度可能因上次练习更新）
         self._refresh_mastery()
 
