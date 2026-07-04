@@ -149,6 +149,12 @@ def test_sync_option_selection_updates_ui(panel, engine):
     assert panel.exam_option_cards[1]['row'].is_selected is False
 
 
+def test_sync_option_selection_handles_none_engine(panel):
+    """engine 为 None 时 sync_option_selection 不崩溃。"""
+    panel.engine = None
+    panel.sync_option_selection('AC')  # 不应抛出异常
+
+
 # ---------- 键盘与交互 ----------
 
 def test_handle_key_press_left_calls_prev(panel):

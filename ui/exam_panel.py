@@ -428,8 +428,10 @@ class ExamPanel(tk.Frame):
         Args:
             selected: 已选字母排序串，如 "AC"
         """
+        if self.engine is None:
+            return
         current = self.engine.get_current_question()
-        if not self.engine or not current:
+        if not current:
             return
 
         options_count = len(current.options)
