@@ -279,6 +279,11 @@ class ExamMode(BaseMode):
 
     def start_exam(self) -> None:
         self._cancel_all_after_jobs()
+        # P2-2: 销毁旧 panel，避免重复开考时 widget 泄漏（旧 ExamPanel 及其
+        # OptionRow/nav_buttons 未 destroy 会累积内存与悬挂 after 回调）
+        if self.panel is not None:
+            self.panel.destroy()
+            self.panel = None
         try:
             question_count = int(self.question_count_var.get())
             duration = int(self.duration_var.get())
