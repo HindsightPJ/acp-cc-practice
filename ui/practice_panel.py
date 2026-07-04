@@ -56,6 +56,9 @@ class PracticePanel(tk.Frame):
 
         self.option_cards: list[OptionRow] = []
         self._pending_save = False
+        # P1-5: 缓存容器宽度，避免切题时调用 update_idletasks 阻塞主线程
+        self._cached_width: int = 0
+        self.bind("<Configure>", self._on_configure)
 
         self._build_ui()
 
@@ -308,13 +311,25 @@ class PracticePanel(tk.Frame):
 
         if self.progress_value is not None and self.progress_bar_fill is not None:
             self.progress_value.set(progress["percentage"])
-            self.update_idletasks()
-            container_width = self.winfo_width()
+            # P1-5: 用缓存宽度避免 update_idletasks 阻塞切题；首次未布局时 fallback
+            container_width = self._cached_width
+            if container_width <= 0:
+                self.update_idletasks()
+                container_width = self.winfo_width()
             if container_width > 0:
                 bar_width = int(container_width * (progress["percentage"] / 100))
                 self.progress_bar_fill.configure(width=max(bar_width, 0))
 
         self._update_stats()
+
+    def _on_configure(self, event) -> None:
+        """窗口 resize 时更新缓存宽度，并同步刷新进度条宽度。"""
+        self._cached_width = event.width
+        # resize 时立即用新宽度重绘进度条（无需等下次切题）
+        if self.progress_bar_fill is not None and self.progress_value is not None:
+            percentage = self.progress_value.get()
+            bar_width = int(self._cached_width * (percentage / 100))
+            self.progress_bar_fill.configure(width=max(bar_width, 0))
 
     def _update_stats(self) -> None:
         """更新统计标签。"""
