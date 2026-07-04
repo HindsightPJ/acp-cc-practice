@@ -11,6 +11,7 @@ from .base_mode import BaseMode
 from .practice_session import PracticeSession
 from .practice_panel import PracticePanel
 from .question_detail_card import QuestionDetailCard
+from .mode_toolbar import ModeToolbar
 
 
 class WrongBook(BaseMode):
@@ -35,6 +36,8 @@ class WrongBook(BaseMode):
         self._detail_card: QuestionDetailCard | None = None
         self._detail_header_label: tk.Label | None = None
         self._current_detail_q_num: int | None = None
+        # P2-PERF: 题号→Treeview item id，支持增量删除避免全量重建
+        self._tree_item_by_number: dict[int, str] = {}
 
         self._setup_mode_ui()
 
@@ -68,14 +71,10 @@ class WrongBook(BaseMode):
     def _setup_mode_ui(self):
         self.configure(style="TFrame")
 
-        toolbar = tk.Frame(self, bg=theme.BG_PAGE)
-        toolbar.pack(fill=tk.X, pady=(0, 12))
-
-        toolbar_left = tk.Frame(toolbar, bg=theme.BG_PAGE)
-        toolbar_left.pack(side=tk.LEFT)
+        toolbar = ModeToolbar(self)
 
         self.count_label = tk.Label(
-            toolbar_left,
+            toolbar.left,
             text=f"共 {len(self.wrong_questions)} 道错题",
             font=font_ui(11),
             fg=theme.RED,
@@ -83,11 +82,8 @@ class WrongBook(BaseMode):
         )
         self.count_label.pack(side=tk.LEFT)
 
-        toolbar_right = tk.Frame(toolbar, bg=theme.BG_PAGE)
-        toolbar_right.pack(side=tk.RIGHT)
-
         practice_btn = create_primary_button(
-            toolbar_right,
+            toolbar.right,
             text="练习错题",
             command=self.start_practice_wrong,
             padx=16,
@@ -96,7 +92,7 @@ class WrongBook(BaseMode):
         practice_btn.pack(side=tk.LEFT, padx=(0, 8))
 
         clear_btn = create_normal_button(
-            toolbar_right,
+            toolbar.right,
             text="清空",
             command=self.clear_all_wrong,
             pady=4,
@@ -176,19 +172,47 @@ class WrongBook(BaseMode):
         self.tree.bind("<Double-1>", self.view_question_detail)
 
     def _populate_tree(self):
+        """全量重建 Treeview（初始化/清空时使用）。"""
         for item in self.tree.get_children():
             self.tree.delete(item)
+        self._tree_item_by_number.clear()
 
         for q in self.wrong_questions:
             content = q.content
             if len(content) > 60:
                 content = content[:60] + "..."
-            self.tree.insert("", tk.END, values=(q.number, content, q.answer or "?"))
+            item_id = self.tree.insert("", tk.END, values=(q.number, content, q.answer or "?"))
+            self._tree_item_by_number[q.number] = item_id
 
         self._update_empty_state()
 
+    def _remove_tree_items(self, q_nums: set[int]) -> None:
+        """增量删除指定题号对应的 Treeview 行（避免全量重建）。
+
+        若 Treeview 尚未初始化（如测试中直接构造对象），回退到全量重建。
+        """
+        if not hasattr(self, "_tree_item_by_number") or not self._tree_item_by_number:
+            self._populate_tree()
+            return
+
+        for q_num in q_nums:
+            item_id = self._tree_item_by_number.pop(q_num, None)
+            if item_id is not None:
+                try:
+                    self.tree.delete(item_id)
+                except tk.TclError:
+                    pass
+
+    def _sync_tree_after_change(self) -> None:
+        """状态变更后同步 Treeview、索引和计数标签。"""
+        self.wrong_questions = self._get_wrong_questions_list()
+        self._wrong_by_number = {q.number: q for q in self.wrong_questions}
+        self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
+
     def _update_empty_state(self):
         """错题为空时显示空状态视图，否则显示题目列表。"""
+        if not hasattr(self, "list_inner"):
+            return
         if not self.wrong_questions:
             self.list_inner.pack_forget()
             self.empty_state.pack(fill=tk.BOTH, expand=True)
@@ -320,11 +344,10 @@ class WrongBook(BaseMode):
             # P2-4: 统一用 save_safe 提示保存失败
             save_ok = self.app_state.save_safe()
 
-            self.wrong_questions = self._get_wrong_questions_list()
-            # P1-8: 重建题号索引，保持与 wrong_questions 同步
-            self._wrong_by_number = {q.number: q for q in self.wrong_questions}
-            self._populate_tree()
-            self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
+            # P2-PERF: 增量删除该题，避免全量重建 Treeview
+            self._remove_tree_items({q_num})
+            self._sync_tree_after_change()
+            self._update_empty_state()
 
             self._close_detail_dialog()
             if save_ok:
@@ -350,15 +373,19 @@ class WrongBook(BaseMode):
         practice_window = tk.Toplevel(self)
         practice_window.title("错题专项练习")
         practice_window.geometry("850x700")
+        practice_window.minsize(700, 500)
         practice_window.configure(bg=theme.BG_PAGE)
         practice_window.transient(self.winfo_toplevel())
         practice_window.grab_set()
+        # P2-UX: 关闭练习窗口前确认，避免误操作丢失当前练习进度
+        practice_window.protocol("WM_DELETE_WINDOW", self._on_practice_window_close)
 
         self._practice_window = practice_window
         self._practice_panel = PracticePanel(
             practice_window,
             session=self._practice_session,
             on_finish=self._show_practice_result,
+            on_submit=practice_window.focus_set,
             show_progress_bar=False,
             show_prev_button=False,
         )
@@ -432,13 +459,25 @@ class WrongBook(BaseMode):
                     "错题本保存失败，请检查磁盘空间或文件权限。",
                     parent=self,
                 )
-            self.wrong_questions = self._get_wrong_questions_list()
-            # P1-8: 重建题号索引，保持与 wrong_questions 同步
-            self._wrong_by_number = {q.number: q for q in self.wrong_questions}
-            self._populate_tree()
-            self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
+            # P2-PERF: 增量删除答对的题目，避免全量重建 Treeview
+            self._remove_tree_items(correct_nums)
+            self._sync_tree_after_change()
+            self._update_empty_state()
 
         self._close_practice_window()
+
+    def _on_practice_window_close(self) -> None:
+        """用户点击窗口关闭按钮时的确认处理。"""
+        if self._practice_window is None or not self._practice_window.winfo_exists():
+            self._close_practice_window()
+            return
+
+        if messagebox.askyesno(
+            "确认关闭",
+            "关闭后将结束本次错题练习，是否继续？",
+            parent=self._practice_window,
+        ):
+            self._close_practice_window()
 
     def _close_practice_window(self):
         """关闭错题练习子窗口。"""
@@ -467,7 +506,7 @@ class WrongBook(BaseMode):
                 )
 
             self.wrong_questions = []
-            # P1-8: 清空索引
             self._wrong_by_number = {}
+            self._tree_item_by_number.clear()
             self._populate_tree()
             self.count_label.configure(text="共 0 道错题")

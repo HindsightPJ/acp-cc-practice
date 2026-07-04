@@ -14,7 +14,7 @@ from typing import Callable, cast
 from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button
 from .option_row import OptionRow
 from .practice_session import PracticeSession
-from .question_detail_card import QuestionDetailCard
+from .question_detail_card import QuestionDetailCard, get_question_type_style
 
 
 class PracticePanel(tk.Frame):
@@ -39,6 +39,7 @@ class PracticePanel(tk.Frame):
         parent,
         session: PracticeSession,
         on_finish: Callable[[], None] | None = None,
+        on_submit: Callable[[], None] | None = None,
         show_explanation: bool = True,
         show_progress_bar: bool = True,
         show_prev_button: bool = True,
@@ -48,6 +49,7 @@ class PracticePanel(tk.Frame):
         super().__init__(parent, bg=theme.BG_PAGE)
         self.session = session
         self.on_finish = on_finish
+        self.on_submit = on_submit
         self.show_explanation = show_explanation
         self.show_progress_bar = show_progress_bar
         self.show_prev_button = show_prev_button
@@ -55,7 +57,6 @@ class PracticePanel(tk.Frame):
         self.question_height = question_height
 
         self.option_cards: list[OptionRow] = []
-        self._pending_save = False
         # P1-5: 缓存容器宽度，避免切题时调用 update_idletasks 阻塞主线程
         self._cached_width: int = 0
         self.bind("<Configure>", self._on_configure)
@@ -181,33 +182,12 @@ class PracticePanel(tk.Frame):
                 messagebox.showinfo("提示", "已完成所有题目！")
             return
 
-        self.question_text.config(state=tk.NORMAL)
-        self.question_text.delete(1.0, tk.END)
-        self.question_text.insert(
-            tk.END, f"{question.number}. {question.content}"
-        )
-        self.question_text.config(state=tk.DISABLED)
+        # P3: 题干 + 选项 + 清空答案/解析状态由 QuestionDetailCard 统一渲染
+        self.detail_card.show_question(question)
 
         if self.type_label is not None:
-            if question.type == "multiple":
-                self.type_label.configure(text="多选题", fg=theme.YELLOW)
-            else:
-                self.type_label.configure(text="单选题", fg=theme.ACCENT)
-
-        options_count = len(question.options)
-        for i, card in enumerate(self.option_cards):
-            if i < options_count:
-                card.pack(fill=tk.X, pady=4)
-                card.update_text(question.options[i].text)
-                card.reset()
-            else:
-                card.pack_forget()
-
-        self.result_label.configure(text="提交答案后查看解析", fg=theme.TEXT_MUTED)
-        if self.explanation_text is not None:
-            self.explanation_text.config(state=tk.NORMAL)
-            self.explanation_text.delete(1.0, tk.END)
-            self.explanation_text.config(state=tk.DISABLED)
+            type_text, type_fg = get_question_type_style(question.type)
+            self.type_label.configure(text=type_text, fg=type_fg)
 
         self.session.reset_selection()
         self.submit_btn.configure(state=tk.NORMAL, bg=theme.BTN_PRIMARY, text="提交答案 (Enter)")
@@ -247,34 +227,28 @@ class PracticePanel(tk.Frame):
         if result is None:
             return
 
+        # P3: 答案标签、解析、选项高亮由 QuestionDetailCard 统一渲染
         if result["is_correct"]:
-            self.result_label.configure(text="回答正确", fg=theme.GREEN)
+            self.detail_card.set_answer_label("回答正确", fg=theme.GREEN)
         else:
-            self.result_label.configure(
-                text=f"回答错误，正确答案: {result['correct_answer']}", fg=theme.RED
+            self.detail_card.set_answer_label(
+                f"回答错误，正确答案: {result['correct_answer']}", fg=theme.RED
             )
 
-        if self.explanation_text is not None:
-            explanation = question.explanation or "暂无解析"
-            if len(explanation) < 5:
-                explanation = "暂无详细解析"
-            self.explanation_text.config(state=tk.NORMAL)
-            self.explanation_text.delete(1.0, tk.END)
-            self.explanation_text.insert(tk.END, explanation)
-            self.explanation_text.config(state=tk.DISABLED)
+        explanation = question.explanation or "暂无解析"
+        if len(explanation) < 5:
+            explanation = "暂无详细解析"
+        self.detail_card.set_explanation(explanation)
 
-        correct_answer = question.answer
-        selected_set = set(self.session.selected_answers)
-        correct_set = set(correct_answer)
-
-        for i, card in enumerate(self.option_cards):
-            letter = chr(ord("A") + i)
-            is_in_correct = letter in correct_set
-            is_in_selected = letter in selected_set
-            if is_in_correct or is_in_selected:
-                card.set_result(is_in_correct, is_in_selected)
+        self.detail_card.set_option_result(
+            question.answer, "".join(self.session.selected_answers)
+        )
 
         self.submit_btn.configure(state=tk.DISABLED, bg=theme.BTN_DISABLED, text="已提交")
+        # P2-UX: 提交后将焦点移回面板，确保方向键导航立即生效
+        self.focus_set()
+        if self.on_submit is not None:
+            self.on_submit()
         self._update_stats()
 
     def next_question(self) -> None:
@@ -323,13 +297,18 @@ class PracticePanel(tk.Frame):
         self._update_stats()
 
     def _on_configure(self, event) -> None:
-        """窗口 resize 时更新缓存宽度，并同步刷新进度条宽度。"""
+        """窗口 resize 时更新缓存宽度、进度条宽度、选项文本换行宽度。"""
         self._cached_width = event.width
         # resize 时立即用新宽度重绘进度条（无需等下次切题）
         if self.progress_bar_fill is not None and self.progress_value is not None:
             percentage = self.progress_value.get()
             bar_width = int(self._cached_width * (percentage / 100))
             self.progress_bar_fill.configure(width=max(bar_width, 0))
+
+        # P2-UX: 窗口缩放时同步更新选项文本换行宽度，避免内容被截断
+        new_wrap = max(200, event.width - 100)
+        for card in self.option_cards:
+            card.update_wraplength(new_wrap)
 
     def _update_stats(self) -> None:
         """更新统计标签。"""
@@ -354,7 +333,8 @@ class PracticePanel(tk.Frame):
         if event.keysym == "Right":
             self.next_question()
             return "break"
-        if event.keysym == "Left" and self.show_prev_button:
+        # P1-UX: show_prev_button 只控制按钮可见性，不影响键盘上一题
+        if event.keysym == "Left":
             self.prev_question()
             return "break"
         return None

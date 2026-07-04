@@ -10,6 +10,7 @@ from data_manager import DataManager
 from .base_mode import BaseMode
 from .practice_session import PracticeSession
 from .practice_panel import PracticePanel
+from .mode_toolbar import ModeToolbar
 
 
 class PracticeMode(BaseMode):
@@ -38,18 +39,11 @@ class PracticeMode(BaseMode):
         self.configure(style="TFrame")
 
         # 顶部工具栏（含随机出题、重新开始）
-        toolbar = tk.Frame(self, bg=theme.BG_PAGE)
-        toolbar.pack(fill=tk.X, pady=(0, 12))
-
-        toolbar_left = tk.Frame(toolbar, bg=theme.BG_PAGE)
-        toolbar_left.pack(side=tk.LEFT)
-
-        toolbar_right = tk.Frame(toolbar, bg=theme.BG_PAGE)
-        toolbar_right.pack(side=tk.RIGHT)
+        toolbar = ModeToolbar(self)
 
         self.shuffle_var = tk.BooleanVar(value=False)
         shuffle_check = tk.Checkbutton(
-            toolbar_right,
+            toolbar.right,
             text="随机出题",
             variable=self.shuffle_var,
             command=self.restart_session,
@@ -64,7 +58,7 @@ class PracticeMode(BaseMode):
         shuffle_check.pack(side=tk.LEFT, padx=(0, 8))
 
         restart_btn = create_normal_button(
-            toolbar_right,
+            toolbar.right,
             text="重新开始",
             command=self.restart_session,
             padx=12,
@@ -114,6 +108,8 @@ class PracticeMode(BaseMode):
     def submit_answer(self) -> None:
         """保留方法名以便外部调用，实际由 PracticePanel 负责提交。"""
         self.panel.submit_answer()
+        # P2-UX: 确保焦点回到模式容器，使方向键导航继续生效
+        self.focus_set()
         self._save_progress_delayed()
 
     def next_question(self) -> None:

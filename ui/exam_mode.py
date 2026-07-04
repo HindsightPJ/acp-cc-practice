@@ -47,6 +47,8 @@ class ExamMode(BaseMode):
         考试模式语义：可改答案（is_answered_check 恒 False），Enter 无提交
         语义（交卷仅通过按钮触发，避免误交卷）。
         """
+        if self._is_input_focused():
+            return None
         if self.engine is None or not self.engine.get_current_question():
             return None
         if self.panel is None:

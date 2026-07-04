@@ -8,6 +8,7 @@ P0-2: 从 ExamMode 拆出的纯视图层，负责考试进行中的 UI 渲染：
 """
 
 import tkinter as tk
+from tkinter import messagebox
 from typing import Callable
 
 from .theme import (
@@ -20,6 +21,7 @@ from .theme import (
     create_card,
 )
 from .option_row import OptionRow
+from .question_detail_card import get_question_type_style
 from quiz_engine import QuizEngine
 from .exam_session import ExamSession
 
@@ -143,6 +145,9 @@ class ExamPanel(tk.Frame):
         self.exam_question_text.pack(fill=tk.X)
         self.exam_question_text.config(state=tk.DISABLED)
 
+        # P2-UX: 窗口缩放时同步更新选项文本换行宽度
+        self.bind("<Configure>", self._on_configure)
+
         # 选项卡
         options_card, opt_inner = create_card(left_panel, inner_pady=14)
         options_card.pack(fill=tk.X, pady=(0, 12))
@@ -159,7 +164,6 @@ class ExamPanel(tk.Frame):
             self.exam_option_cards.append(
                 {
                     "row": row,
-                    "var": tk.IntVar(value=0),
                     "letter": letter,
                 }
             )
@@ -184,6 +188,40 @@ class ExamPanel(tk.Frame):
             command=self._on_next,
         )
         next_exam_btn.pack(side=tk.LEFT)
+
+        # P2-UX: 考试模式支持按题号快速跳转
+        jump_frame = tk.Frame(btn_left, bg=theme.BG_PAGE)
+        jump_frame.pack(side=tk.LEFT, padx=(16, 0))
+
+        tk.Label(
+            jump_frame, text="跳转", font=font_ui(10), fg=theme.TEXT_MUTED, bg=theme.BG_PAGE
+        ).pack(side=tk.LEFT, padx=(0, 4))
+
+        self.jump_var = tk.StringVar()
+        self.jump_entry = tk.Entry(
+            jump_frame,
+            textvariable=self.jump_var,
+            width=5,
+            font=font_ui(10),
+            bg=theme.BG_CARD,
+            fg=theme.TEXT_PRIMARY,
+            insertbackground=theme.TEXT_PRIMARY,
+            relief=tk.FLAT,
+            bd=2,
+            highlightbackground=theme.BORDER,
+            highlightthickness=1,
+        )
+        self.jump_entry.pack(side=tk.LEFT, padx=(0, 4))
+        self.jump_entry.bind("<Return>", lambda event: self._on_jump_entry())
+
+        jump_btn = create_normal_button(
+            jump_frame,
+            text="跳转",
+            command=self._on_jump_entry,
+            padx=10,
+            pady=3,
+        )
+        jump_btn.pack(side=tk.LEFT)
 
         mark_btn = create_primary_button(
             action_bar,
@@ -242,6 +280,12 @@ class ExamPanel(tk.Frame):
 
         self.nav_frame = tk.Frame(self.nav_canvas, bg=theme.BG_CARD)
         self.nav_canvas.create_window((0, 0), window=self.nav_frame, anchor=tk.NW)
+
+    def _on_configure(self, event) -> None:
+        """窗口 resize 时同步更新选项文本换行宽度，避免内容被截断。"""
+        new_wrap = max(200, event.width - 140)
+        for item in self.exam_option_cards:
+            item["row"].update_wraplength(new_wrap)
 
     # ------------------------------------------------------------------
     # 公共接口
@@ -342,10 +386,8 @@ class ExamPanel(tk.Frame):
 
         # 题型标签
         if self.exam_type_label is not None:
-            if question.type == "multiple":
-                self.exam_type_label.configure(text="多选题", fg=theme.YELLOW)
-            else:
-                self.exam_type_label.configure(text="单选题", fg=theme.ACCENT)
+            type_text, type_fg = get_question_type_style(question.type)
+            self.exam_type_label.configure(text=type_text, fg=type_fg)
 
         # 选项
         options_count = len(question.options)
@@ -354,7 +396,6 @@ class ExamPanel(tk.Frame):
                 item["row"].pack(fill=tk.X, pady=3)
                 opt = question.options[i]
                 item["row"].update_text(opt.text)
-                item["var"].set(0)
                 item["row"].reset()
             else:
                 item["row"].pack_forget()
@@ -364,7 +405,6 @@ class ExamPanel(tk.Frame):
         for i, item in enumerate(self.exam_option_cards):
             letter = chr(ord("A") + i)
             if letter in answered_letters:
-                item["var"].set(1)
                 item["row"].set_selected(True)
 
         # 进度
@@ -398,11 +438,27 @@ class ExamPanel(tk.Frame):
                 continue
             letter_i = chr(ord("A") + i)
             is_selected = letter_i in selected
-            item["var"].set(1 if is_selected else 0)
             item["row"].set_selected(is_selected)
 
         # P1-6: 选项选择只改变当前题的已答状态，只需更新当前按钮
         self._update_single_nav_button(self.engine.get_current_index())
+
+    def _on_jump_entry(self) -> None:
+        """从跳转输入框读取题号并跳转到对应题目（1-based）。"""
+        if self.engine is None:
+            return
+        try:
+            num = int(self.jump_var.get())
+        except ValueError:
+            messagebox.showerror("错误", "请输入有效的数字！", parent=self)
+            return
+
+        total = self.engine.queue_length()
+        if not 1 <= num <= total:
+            messagebox.showerror("错误", f"请输入 1-{total} 之间的题号！", parent=self)
+            return
+
+        self._on_jump(num - 1)
 
     # ------------------------------------------------------------------
     # 键盘处理

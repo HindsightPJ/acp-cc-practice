@@ -33,7 +33,10 @@ class BaseMode(ABC, ttk.Frame):
         super().__init__(parent)
         self.questions: list[Question] = questions
         self.data_manager = data_manager
-        self._after_jobs: list[Any] = []  # 跟踪所有 after 回调
+        # P2-TIMER: 保存任务单独跟踪，避免 _save_progress_delayed 误取消计时器、
+        # 自动显示答案等其他职责的 after 任务
+        self._after_jobs: list[Any] = []  # 非保存类 after 任务
+        self._save_job_id: str | None = None  # 防抖保存任务
         self.engine: QuizEngine | None = None  # 基类保证属性存在，子类覆盖
         # P2-9: 防抖保存标记，统一在基类管理
         self._pending_save: bool = False
@@ -41,7 +44,8 @@ class BaseMode(ABC, ttk.Frame):
         if isinstance(progress, AppState):
             self._state = progress
         else:
-            assert data_manager is not None, "data_manager required when progress is not AppState"
+            if data_manager is None:
+                raise ValueError("data_manager required when progress is not AppState")
             self._state = AppState(data_manager, progress)
 
     @property
@@ -50,17 +54,28 @@ class BaseMode(ABC, ttk.Frame):
         return self._state
 
     def _add_after_job(self, job_id) -> None:
-        """添加 after 作业并跟踪"""
+        """添加非保存类 after 作业并跟踪"""
         self._after_jobs.append(job_id)
 
     def _cancel_all_after_jobs(self) -> None:
-        """取消所有待执行的 after 回调"""
+        """取消所有待执行的非保存类 after 回调（保存任务单独管理）。"""
         for job_id in self._after_jobs:
             try:
                 self.after_cancel(job_id)
             except tk.TclError:
                 pass  # widget 已销毁或 job 已执行
         self._after_jobs.clear()
+        # 保存任务也一并清理，确保 destroy/start_exam 等场景彻底取消
+        self._cancel_save_job()
+
+    def _cancel_save_job(self) -> None:
+        """取消待执行的防抖保存任务。"""
+        if self._save_job_id is not None:
+            try:
+                self.after_cancel(self._save_job_id)
+            except tk.TclError:
+                pass  # widget 已销毁或 job 已执行
+            self._save_job_id = None
 
     # ------------------------------------------------------------------
     # 防抖保存（P2-9: 从 PracticeMode/ReviewMode 提取的公共逻辑）
@@ -68,13 +83,14 @@ class BaseMode(ABC, ttk.Frame):
 
     def _save_progress_delayed(self) -> None:
         """标记有待保存的进度，2 秒后落盘（期间新的调用会重置计时器）。"""
-        self._cancel_all_after_jobs()
+        # P2-TIMER: 只取消保存任务，不碰计时器、自动显示答案等其他任务
+        self._cancel_save_job()
         self._pending_save = True
-        job_id = self.after(2000, self._do_save_progress)
-        self._add_after_job(job_id)
+        self._save_job_id = self.after(2000, self._do_save_progress)
 
     def _do_save_progress(self) -> None:
         """延迟计时器到期时执行实际保存。"""
+        self._save_job_id = None
         # P2-16: 先保存成功再重置 _pending_save，避免保存失败时
         # 标记被清空导致后续无法重试（数据丢失风险）
         if self.app_state.save_safe():
@@ -92,7 +108,7 @@ class BaseMode(ABC, ttk.Frame):
         基类 BaseMode.destroy() 会调用此方法，无需子类显式调用。
         """
         if self._pending_save:
-            self._cancel_all_after_jobs()
+            self._cancel_save_job()
             if self.app_state.save_safe():
                 self._pending_save = False
             else:
@@ -105,7 +121,8 @@ class BaseMode(ABC, ttk.Frame):
     def destroy(self) -> None:
         """窗口销毁时清理所有待执行的回调和事件绑定"""
         self.flush_pending_save()
-        self._cancel_all_after_jobs()
+        # P2: flush_pending_save 已取消保存任务；非保存类 after 任务由 Tk 在
+        # super().destroy() 时自动清理，无需重复调用 _cancel_all_after_jobs。
         try:
             self.unbind("<Key>")
             self.unbind("<Button-1>")
@@ -120,16 +137,29 @@ class BaseMode(ABC, ttk.Frame):
         self.bind("<Button-1>", self._on_global_click)
 
     def _on_global_click(self, event) -> None:
-        """全局点击处理，设置焦点。
+        """点击模式空白区域时设置焦点到模式容器。
 
-        切 tab 时旧 mode 被 destroy，但 bind_all 注册的全局 callback 仍在
-        Tcl 绑定表里，下次点击会调用已销毁 widget 的 focus_set 抛 TclError，
-        静默忽略即可——旧 mode 已不活动，无需 focus。
+        仅当点击目标是模式容器本身（而非子控件）时才抢焦点，避免用户
+        点击跳转输入框、按钮等子控件时被父容器夺走焦点。
         """
+        if event.widget is not self:
+            return
         try:
             self.focus_set()
         except tk.TclError:
             pass
+
+    def _is_input_focused(self) -> bool:
+        """判断当前焦点是否在文本输入控件上。
+
+        用于全局键盘快捷键：输入框获得焦点时应跳过选项选择、空格显示答案等
+        全局快捷键，让输入控件正常响应按键。
+        """
+        try:
+            focused = self.focus_get()
+        except tk.TclError:
+            return False
+        return isinstance(focused, (tk.Entry, tk.Text, ttk.Entry, ttk.Combobox))
 
     def _handle_option_key_press(
         self,
@@ -151,6 +181,9 @@ class BaseMode(ABC, ttk.Frame):
         Returns:
             "break" 如果处理了事件，否则 None
         """
+        if self._is_input_focused():
+            return None
+
         active_engine = engine or self.engine
         # P2-8: 入口仅调用一次 get_current_question()，避免重复调用
         question = active_engine.get_current_question() if active_engine else None

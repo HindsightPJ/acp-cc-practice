@@ -158,7 +158,7 @@ class QuizEngine:
             wrong.append(self.questions_queue[idx])
         return wrong
 
-    def get_correct_question_numbers(self) -> set:
+    def get_correct_question_numbers(self) -> set[int]:
         """获取本次练习/考试中答对的题号集合（P1-4: 供 WrongBook 移除已掌握错题用）。
 
         Returns:

@@ -8,7 +8,8 @@ from quiz_engine import QuizEngine
 from models import Question
 from data_manager import DataManager
 from .base_mode import BaseMode
-from .question_detail_card import QuestionDetailCard
+from .question_detail_card import QuestionDetailCard, get_question_type_style
+from .mode_toolbar import ModeToolbar
 
 
 class ReviewMode(BaseMode):
@@ -32,6 +33,9 @@ class ReviewMode(BaseMode):
 
         self.engine: QuizEngine = QuizEngine(questions)
         self.engine.set_questions_queue(questions)  # TD-15: 显式接口
+        # P2-UX: 跟踪自动显示答案的 after 任务，快速切题时先取消旧任务
+        # tkinter.after 返回字符串标识符，与 after_cancel 入参类型一致
+        self._auto_show_job_id: str | None = None
         self._setup_mode_ui()
         self.load_question()
         self._bind_keyboard()
@@ -39,14 +43,10 @@ class ReviewMode(BaseMode):
     def _setup_mode_ui(self):
         self.configure(style="TFrame")
 
-        toolbar = tk.Frame(self, bg=theme.BG_PAGE)
-        toolbar.pack(fill=tk.X, pady=(0, 12))
-
-        toolbar_left = tk.Frame(toolbar, bg=theme.BG_PAGE)
-        toolbar_left.pack(side=tk.LEFT)
+        toolbar = ModeToolbar(self)
 
         self.progress_info = tk.Label(
-            toolbar_left,
+            toolbar.left,
             text=f"第 1 题 / 共 {len(self.questions)} 题",
             font=font_ui(11),
             fg=theme.TEXT_SECONDARY,
@@ -55,7 +55,7 @@ class ReviewMode(BaseMode):
         self.progress_info.pack(side=tk.LEFT, padx=(0, 16))
 
         self.type_label = tk.Label(
-            toolbar_left,
+            toolbar.left,
             text="单选题",
             font=font_ui_semibold(10),
             fg=theme.ACCENT,
@@ -65,7 +65,7 @@ class ReviewMode(BaseMode):
 
         # P0-5: "只看收藏"筛选按钮——点击切换是否仅显示收藏题列表
         self.filter_fav_btn = create_normal_button(
-            toolbar_left,
+            toolbar.left,
             text="只看收藏",
             command=self.toggle_favorites_filter,
             padx=10,
@@ -73,12 +73,9 @@ class ReviewMode(BaseMode):
         )
         self.filter_fav_btn.pack(side=tk.LEFT)
 
-        toolbar_right = tk.Frame(toolbar, bg=theme.BG_PAGE)
-        toolbar_right.pack(side=tk.RIGHT)
-
         self.auto_var = tk.BooleanVar(value=False)
         auto_check = tk.Checkbutton(
-            toolbar_right,
+            toolbar.right,
             text="自动显示答案",
             variable=self.auto_var,
             command=self._toggle_auto_show,
@@ -93,13 +90,13 @@ class ReviewMode(BaseMode):
         auto_check.pack(side=tk.LEFT, padx=(0, 12))
 
         jump_label = tk.Label(
-            toolbar_right, text="跳转", font=font_ui(10), fg=theme.TEXT_MUTED, bg=theme.BG_PAGE
+            toolbar.right, text="跳转", font=font_ui(10), fg=theme.TEXT_MUTED, bg=theme.BG_PAGE
         )
         jump_label.pack(side=tk.LEFT, padx=(0, 4))
 
         self.jump_var = tk.StringVar()
-        jump_entry = tk.Entry(
-            toolbar_right,
+        self.jump_entry = tk.Entry(
+            toolbar.right,
             textvariable=self.jump_var,
             width=5,
             font=font_ui(10),
@@ -111,10 +108,12 @@ class ReviewMode(BaseMode):
             highlightbackground=theme.BORDER,
             highlightthickness=1,
         )
-        jump_entry.pack(side=tk.LEFT, padx=(0, 4))
+        self.jump_entry.pack(side=tk.LEFT, padx=(0, 4))
+        # P2-UX: 输入框支持回车跳转
+        self.jump_entry.bind("<Return>", lambda event: self.jump_to_question())
 
         jump_btn = create_normal_button(
-            toolbar_right,
+            toolbar.right,
             text="跳转",
             command=self.jump_to_question,
             padx=10,
@@ -123,7 +122,7 @@ class ReviewMode(BaseMode):
         jump_btn.pack(side=tk.LEFT, padx=(0, 8))
 
         prev_btn = create_normal_button(
-            toolbar_right,
+            toolbar.right,
             text="上一题 (←)",
             command=self.prev_question,
             padx=10,
@@ -132,7 +131,7 @@ class ReviewMode(BaseMode):
         prev_btn.pack(side=tk.LEFT, padx=(0, 4))
 
         next_btn = create_normal_button(
-            toolbar_right,
+            toolbar.right,
             text="下一题 (→)",
             command=self.next_question,
             padx=10,
@@ -178,6 +177,9 @@ class ReviewMode(BaseMode):
         self.favorite_btn.pack(side=tk.LEFT)
 
     def _on_key_press(self, event):
+        if self._is_input_focused():
+            return None
+
         keysym = event.keysym
 
         if keysym == "space":
@@ -193,6 +195,14 @@ class ReviewMode(BaseMode):
             self.toggle_answer()
 
     def load_question(self) -> None:
+        # P2-UX: 快速切题时取消尚未执行的自动显示答案任务，避免作用到下一题
+        if self._auto_show_job_id is not None:
+            try:
+                self.after_cancel(self._auto_show_job_id)
+            except tk.TclError:
+                pass
+            self._auto_show_job_id = None
+
         question = self.engine.get_current_question()
         if question is None:
             return
@@ -202,10 +212,8 @@ class ReviewMode(BaseMode):
         self.detail_card.show_question(question)
 
         # 显示题目类型
-        if question.type == "multiple":
-            self.type_label.configure(text="多选题", fg=theme.YELLOW)
-        else:
-            self.type_label.configure(text="单选题", fg=theme.ACCENT)
+        type_text, type_fg = get_question_type_style(question.type)
+        self.type_label.configure(text=type_text, fg=type_fg)
 
         self.showing_answer = False
         self.toggle_answer_btn.configure(text="显示答案 (Space)")
@@ -220,8 +228,8 @@ class ReviewMode(BaseMode):
         self._sync_filter_button()
 
         if self.auto_show_answer:
-            job_id = self.after(100, self.toggle_answer)
-            self._add_after_job(job_id)
+            self._auto_show_job_id = self.after(100, self.toggle_answer)
+            self._add_after_job(self._auto_show_job_id)
 
     def toggle_answer(self) -> None:
         question = self.engine.get_current_question()
@@ -283,37 +291,41 @@ class ReviewMode(BaseMode):
         if self.filtering_favorites and not now_favorited:
             self._refresh_favorites_queue()
 
+    def _build_favorites_queue(self, fav_nums: list[int]) -> list[Question]:
+        """将收藏题号列表转换为已排序的题目对象列表。
+
+        过滤掉不在当前题库中的题号，使用 _question_by_number 索引实现 O(M) 查找。
+        """
+        return sorted(
+            (self._question_by_number[n] for n in fav_nums if n in self._question_by_number),
+            key=lambda q: q.number,
+        )
+
+    def _apply_favorites_queue(self, fav_questions: list[Question]) -> None:
+        """应用收藏筛选队列：非空则进入筛选，空则退出筛选并恢复全量题库。"""
+        if not fav_questions:
+            self.filtering_favorites = False
+            self.engine.set_questions_queue(self.questions)
+        else:
+            self.filtering_favorites = True
+            self.engine.set_questions_queue(fav_questions)
+        self.engine.set_current_index(0)
+        self.load_question()
+
     def _refresh_favorites_queue(self) -> None:
         """筛选模式下根据当前收藏列表刷新队列。
 
         - 收藏为空：退出筛选模式，恢复全量题库
         - 仍有收藏：替换队列，索引归零并加载第一题
         """
-        fav_nums = self.app_state.get_favorites()
-        # P1-7: 用 _question_by_number 索引 O(M) 查找，避免 O(N) 全量遍历
-        fav_questions = sorted(
-            (self._question_by_number[n] for n in fav_nums if n in self._question_by_number),
-            key=lambda q: q.number,
-        )
-        if not fav_questions:
-            # 收藏被清空：退出筛选模式，恢复全量
-            self.filtering_favorites = False
-            self.engine.set_questions_queue(self.questions)
-            self.engine.set_current_index(0)
-            self.load_question()
-            return
-        self.engine.set_questions_queue(fav_questions)
-        self.engine.set_current_index(0)
-        self.load_question()
+        fav_questions = self._build_favorites_queue(self.app_state.get_favorites())
+        self._apply_favorites_queue(fav_questions)
 
     def toggle_favorites_filter(self) -> None:
         """切换"只看收藏"筛选模式。"""
         if self.filtering_favorites:
             # 退出筛选：恢复全量题库
-            self.filtering_favorites = False
-            self.engine.set_questions_queue(self.questions)
-            self.engine.set_current_index(0)
-            self.load_question()
+            self._apply_favorites_queue([])
             return
 
         # 进入筛选：检查收藏是否为空
@@ -325,23 +337,17 @@ class ReviewMode(BaseMode):
                 parent=self,
             )
             return
-        # P1-7: 用 _question_by_number 索引 O(M) 查找，避免 O(N) 全量遍历
-        fav_questions = sorted(
-            (self._question_by_number[n] for n in fav_nums if n in self._question_by_number),
-            key=lambda q: q.number,
-        )
+
+        fav_questions = self._build_favorites_queue(fav_nums)
         if not fav_questions:
-            # 收藏的题号在当前题库中不存在（如授权前的试用题库），同样提示
+            # 收藏的题号在当前题库中不存在（如授权前的试用题库）
             messagebox.showinfo(
                 "提示",
                 "收藏的题目不在当前题库中。",
                 parent=self,
             )
             return
-        self.filtering_favorites = True
-        self.engine.set_questions_queue(fav_questions)
-        self.engine.set_current_index(0)
-        self.load_question()
+        self._apply_favorites_queue(fav_questions)
 
     def _sync_filter_button(self) -> None:
         """根据筛选状态更新按钮文案与配色。"""

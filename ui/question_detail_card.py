@@ -17,6 +17,20 @@ from .option_row import OptionRow
 from models import Question
 
 
+def get_question_type_style(question_type: str) -> tuple[str, str]:
+    """返回题型标签文本与前景色。
+
+    Args:
+        question_type: 题型标识，"multiple" 表示多选题，其他视为单选题
+
+    Returns:
+        (标签文本, 前景色)
+    """
+    if question_type == "multiple":
+        return "多选题", theme.YELLOW
+    return "单选题", theme.ACCENT
+
+
 class QuestionDetailCard(tk.Frame):
     """题目详情卡片组件。
 
@@ -98,6 +112,9 @@ class QuestionDetailCard(tk.Frame):
         self.question_text.pack(fill=tk.X)
         self.question_text.config(state=tk.DISABLED)
 
+        # P2-UX: 窗口缩放时同步更新选项文本换行宽度
+        self.bind("<Configure>", self._on_configure)
+
         # 选项卡
         options_card, opt_inner = create_card(
             self, inner_padx=self._inner_padx, inner_pady=self._option_inner_pady
@@ -160,6 +177,12 @@ class QuestionDetailCard(tk.Frame):
             self.explanation_text.pack(fill=tk.BOTH, expand=True)
             exp_scrollbar.config(command=self.explanation_text.yview)
             self.explanation_text.config(state=tk.DISABLED)
+
+    def _on_configure(self, event) -> None:
+        """窗口 resize 时同步更新选项文本换行宽度，避免内容被截断。"""
+        new_wrap = max(200, event.width - 100)
+        for card in self.option_cards:
+            card.update_wraplength(new_wrap)
 
     # ------------------------------------------------------------------
     # 内容更新
