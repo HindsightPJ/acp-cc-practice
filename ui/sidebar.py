@@ -121,6 +121,9 @@ class Sidebar(tk.Frame):
 
     def _handle_nav_click(self, tab_id: str) -> None:
         """处理导航项点击：更新高亮、执行命令、触发外部回调。"""
+        # P2-14: 重复点击当前 tab 不应销毁重建 mode（会丢失答题进度/筛选状态）
+        if tab_id == self._active_nav:
+            return
         self.set_active_nav(tab_id)
         ref = self._nav_refs.get(tab_id)
         if ref and ref["command"]:
