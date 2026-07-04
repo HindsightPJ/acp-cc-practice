@@ -43,11 +43,16 @@ ENCRYPTED_K_LEN = NONCE_LEN + K_LEN + GCM_TAG_LEN  # 12 + 44 + 16 = 72
 EXPECTED_RAW_LEN = SIGNATURE_LEN + SALT_LEN + ENCRYPTED_K_LEN  # 152
 
 
-def verify(license_code: str) -> tuple[LicenseStatus, str | None, LicenseError | None]:
+def verify(
+    license_code: str, machine_code: str | None = None
+) -> tuple[LicenseStatus, str | None, LicenseError | None]:
     """验证注册码。
 
     Args:
         license_code: base64 编码的注册码字符串
+        machine_code: 可选的本机机器码。传入时直接复用，避免重复采集
+            （PowerShell + PBKDF2 等耗时操作）；为 None 时内部调用
+            ``get_machine_code_or_none()`` 采集一次。
 
     Returns:
         (status, K, error)
@@ -77,8 +82,9 @@ def verify(license_code: str) -> tuple[LicenseStatus, str | None, LicenseError |
     except (InvalidSignature, ValueError):
         return (LicenseStatus.TRIAL, None, LicenseError.INVALID_SIGNATURE)
 
-    # 4. 采集本机指纹
-    machine_code = get_machine_code_or_none()
+    # 4. 采集本机指纹（调用方传入则复用，避免重复 PowerShell 调用）
+    if machine_code is None:
+        machine_code = get_machine_code_or_none()
     if machine_code is None:
         return (LicenseStatus.FINGERPRINT_FAILED, None, None)
 

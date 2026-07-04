@@ -267,16 +267,20 @@ def test_license_dialog_verify_callback(clean_root):
 
     calls = []
 
-    def fake_verify(code, license_dir):
-        calls.append((code, license_dir))
+    def fake_verify(code, license_dir, machine_code=None):
+        calls.append((code, license_dir, machine_code))
         return (True, 'OK', True)
 
     dialog = LicenseDialog(clean_root, '/tmp/test-license-dir',
                            verify_and_save=fake_verify)
-    dialog._build_dialog('machine-code')
+    # P0-2: 模拟 show() 缓存 machine_code，_on_verify 会传入此值
+    dialog._machine_code = 'test-machine-code'
+    # 修复：原测试调用不存在的 _build_dialog，实际方法名是 _build_content
+    dialog._create_dialog()
+    dialog._build_content('machine-code')
     dialog._license_entry.insert('1.0', 'test-code')
     dialog._on_verify()
 
-    assert calls == [('test-code', '/tmp/test-license-dir')]
+    assert calls == [('test-code', '/tmp/test-license-dir', 'test-machine-code')]
     # 验证成功后对话框应已关闭
     assert dialog.dialog is None

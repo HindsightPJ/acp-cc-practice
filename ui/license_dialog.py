@@ -25,17 +25,21 @@ def _get_license_error_message(err) -> str:
     return _LICENSE_ERROR_MESSAGES.get(err_key, "授权失败。")
 
 
-def _verify_and_save_license(code: str, license_dir: str) -> tuple[bool, str, bool]:
+def _verify_and_save_license(
+    code: str, license_dir: str, machine_code: str | None = None
+) -> tuple[bool, str, bool]:
     """验证注册码并持久化。
 
     Args:
         code: 用户输入的注册码
         license_dir: license.dat 保存目录
+        machine_code: 可选的本机机器码。传入时直接复用，避免 verify() 内部
+            再次启动 PowerShell 子进程采集（耗时 0.2~5 秒）。
 
     Returns:
         (success, message, should_close_dialog)
     """
-    status, k, err = verify(code)
+    status, k, err = verify(code, machine_code=machine_code)
     if status == LicenseStatus.AUTHORIZED and k:
         verifier = LicenseVerifier(data_dir=license_dir)
         if verifier.save_license(code):
@@ -54,19 +58,23 @@ class LicenseDialog(BaseDialog):
         self,
         parent,
         license_dir: str,
-        verify_and_save: Callable[[str, str], tuple[bool, str, bool]] | None = None,
+        verify_and_save: Callable[[str, str, str | None], tuple[bool, str, bool]] | None = None,
     ) -> None:
         """初始化对话框。
 
         Args:
             parent: 父窗口
             license_dir: license.dat 保存目录
-            verify_and_save: 可选自定义验证回调，签名为 (code, license_dir) -> (success, message, should_close)
+            verify_and_save: 可选自定义验证回调，签名为
+                (code, license_dir, machine_code) -> (success, message, should_close)
         """
         super().__init__(parent, title="输入注册码", size="500x420")
         self.license_dir = license_dir
         self.verify_and_save = verify_and_save or _verify_and_save_license
         self._license_entry: tk.Text | None = None
+        # P0-2: 缓存 show() 时采集的机器码，_on_verify 时复用，
+        # 避免 verify() 内部再次启动 PowerShell 子进程（耗时 0.2~5 秒）。
+        self._machine_code: str | None = None
 
     def show(self) -> bool:
         """显示对话框；若无法读取机器码则报错并返回 False。"""
@@ -77,6 +85,8 @@ class LicenseDialog(BaseDialog):
             messagebox.showerror("错误", "无法读取本机机器码，授权仅支持 Windows。")
             return False
 
+        # 缓存机器码供 _on_verify 复用，避免验证时再次采集
+        self._machine_code = machine_code
         self._create_dialog()
         self._build_content(machine_code)
         return True
@@ -163,7 +173,11 @@ class LicenseDialog(BaseDialog):
         if not code:
             messagebox.showwarning("提示", "请输入注册码", parent=self.dialog)
             return
-        success, message, should_close = self.verify_and_save(code, self.license_dir)
+        # P0-2: 传入 show() 时缓存的 machine_code，避免 verify() 内部再次
+        # 启动 PowerShell 子进程采集（消除注册码验证时的第二次 PowerShell 调用）。
+        success, message, should_close = self.verify_and_save(
+            code, self.license_dir, self._machine_code
+        )
         if success:
             messagebox.showinfo("成功", message, parent=self.dialog)
         else:
