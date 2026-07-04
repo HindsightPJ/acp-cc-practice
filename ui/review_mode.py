@@ -22,6 +22,8 @@ class ReviewMode(BaseMode):
         super().__init__(parent, questions, data_manager, progress)
         self.showing_answer = False
         self.auto_show_answer = False
+        # P0-5: 是否处于"只看收藏"筛选模式（影响队列来源 + 按钮文案）
+        self.filtering_favorites: bool = False
 
         self.engine: QuizEngine = QuizEngine(questions)
         self.engine.set_questions_queue(questions)  # TD-15: 显式接口
@@ -54,7 +56,17 @@ class ReviewMode(BaseMode):
             fg=theme.ACCENT,
             bg=theme.BG_PAGE,
         )
-        self.type_label.pack(side=tk.LEFT)
+        self.type_label.pack(side=tk.LEFT, padx=(0, 12))
+
+        # P0-5: "只看收藏"筛选按钮——点击切换是否仅显示收藏题列表
+        self.filter_fav_btn = create_normal_button(
+            toolbar_left,
+            text="只看收藏",
+            command=self.toggle_favorites_filter,
+            padx=10,
+            pady=3,
+        )
+        self.filter_fav_btn.pack(side=tk.LEFT)
 
         toolbar_right = tk.Frame(toolbar, bg=theme.BG_PAGE)
         toolbar_right.pack(side=tk.RIGHT)
@@ -194,11 +206,13 @@ class ReviewMode(BaseMode):
         self.toggle_answer_btn.configure(text="显示答案 (Space)")
 
         self.jump_var.set(str(current_index + 1))
+        # P0-5: 进度信息显示当前队列长度（筛选收藏时队列变短，文案应随之变化）
         self.progress_info.configure(
-            text=f"第 {current_index + 1} 题 / 共 {len(self.questions)} 题"
+            text=f"第 {current_index + 1} 题 / 共 {self.engine.queue_length()} 题"
         )
 
         self._sync_favorite_button()
+        self._sync_filter_button()
 
         if self.auto_show_answer:
             job_id = self.after(100, self.toggle_answer)
@@ -236,11 +250,13 @@ class ReviewMode(BaseMode):
     def jump_to_question(self) -> None:
         try:
             num = int(self.jump_var.get())
-            if 1 <= num <= len(self.questions):
+            # P0-5: 边界基于当前队列长度（筛选模式下队列更短）
+            total = self.engine.queue_length()
+            if 1 <= num <= total:
                 self.engine.set_current_index(num - 1)
                 self.load_question()
             else:
-                messagebox.showerror("错误", f"请输入 1-{len(self.questions)} 之间的题号！")
+                messagebox.showerror("错误", f"请输入 1-{total} 之间的题号！")
         except ValueError:
             messagebox.showerror("错误", "请输入有效的数字！")
 
@@ -252,9 +268,80 @@ class ReviewMode(BaseMode):
         if question is None:
             return
         q_num = question.number
-        self.app_state.toggle_favorite(q_num)
+        # toggle_favorite 返回 True 表示当前已收藏，False 表示已取消收藏
+        now_favorited = self.app_state.toggle_favorite(q_num)
         self.app_state.save()
         self._sync_favorite_button()
+
+        # P0-5: 筛选模式下，取消收藏的题目应从队列移除，保持"所见即所藏"
+        if self.filtering_favorites and not now_favorited:
+            self._refresh_favorites_queue()
+
+    def _refresh_favorites_queue(self) -> None:
+        """筛选模式下根据当前收藏列表刷新队列。
+
+        - 收藏为空：退出筛选模式，恢复全量题库
+        - 仍有收藏：替换队列，索引归零并加载第一题
+        """
+        fav_nums = self.app_state.get_favorites()
+        fav_questions = [q for q in self.questions if q.number in set(fav_nums)]
+        if not fav_questions:
+            # 收藏被清空：退出筛选模式，恢复全量
+            self.filtering_favorites = False
+            self.engine.set_questions_queue(self.questions)
+            self.engine.set_current_index(0)
+            self.load_question()
+            return
+        self.engine.set_questions_queue(fav_questions)
+        self.engine.set_current_index(0)
+        self.load_question()
+
+    def toggle_favorites_filter(self) -> None:
+        """切换"只看收藏"筛选模式。"""
+        if self.filtering_favorites:
+            # 退出筛选：恢复全量题库
+            self.filtering_favorites = False
+            self.engine.set_questions_queue(self.questions)
+            self.engine.set_current_index(0)
+            self.load_question()
+            return
+
+        # 进入筛选：检查收藏是否为空
+        fav_nums = self.app_state.get_favorites()
+        if not fav_nums:
+            messagebox.showinfo(
+                "提示",
+                '暂无收藏题目。\n\n点击题目下方的"收藏"按钮可添加收藏。',
+                parent=self,
+            )
+            return
+        fav_set = set(fav_nums)
+        fav_questions = [q for q in self.questions if q.number in fav_set]
+        if not fav_questions:
+            # 收藏的题号在当前题库中不存在（如授权前的试用题库），同样提示
+            messagebox.showinfo(
+                "提示",
+                "收藏的题目不在当前题库中。",
+                parent=self,
+            )
+            return
+        self.filtering_favorites = True
+        self.engine.set_questions_queue(fav_questions)
+        self.engine.set_current_index(0)
+        self.load_question()
+
+    def _sync_filter_button(self) -> None:
+        """根据筛选状态更新按钮文案与配色。"""
+        if not hasattr(self, "filter_fav_btn"):
+            return
+        if self.filtering_favorites:
+            self.filter_fav_btn.configure(
+                text="显示全部", fg=theme.ACCENT, bg=theme.ACCENT_LIGHT
+            )
+        else:
+            self.filter_fav_btn.configure(
+                text="只看收藏", fg=theme.BTN_NORMAL_FG, bg=theme.BTN_NORMAL
+            )
 
     def _sync_favorite_button(self):
         """根据当前题是否已收藏，更新按钮文字与配色作为静默反馈。"""
