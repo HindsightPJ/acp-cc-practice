@@ -442,7 +442,13 @@ class ExamMode(BaseMode):
                 "time_used": report["time_used"],
             }
         )
-        self.app_state.save()
+        # P2-4: 统一用 save_safe 提示保存失败，避免静默丢数据
+        if not self.app_state.save_safe():
+            messagebox.showwarning(
+                "保存失败",
+                "考试历史保存失败，请检查磁盘空间或文件权限。",
+                parent=self,
+            )
         # P0-6: 保存后刷新历史卡片，让用户立即看到本次成绩
         self._refresh_history_view()
 
@@ -459,5 +465,12 @@ class ExamMode(BaseMode):
                 self.app_state.add_wrong_question(q_num)
                 added += 1
 
-        self.app_state.save()
-        messagebox.showinfo("成功", f"已将 {added} 道错题加入错题本！")
+        # P2-4: 统一用 save_safe 提示保存失败
+        if not self.app_state.save_safe():
+            messagebox.showwarning(
+                "保存失败",
+                "错题保存失败，请检查磁盘空间或文件权限。",
+                parent=self,
+            )
+        else:
+            messagebox.showinfo("成功", f"已将 {added} 道错题加入错题本！")

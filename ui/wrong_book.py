@@ -312,7 +312,8 @@ class WrongBook(BaseMode):
         q_num = self._current_detail_q_num
         if self.app_state.is_wrong_question(q_num):
             self.app_state.remove_wrong_question(q_num)
-            self.app_state.save()
+            # P2-4: 统一用 save_safe 提示保存失败
+            save_ok = self.app_state.save_safe()
 
             self.wrong_questions = self._get_wrong_questions_list()
             # P1-8: 重建题号索引，保持与 wrong_questions 同步
@@ -321,7 +322,14 @@ class WrongBook(BaseMode):
             self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
 
             self._close_detail_dialog()
-            messagebox.showinfo("成功", "该题已从错题本移除！")
+            if save_ok:
+                messagebox.showinfo("成功", "该题已从错题本移除！")
+            else:
+                messagebox.showwarning(
+                    "保存失败",
+                    "错题本保存失败，请检查磁盘空间或文件权限。",
+                    parent=self,
+                )
 
     def start_practice_wrong(self) -> None:
         if not self.wrong_questions:
@@ -409,7 +417,13 @@ class WrongBook(BaseMode):
                 ]
             )
 
-            self.app_state.save()
+            # P2-4: 统一用 save_safe 提示保存失败
+            if not self.app_state.save_safe():
+                messagebox.showwarning(
+                    "保存失败",
+                    "错题本保存失败，请检查磁盘空间或文件权限。",
+                    parent=self,
+                )
             self.wrong_questions = self._get_wrong_questions_list()
             # P1-8: 重建题号索引，保持与 wrong_questions 同步
             self._wrong_by_number = {q.number: q for q in self.wrong_questions}
@@ -436,7 +450,13 @@ class WrongBook(BaseMode):
 
         if messagebox.askyesno("确认", "确定要清空所有错题吗？此操作不可恢复！"):
             self.app_state.set_wrong_questions([])
-            self.app_state.save()
+            # P2-4: 统一用 save_safe 提示保存失败
+            if not self.app_state.save_safe():
+                messagebox.showwarning(
+                    "保存失败",
+                    "错题本保存失败，请检查磁盘空间或文件权限。",
+                    parent=self,
+                )
 
             self.wrong_questions = []
             # P1-8: 清空索引

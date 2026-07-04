@@ -101,5 +101,5 @@ def test_show_practice_result_removes_only_correct(monkeypatch):
 
     # 验证：app_state.set_wrong_questions 应被调用，且只剩答错的 2 题（109, 110）
     wb._state.set_wrong_questions.assert_called_once_with([109, 110])
-    # 验证：app_state.save() 被调用
-    wb._state.save.assert_called_once()
+    # P2-4: 验证 app_state.save_safe() 被调用（替代原 save()）
+    wb._state.save_safe.assert_called_once()
