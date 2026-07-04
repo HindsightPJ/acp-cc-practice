@@ -8,9 +8,9 @@ from quiz_engine import QuizEngine
 from models import Question
 from data_manager import DataManager
 from .base_mode import BaseMode
-from .option_row import OptionRow
 from .practice_session import PracticeSession
 from .practice_panel import PracticePanel
+from .question_detail_card import QuestionDetailCard
 
 
 class WrongBook(BaseMode):
@@ -227,79 +227,18 @@ class WrongBook(BaseMode):
             bg=theme.BG_CARD,
         ).pack(anchor=tk.W)
 
-        question_card, q_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
-        question_card.pack(fill=tk.X, padx=20, pady=12)
-
-        q_text = tk.Text(
-            q_inner,
-            height=4,
-            wrap=tk.WORD,
-            font=font_ui(12),
-            bg=theme.BG_CARD,
-            fg=theme.TEXT_PRIMARY,
-            relief=tk.FLAT,
-            padx=0,
-            pady=0,
-            selectbackground=theme.BG_SELECT,
-            insertbackground=theme.TEXT_PRIMARY,
+        detail_card = QuestionDetailCard(
+            detail_window,
+            on_option_click=None,
+            option_wraplength=480,
+            answer_placeholder="正确答案:",
+            inner_padx=20,
+            question_inner_pady=14,
+            option_inner_pady=14,
+            option_pady=2,
         )
-        q_text.pack(fill=tk.X)
-        q_text.insert(tk.END, f"{q_num}. {question.content}")
-        q_text.config(state=tk.DISABLED)
-
-        options_card, opt_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
-        options_card.pack(fill=tk.X, padx=20, pady=(0, 12))
-
-        for opt in question.options:
-            row = OptionRow(opt_inner, letter=opt.letter, wraplength=480)
-            row.pack(fill=tk.X, pady=2)
-            row.update_text(opt.text)
-            if opt.letter in question.answer:
-                row.reveal_correct()
-            else:
-                row.reset()
-
-        answer_card, ans_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
-        answer_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 12))
-
-        ans_top = tk.Frame(ans_inner, bg=theme.BG_CARD)
-        ans_top.pack(fill=tk.X, pady=(0, 8))
-
-        tk.Label(
-            ans_top, text="正确答案:", font=font_ui(11), fg=theme.TEXT_MUTED, bg=theme.BG_CARD
-        ).pack(side=tk.LEFT, padx=(0, 8))
-
-        tk.Label(
-            ans_top,
-            text=question.answer or "?",
-            font=font_ui_semibold(13),
-            fg=theme.GREEN,
-            bg=theme.BG_CARD,
-        ).pack(side=tk.LEFT)
-
-        exp_container = tk.Frame(ans_inner, bg=theme.BG_CARD)
-        exp_container.pack(fill=tk.BOTH, expand=True)
-
-        exp_scrollbar = tk.Scrollbar(exp_container)
-        exp_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        exp_text = tk.Text(
-            exp_container,
-            wrap=tk.WORD,
-            font=font_ui(11),
-            bg=theme.BG_CARD,
-            fg=theme.TEXT_SECONDARY,
-            relief=tk.FLAT,
-            padx=0,
-            pady=0,
-            yscrollcommand=exp_scrollbar.set,
-            selectbackground=theme.BG_SELECT,
-            insertbackground=theme.TEXT_PRIMARY,
-        )
-        exp_text.pack(fill=tk.BOTH, expand=True)
-        exp_scrollbar.config(command=exp_text.yview)
-        exp_text.insert(tk.END, question.explanation or "暂无解析")
-        exp_text.config(state=tk.DISABLED)
+        detail_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=12)
+        detail_card.show_question(question, reveal_answer=True)
 
         btn_frame = tk.Frame(detail_window, bg=theme.BG_PAGE)
         btn_frame.pack(fill=tk.X, padx=20, pady=(0, 20))

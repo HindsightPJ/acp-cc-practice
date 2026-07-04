@@ -2,15 +2,19 @@
 
 P2: 将 PracticeMode 与 WrongBook 错题练习中重复的练习视图抽离为统一组件，
 降低视图层重复代码，同时保持两种使用场景的差异化配置能力。
+
+P3: 题干+选项+答案/解析三段卡片复用 QuestionDetailCard，进一步消除样板代码。
+操作栏通过 insert_action_bar 回调插入到选项卡和答案/解析卡之间，保持原视觉布局。
 """
 
 import tkinter as tk
 from tkinter import messagebox
-from typing import Callable
+from typing import Callable, cast
 
-from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
+from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button
 from .option_row import OptionRow
 from .practice_session import PracticeSession
+from .question_detail_card import QuestionDetailCard
 
 
 class PracticePanel(tk.Frame):
@@ -93,38 +97,33 @@ class PracticePanel(tk.Frame):
             self.progress_bar_fill = None
             self.progress_value = None
 
-        # 题干卡片
-        question_card, q_inner = create_card(self, inner_pady=16)
-        question_card.pack(fill=tk.X, pady=(0, 12))
-
-        self.question_text = tk.Text(
-            q_inner,
-            height=self.question_height,
-            wrap=tk.WORD,
-            font=font_ui(12),
-            bg=theme.BG_CARD,
-            fg=theme.TEXT_PRIMARY,
-            relief=tk.FLAT,
-            padx=0,
-            pady=0,
-            selectbackground=theme.BG_SELECT,
-            insertbackground=theme.TEXT_PRIMARY,
+        # 题干+选项+操作栏+答案/解析：复用 QuestionDetailCard
+        # 操作栏通过 insert_action_bar 回调插入到选项卡和答案/解析卡之间，保持原视觉布局
+        self.detail_card = QuestionDetailCard(
+            self,
+            on_option_click=self.handle_option_click,
+            question_height=self.question_height,
+            show_explanation=self.show_explanation,
+            answer_placeholder="提交答案后查看解析",
+            option_pady=4,
+            insert_action_bar=self._build_action_bar,
         )
-        self.question_text.pack(fill=tk.X)
-        self.question_text.config(state=tk.DISABLED)
+        self.detail_card.pack(fill=tk.BOTH, expand=True)
 
-        # 选项卡片
-        options_card, opt_inner = create_card(self, inner_pady=14)
-        options_card.pack(fill=tk.X, pady=(0, 12))
+        # 别名：保留对 QuestionDetailCard 内部组件的引用，便于 load_current_question / submit_answer 操作
+        # _build_ui 已保证 question_text / answer_label 在 QuestionDetailCard 中被创建，使用 cast 收窄类型
+        self.question_text = cast(tk.Text, self.detail_card.question_text)
+        self.option_cards = self.detail_card.option_cards
+        self.result_label = cast(tk.Label, self.detail_card.answer_label)
+        self.explanation_text = self.detail_card.explanation_text
 
-        for idx in range(6):
-            letter = chr(ord("A") + idx)
-            card = OptionRow(opt_inner, letter=letter, on_click=self.handle_option_click)
-            card.pack(fill=tk.X, pady=4)
-            self.option_cards.append(card)
+    def _build_action_bar(self, container: tk.Frame) -> None:
+        """构建操作栏（提交/上一题/下一题 + 统计）。
 
-        # 操作栏
-        action_bar = tk.Frame(self, bg=theme.BG_PAGE)
+        由 QuestionDetailCard 在选项卡和答案/解析卡之间 pack，保持
+        PracticePanel 原"题干 → 选项 → 操作栏 → 答案/解析"的视觉布局。
+        """
+        action_bar = tk.Frame(container, bg=theme.BG_PAGE)
         action_bar.pack(fill=tk.X, pady=(0, 12))
 
         btn_left = tk.Frame(action_bar, bg=theme.BG_PAGE)
@@ -164,45 +163,6 @@ class PracticePanel(tk.Frame):
             bg=theme.BG_PAGE,
         )
         self.stats_label.pack()
-
-        # 结果与解析卡片
-        result_card, res_inner = create_card(self, inner_pady=14)
-        result_card.pack(fill=tk.BOTH, expand=True)
-
-        self.result_label = tk.Label(
-            res_inner,
-            text="提交答案后查看解析",
-            font=font_ui(11),
-            fg=theme.TEXT_MUTED,
-            bg=theme.BG_CARD,
-        )
-        self.result_label.pack(anchor=tk.W, pady=(0, 8))
-
-        if self.show_explanation:
-            exp_container = tk.Frame(res_inner, bg=theme.BG_CARD)
-            exp_container.pack(fill=tk.BOTH, expand=True)
-
-            exp_scrollbar = tk.Scrollbar(exp_container)
-            exp_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-            self.explanation_text: tk.Text | None = tk.Text(
-                exp_container,
-                wrap=tk.WORD,
-                font=font_ui(11),
-                bg=theme.BG_CARD,
-                fg=theme.TEXT_SECONDARY,
-                relief=tk.FLAT,
-                padx=0,
-                pady=0,
-                yscrollcommand=exp_scrollbar.set,
-                selectbackground=theme.BG_SELECT,
-                insertbackground=theme.TEXT_PRIMARY,
-            )
-            self.explanation_text.pack(fill=tk.BOTH, expand=True)
-            exp_scrollbar.config(command=self.explanation_text.yview)
-            self.explanation_text.config(state=tk.DISABLED)
-        else:
-            self.explanation_text = None
 
     # ------------------------------------------------------------------
     # 公共接口

@@ -2,13 +2,13 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Any
 
-from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
+from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button
 
 from quiz_engine import QuizEngine
 from models import Question
 from data_manager import DataManager
 from .base_mode import BaseMode
-from .option_row import OptionRow
+from .question_detail_card import QuestionDetailCard
 
 
 class ReviewMode(BaseMode):
@@ -123,73 +123,22 @@ class ReviewMode(BaseMode):
         )
         next_btn.pack(side=tk.LEFT)
 
-        question_card, q_inner = create_card(self, inner_padx=20, inner_pady=16)
-        question_card.pack(fill=tk.X, pady=(0, 12))
-
-        self.review_question_text = tk.Text(
-            q_inner,
-            height=4,
-            wrap=tk.WORD,
-            font=font_ui(12),
-            bg=theme.BG_CARD,
-            fg=theme.TEXT_PRIMARY,
-            relief=tk.FLAT,
-            padx=0,
-            pady=0,
-            selectbackground=theme.BG_SELECT,
-            insertbackground=theme.TEXT_PRIMARY,
+        self.detail_card = QuestionDetailCard(
+            self,
+            on_option_click=None,
+            option_wraplength=700,
+            answer_placeholder="点击下方按钮显示答案",
+            inner_padx=20,
+            question_inner_pady=16,
+            option_inner_pady=14,
+            option_pady=2,
         )
-        self.review_question_text.pack(fill=tk.X)
-        self.review_question_text.config(state=tk.DISABLED)
-
-        options_card, opt_inner = create_card(self, inner_padx=20, inner_pady=14)
-        options_card.pack(fill=tk.X, pady=(0, 12))
-
-        self.review_option_rows = []
-        for letter in ["A", "B", "C", "D", "E", "F"]:
-            row = OptionRow(opt_inner, letter=letter)
-            row.pack(fill=tk.X, pady=2)
-            self.review_option_rows.append(row)
-            if ord(letter) - ord("A") >= 4:
-                row.pack_forget()
-
-        answer_card, ans_inner = create_card(self, inner_padx=20, inner_pady=14)
-        answer_card.pack(fill=tk.BOTH, expand=True)
-
-        ans_top = tk.Frame(ans_inner, bg=theme.BG_CARD)
-        ans_top.pack(fill=tk.X, pady=(0, 8))
-
-        self.answer_label = tk.Label(
-            ans_top,
-            text="点击下方按钮显示答案",
-            font=font_ui(11),
-            fg=theme.TEXT_MUTED,
-            bg=theme.BG_CARD,
-        )
-        self.answer_label.pack(side=tk.LEFT)
-
-        exp_container = tk.Frame(ans_inner, bg=theme.BG_CARD)
-        exp_container.pack(fill=tk.BOTH, expand=True)
-
-        exp_scrollbar = tk.Scrollbar(exp_container)
-        exp_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.review_explanation_text = tk.Text(
-            exp_container,
-            wrap=tk.WORD,
-            font=font_ui(11),
-            bg=theme.BG_CARD,
-            fg=theme.TEXT_SECONDARY,
-            relief=tk.FLAT,
-            padx=0,
-            pady=0,
-            yscrollcommand=exp_scrollbar.set,
-            selectbackground=theme.BG_SELECT,
-            insertbackground=theme.TEXT_PRIMARY,
-        )
-        self.review_explanation_text.pack(fill=tk.BOTH, expand=True)
-        exp_scrollbar.config(command=self.review_explanation_text.yview)
-        self.review_explanation_text.config(state=tk.DISABLED)
+        self.detail_card.pack(fill=tk.BOTH, expand=True)
+        # 保留旧别名，让 load_question / toggle_answer 等方法平滑迁移
+        self.review_question_text = self.detail_card.question_text
+        self.review_option_rows = self.detail_card.option_cards
+        self.answer_label = self.detail_card.answer_label
+        self.review_explanation_text = self.detail_card.explanation_text
 
         action_bar = tk.Frame(self, bg=theme.BG_PAGE)
         action_bar.pack(fill=tk.X, pady=(12, 0))
@@ -232,12 +181,8 @@ class ReviewMode(BaseMode):
             return
         current_index = self.engine.get_current_index()
 
-        self.review_question_text.config(state=tk.NORMAL)
-        self.review_question_text.delete(1.0, tk.END)
-        self.review_question_text.insert(
-            tk.END, f"{question.number}. {question.content}"
-        )
-        self.review_question_text.config(state=tk.DISABLED)
+        # 题干 + 选项 + 答案/解析状态由 QuestionDetailCard 统一渲染
+        self.detail_card.show_question(question)
 
         # 显示题目类型
         if question.type == "multiple":
@@ -245,20 +190,7 @@ class ReviewMode(BaseMode):
         else:
             self.type_label.configure(text="单选题", fg=theme.ACCENT)
 
-        options = question.options
-        for i in range(6):
-            if i < len(options):
-                self.review_option_rows[i].pack(fill=tk.X, pady=2)
-                self.review_option_rows[i].update_text(options[i].text)
-                self.review_option_rows[i].reset()
-            else:
-                self.review_option_rows[i].pack_forget()
-
         self.showing_answer = False
-        self.answer_label.configure(text="点击下方按钮显示答案", fg=theme.TEXT_MUTED)
-        self.review_explanation_text.config(state=tk.NORMAL)
-        self.review_explanation_text.delete(1.0, tk.END)
-        self.review_explanation_text.config(state=tk.DISABLED)
         self.toggle_answer_btn.configure(text="显示答案 (Space)")
 
         self.jump_var.set(str(current_index + 1))
@@ -279,35 +211,17 @@ class ReviewMode(BaseMode):
 
         if not self.showing_answer:
             self.showing_answer = True
-            self.answer_label.configure(
-                text=f"正确答案: {question.answer or '未知'}", fg=theme.GREEN
+            self.detail_card.reveal_correct_options(question)
+            self.detail_card.set_answer_label(
+                f"正确答案: {question.answer or '未知'}", fg=theme.GREEN
             )
-            self.review_explanation_text.config(state=tk.NORMAL)
-            self.review_explanation_text.delete(1.0, tk.END)
-            explanation = question.explanation or "暂无解析"
-            self.review_explanation_text.insert(tk.END, explanation)
-            self.review_explanation_text.config(state=tk.DISABLED)
+            self.detail_card.set_explanation(question.explanation or "暂无解析")
             self.toggle_answer_btn.configure(text="隐藏答案 (Space)")
-
-            correct_answer = question.answer
-            options = question.options
-            for i, opt in enumerate(options):
-                letter = opt.letter or chr(ord("A") + i)
-                if letter in correct_answer:
-                    self.review_option_rows[i].reveal_correct()
-                else:
-                    self.review_option_rows[i].reset()
         else:
             self.showing_answer = False
-            self.answer_label.configure(text="点击下方按钮显示答案", fg=theme.TEXT_MUTED)
-            self.review_explanation_text.config(state=tk.NORMAL)
-            self.review_explanation_text.delete(1.0, tk.END)
-            self.review_explanation_text.config(state=tk.DISABLED)
+            self.detail_card.clear_answer_state()
+            self.detail_card.reset_options()
             self.toggle_answer_btn.configure(text="显示答案 (Space)")
-
-            options = question.options
-            for i in range(len(options)):
-                self.review_option_rows[i].reset()
 
     def next_question(self) -> None:
         if self.engine and self.engine.has_next():
