@@ -15,9 +15,9 @@ v1.0
 
 ## 界面预览
 
-![界面预览 1](1.png)
+![界面预览 1](screenshot-practice.png)
 
-![界面预览 2](2.png)
+![界面预览 2](screenshot-exam.png)
 
 ## 功能
 
