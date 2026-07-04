@@ -31,15 +31,30 @@ def test_generate_keys_returns_ed25519_keypair():
     pub.verify(sig, b"message")  # 不抛异常即通过
 
 
-def test_write_env_writes_all_keys(tmp_path):
-    """write_env 应把所有密钥写入 .env 文件。"""
+def test_generate_keys_returns_dict_with_required_keys():
+    """generate_keys 返回的 dict 应包含所需三个 key。"""
+    keys = keygen.generate_keys()
+    assert set(keys.keys()) == {
+        'questions_master_key',
+        'ed25519_private_key',
+        'ed25519_public_key',
+    }
+    # 检查基本格式
+    assert len(keys['ed25519_private_key']) == 64
+    assert len(keys['ed25519_public_key']) == 64
+
+
+def test_write_env_writes_correct_content(tmp_path):
+    """write_env 写入的 .env 内容格式应与 keygen 定义一致。"""
     keys = keygen.generate_keys()
     env_path = tmp_path / '.env'
     keygen.write_env(keys, str(env_path))
     content = env_path.read_text(encoding='utf-8')
-    assert 'QUESTIONS_MASTER_KEY=' in content
-    assert 'ED25519_PRIVATE_KEY=' in content
-    assert 'ED25519_PUBLIC_KEY=' in content
+    assert content == (
+        f"QUESTIONS_MASTER_KEY={keys['questions_master_key']}\n"
+        f"ED25519_PRIVATE_KEY={keys['ed25519_private_key']}\n"
+        f"ED25519_PUBLIC_KEY={keys['ed25519_public_key']}\n"
+    )
 
 
 # ---------- P1-5: sync_public_key_to_client 测试 ----------

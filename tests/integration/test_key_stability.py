@@ -17,7 +17,6 @@ def setup_env(tmp_path, monkeypatch):
     keygen.write_env(keys, str(env_path))
 
     (tmp_path / 'data').mkdir()
-    monkeypatch.setattr(encrypt_questions, 'BASE_DIR', str(tmp_path))
     monkeypatch.setattr(encrypt_questions, 'ENV_FILE', str(env_path))
     monkeypatch.setattr(encrypt_questions, 'DATA_DIR', str(tmp_path / 'data'))
     monkeypatch.setattr(encrypt_questions, 'QUESTIONS_JSON', str(tmp_path / 'data' / 'questions.json'))

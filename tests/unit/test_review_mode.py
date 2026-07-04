@@ -9,6 +9,8 @@ import pytest
 from models import Question
 from ui.review_mode import ReviewMode
 
+pytestmark = pytest.mark.gui
+
 
 def _make_question(number: int) -> Question:
     return Question(number=number, content=f"题 {number}", answer="A")
@@ -37,12 +39,11 @@ class _MockAppState:
 
 
 @pytest.fixture
-def mode(root, monkeypatch):
+def mode(root):
     """提供一个已初始化的 ReviewMode 实例。"""
-    # ReviewMode 继承 BaseMode，AppState 在 ui.base_mode 中解析
-    monkeypatch.setattr('ui.base_mode.AppState', _MockAppState)
+    state = _MockAppState(MagicMock(), {})
     questions = [_make_question(1), _make_question(2), _make_question(3)]
-    mode = ReviewMode(root, questions, MagicMock(), {})
+    mode = ReviewMode(root, questions, MagicMock(), state)
     mode.pack()
     yield mode
     mode.destroy()
@@ -124,9 +125,8 @@ def test_filter_button_text(mode):
     assert mode.filter_fav_btn.cget('text') == '显示全部'
 
 
-def test_toggle_favorite_works_without_data_manager(root, monkeypatch):
+def test_toggle_favorite_works_without_data_manager(root):
     """data_manager 为 None 但传入 AppState 时，收藏切换仍应生效。"""
-    monkeypatch.setattr('ui.base_mode.AppState', _MockAppState)
     questions = [_make_question(1), _make_question(2)]
     app_state = _MockAppState(None, {})
     mode = ReviewMode(root, questions, None, app_state)

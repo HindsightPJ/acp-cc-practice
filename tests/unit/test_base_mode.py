@@ -10,6 +10,8 @@ import pytest
 
 from ui.base_mode import BaseMode
 
+pytestmark = pytest.mark.gui
+
 
 class _TestMode(BaseMode):
     """测试用最小子类，满足抽象基类要求。"""
@@ -32,10 +34,10 @@ class _MockAppState:
 
 
 @pytest.fixture
-def mode(root, monkeypatch):
+def mode(root):
     """提供一个已初始化的 _TestMode 实例。"""
-    monkeypatch.setattr('ui.base_mode.AppState', _MockAppState)
-    widget = _TestMode(root, [], MagicMock(), {})
+    state = _MockAppState(MagicMock(), {})
+    widget = _TestMode(root, [], MagicMock(), state)
     widget.pack()
     yield widget
     # teardown: 取消未执行的 after 回调并清空 pending 标记，
@@ -122,10 +124,10 @@ def test_flush_pending_save_no_op_when_not_pending(mode):
     mode.app_state.save_safe.assert_not_called()
 
 
-def test_destroy_calls_flush_pending_save(root, monkeypatch):
+def test_destroy_calls_flush_pending_save(root):
     """destroy() 会触发 flush_pending_save 以强制落盘。"""
-    monkeypatch.setattr('ui.base_mode.AppState', _MockAppState)
-    mode = _TestMode(root, [], MagicMock(), {})
+    state = _MockAppState(MagicMock(), {})
+    mode = _TestMode(root, [], MagicMock(), state)
     mode.pack()
     mode._save_progress_delayed()
 

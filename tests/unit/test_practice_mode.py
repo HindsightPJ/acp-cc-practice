@@ -9,6 +9,8 @@ import pytest
 from models import Question
 from ui.practice_mode import PracticeMode
 
+pytestmark = pytest.mark.gui
+
 
 def _make_question(number: int) -> Question:
     return Question(number=number, content=f"题 {number}", answer="A")
@@ -22,11 +24,11 @@ class _MockAppState:
 
 
 @pytest.fixture
-def mode(root, monkeypatch):
+def mode(root):
     """提供一个已初始化的 PracticeMode 实例。"""
-    monkeypatch.setattr('ui.base_mode.AppState', _MockAppState)
+    state = _MockAppState(MagicMock(), {})
     questions = [_make_question(1), _make_question(2)]
-    mode = PracticeMode(root, questions, MagicMock(), {})
+    mode = PracticeMode(root, questions, MagicMock(), state)
     mode.pack()
     yield mode
     mode.destroy()

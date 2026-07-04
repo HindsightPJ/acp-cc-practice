@@ -8,6 +8,7 @@ from .theme import theme, font_ui, font_ui_semibold, create_primary_button, crea
 from quiz_engine import QuizEngine
 from models import Question
 from data_manager import DataManager
+from app_state import AppState
 from .base_mode import BaseMode
 from .exam_panel import ExamPanel
 from .exam_report_dialog import ExamReportDialog
@@ -26,7 +27,7 @@ class ExamMode(BaseMode):
         parent: tk.Misc,
         questions: list[Question],
         data_manager: DataManager | None,
-        progress: Any | None,
+        progress: AppState,
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
         self.engine: QuizEngine | None = None

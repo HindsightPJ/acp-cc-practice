@@ -12,6 +12,8 @@ from quiz_engine import QuizEngine
 from ui.exam_panel import ExamPanel
 from ui.exam_session import ExamSession
 
+pytestmark = pytest.mark.gui
+
 
 # ---------- 辅助函数 ----------
 

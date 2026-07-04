@@ -1,6 +1,6 @@
 from typing import Any
 import random
-from datetime import datetime
+import time
 
 from models import Question
 
@@ -11,7 +11,7 @@ class QuizEngine:
         self.current_index: int = 0
         self.questions_queue: list[Question] = []
         self.answers_record: dict[int, dict[str, Any]] = {}
-        self.exam_start_time: datetime | None = None
+        self.exam_start_time: float | None = None
 
     def start_practice_mode(self, shuffle: bool = False) -> None:
         """启动练习模式"""
@@ -31,7 +31,7 @@ class QuizEngine:
         self.questions_queue = available[:question_count]
         self.current_index = 0
         self.answers_record = {}
-        self.exam_start_time = datetime.now()
+        self.exam_start_time = time.monotonic()
 
     def get_current_question(self) -> Question | None:
         """获取当前题目"""
@@ -39,26 +39,36 @@ class QuizEngine:
             return self.questions_queue[self.current_index]
         return None
 
+    def _grade_answer(self, selected: str, correct: str) -> bool:
+        """判断答案是否正确（多选题排序后比较）。"""
+        selected_sorted = "".join(sorted(selected.upper()))
+        correct_sorted = "".join(sorted(correct))
+        # 空答案不应判为正确
+        return bool(correct_sorted) and (selected_sorted == correct_sorted)
+
+    def _build_result_record(
+        self, queue_index: int, question: Question, selected: str, is_correct: bool
+    ) -> dict[str, Any]:
+        """构造答题结果字典。"""
+        return {
+            "queue_index": queue_index,
+            "question_number": question.number,
+            "selected": selected.upper(),
+            "correct_answer": question.answer,
+            "is_correct": is_correct,
+            "question_content": question.content[:50] + "...",
+        }
+
     def submit_answer(self, selected_letter: str) -> dict[str, Any] | None:
         """提交答案并判断对错"""
         current = self.get_current_question()
         if not current:
             return None
 
-        # 多选题：排序后比较，确保顺序不影响判断
-        selected_sorted = "".join(sorted(selected_letter.upper()))
-        answer_sorted = "".join(sorted(current.answer))
-        # 空答案不应判为正确
-        is_correct = bool(answer_sorted) and (selected_sorted == answer_sorted)
-
-        result: dict[str, Any] = {
-            "queue_index": self.current_index,
-            "question_number": current.number,
-            "selected": selected_letter.upper(),
-            "correct_answer": current.answer,
-            "is_correct": is_correct,
-            "question_content": current.content[:50] + "...",
-        }
+        is_correct = self._grade_answer(selected_letter, current.answer)
+        result = self._build_result_record(
+            self.current_index, current, selected_letter, is_correct
+        )
 
         self.answers_record[self.current_index] = result
 
@@ -184,19 +194,10 @@ class QuizEngine:
             return None
 
         question = self.questions_queue[queue_index]
-        selected_sorted = "".join(sorted(selected_letter.upper()))
-        answer_sorted = "".join(sorted(question.answer))
-        # 空答案不应判为正确
-        is_correct = bool(answer_sorted) and (selected_sorted == answer_sorted)
-
-        result: dict[str, Any] = {
-            "queue_index": queue_index,
-            "question_number": question.number,
-            "selected": selected_letter.upper(),
-            "correct_answer": question.answer,
-            "is_correct": is_correct,
-            "question_content": question.content[:50] + "...",
-        }
+        is_correct = self._grade_answer(selected_letter, question.answer)
+        result = self._build_result_record(
+            queue_index, question, selected_letter, is_correct
+        )
 
         self.answers_record[queue_index] = result
 
@@ -210,7 +211,7 @@ class QuizEngine:
         """
         if self.exam_start_time is None:
             return None
-        return int((datetime.now() - self.exam_start_time).total_seconds())
+        return int(time.monotonic() - self.exam_start_time)
 
     def get_exam_report(self) -> dict[str, Any] | None:
         """获取考试报告"""

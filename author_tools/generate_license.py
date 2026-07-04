@@ -1,7 +1,7 @@
 """注册码生成工具（作者侧）。
 
 使用：
-    python generate_license.py
+    python -m author_tools.generate_license
 
 流程：
     1. 提示输入被授权人的机器码（64 字符 hex）
@@ -26,12 +26,10 @@ from datetime import datetime
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # acp-cc-practice/
-sys.path.insert(0, BASE_DIR)
 from license.crypto_utils import derive_dk
-from env_utils import load_env  # pylint: disable=wrong-import-position
+from env_utils import load_env
 
-ENV_FILE = os.path.join(BASE_DIR, ".env")
+ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
 ISSUED_LICENSES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "issued_licenses.json")
 
 SALT_LEN = 16

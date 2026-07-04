@@ -5,6 +5,8 @@ gui 标记的测试默认被 pytest 跳过，需单独运行：pytest -m gui
 """
 import pytest
 
+from models import Question, Option
+
 
 def _tk_display_available():
     """检测当前环境是否可以实例化 tkinter.Tk。"""
@@ -26,17 +28,17 @@ pytestmark = [
 
 
 SAMPLE_QUESTIONS = [
-    {
-        'number': 1,
-        'type': 'single',
-        'content': '测试题目',
-        'options': [
-            {'letter': 'A', 'text': '选项A'},
-            {'letter': 'B', 'text': '选项B'},
+    Question(
+        number=1,
+        type='single',
+        content='测试题目',
+        options=[
+            Option('A', '选项A'),
+            Option('B', '选项B'),
         ],
-        'answer': 'A',
-        'explanation': '解析',
-    }
+        answer='A',
+        explanation='解析',
+    )
 ]
 
 

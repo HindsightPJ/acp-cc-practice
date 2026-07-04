@@ -4,7 +4,7 @@
     - data/questions_meta.json  元数据 {total, trial_count, version}
 
 使用：
-    python encrypt_questions.py
+    python -m author_tools.encrypt_questions
 
 K 来自 .env 的 QUESTIONS_MASTER_KEY。K 不变时重新加密不影响已签发的注册码。
 """
@@ -16,12 +16,10 @@ import sys
 
 from cryptography.fernet import Fernet
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # acp-cc-practice/
-sys.path.insert(0, BASE_DIR)
-from env_utils import load_env  # pylint: disable=wrong-import-position
+from env_utils import load_env
 
-ENV_FILE = os.path.join(BASE_DIR, ".env")
-DATA_DIR = os.path.join(BASE_DIR, "data")
+ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 QUESTIONS_JSON = os.path.join(DATA_DIR, "questions.json")
 QUESTIONS_ENC = os.path.join(DATA_DIR, "questions.enc")
 QUESTIONS_TRIAL = os.path.join(DATA_DIR, "questions_trial.json")

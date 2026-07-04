@@ -3,6 +3,7 @@ import os
 import json
 import re
 import logging
+import threading
 from logging_utils import log_error
 from models import Question
 
@@ -98,6 +99,7 @@ class DataManager:
         self.questions_file: str = os.path.join(self.user_data_dir, "questions.json")
         self.questions_enc_file: str = os.path.join(self.data_dir, "questions.enc")
         self.progress_file: str = os.path.join(self.user_data_dir, "progress.json")
+        self._save_lock = threading.Lock()
 
         # 确保用户数据目录存在
         if not os.path.exists(self.user_data_dir):
@@ -169,7 +171,13 @@ class DataManager:
             seen[q["number"]] = q
         raw_questions = [seen[k] for k in sorted(seen)]
 
-        return [Question.from_dict(q) for q in raw_questions]
+        questions: list[Question] = []
+        for i, q in enumerate(raw_questions):
+            try:
+                questions.append(Question.from_dict(q))
+            except (ValueError, TypeError, KeyError) as e:
+                raise DataLoadError(f"第{i + 1}题解析失败: {e}")
+        return questions
 
     def load_meta(self) -> dict[str, Any] | None:
         """加载 questions_meta.json。
@@ -194,11 +202,18 @@ class DataManager:
         try:
             with open(trial_path, "r", encoding="utf-8") as f:
                 raw_list = json.load(f)
-                return [Question.from_dict(q) for q in raw_list]
         except json.JSONDecodeError as e:
             raise DataLoadError(f"试用题库损坏，请重新下载程序: {e}")
         except PermissionError:
             raise DataLoadError("无法读取试用题库，请检查文件权限")
+
+        questions: list[Question] = []
+        for i, q in enumerate(raw_list):
+            try:
+                questions.append(Question.from_dict(q))
+            except (ValueError, TypeError, KeyError) as e:
+                raise DataLoadError(f"第{i + 1}题解析失败: {e}")
+        return questions
 
     def load_full_questions(self, key: str) -> list[Question]:
         """用 K 解密 questions.enc 加载全库。
@@ -222,40 +237,48 @@ class DataManager:
                 ciphertext = f.read()
             plaintext = fernet.decrypt(ciphertext)
             raw_list = json.loads(plaintext.decode("utf-8"))
-            return [Question.from_dict(q) for q in raw_list]
         except (ValueError, OSError, json.JSONDecodeError, UnicodeDecodeError, InvalidToken) as e:
             # TD-10: 收窄异常捕获——密钥格式错误(ValueError) / 文件IO(OSError) /
             # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
             raise DataLoadError(f"题库密文损坏或密钥不匹配: {e}")
 
+        questions: list[Question] = []
+        for i, q in enumerate(raw_list):
+            try:
+                questions.append(Question.from_dict(q))
+            except (ValueError, TypeError, KeyError) as e:
+                raise DataLoadError(f"第{i + 1}题解析失败: {e}")
+        return questions
+
     def save_progress(self, progress_data: dict[str, Any]) -> None:
         """保存学习进度（Windows 安全：先备份 .bak，再写 .tmp，最后 os.replace）"""
-        tmp_file = self.progress_file + ".tmp"
-        bak_file = self.progress_file + ".bak"
-        try:
-            # 在写入前备份现有文件（Windows 上 os.replace 非原子，崩溃时可用 .bak 恢复）
-            if os.path.exists(self.progress_file):
-                try:
-                    os.replace(self.progress_file, bak_file)
-                except OSError:
-                    pass  # 备份失败不阻塞主流程
-            with open(tmp_file, "w", encoding="utf-8") as f:
-                json.dump(progress_data, f, ensure_ascii=False, indent=2)
-            os.replace(tmp_file, self.progress_file)
-        except (PermissionError, OSError) as e:
-            if os.path.exists(tmp_file):
-                try:
-                    os.remove(tmp_file)
-                except OSError:
-                    pass
-            # 尝试从 .bak 恢复
-            if os.path.exists(bak_file) and not os.path.exists(self.progress_file):
-                try:
-                    os.replace(bak_file, self.progress_file)
-                except OSError:
-                    pass
-            log_error(logger, "无法保存进度数据", exc=e, progress_file=self.progress_file)
-            raise DataSaveError(f"无法保存进度数据: {e}")
+        with self._save_lock:
+            tmp_file = self.progress_file + ".tmp"
+            bak_file = self.progress_file + ".bak"
+            try:
+                # 在写入前备份现有文件（Windows 上 os.replace 非原子，崩溃时可用 .bak 恢复）
+                if os.path.exists(self.progress_file):
+                    try:
+                        os.replace(self.progress_file, bak_file)
+                    except OSError:
+                        pass  # 备份失败不阻塞主流程
+                with open(tmp_file, "w", encoding="utf-8") as f:
+                    json.dump(progress_data, f, ensure_ascii=False, indent=2)
+                os.replace(tmp_file, self.progress_file)
+            except (PermissionError, OSError) as e:
+                if os.path.exists(tmp_file):
+                    try:
+                        os.remove(tmp_file)
+                    except OSError:
+                        pass
+                # 尝试从 .bak 恢复
+                if os.path.exists(bak_file) and not os.path.exists(self.progress_file):
+                    try:
+                        os.replace(bak_file, self.progress_file)
+                    except OSError:
+                        pass
+                log_error(logger, "无法保存进度数据", exc=e, progress_file=self.progress_file)
+                raise DataSaveError(f"无法保存进度数据: {e}")
 
     def load_progress(self) -> dict[str, Any]:
         """加载学习进度；遇到损坏文件自动备份为 .corrupt-{timestamp} 便于排查。

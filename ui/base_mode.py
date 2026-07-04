@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from typing import Any, Callable
+from typing import Callable
 from abc import ABC, abstractmethod
 
 from quiz_engine import QuizEngine
@@ -13,8 +13,7 @@ from data_manager import DataManager
 class BaseMode(ABC, ttk.Frame):
     """练习模式的抽象基类，包含公共功能和生命周期管理。
 
-    TD-30: 引入 AppState 解耦 UI 与状态管理。progress 参数既可以是旧的 dict，
-    也可以是 AppState 实例；基类统一包装为状态对象供子类使用。
+    TD-30: 引入 AppState 解耦 UI 与状态管理。
 
     P2-9: 防抖保存三件套（_save_progress_delayed/_do_save_progress/flush_pending_save）
     统一在基类实现，子类通过覆盖 _save_failure_message 定制文案。
@@ -28,25 +27,20 @@ class BaseMode(ABC, ttk.Frame):
         parent: tk.Misc,
         questions: list[Question],
         data_manager: DataManager | None,
-        progress: Any | None,
+        progress: AppState,
     ) -> None:
         super().__init__(parent)
         self.questions: list[Question] = questions
         self.data_manager = data_manager
         # P2-TIMER: 保存任务单独跟踪，避免 _save_progress_delayed 误取消计时器、
         # 自动显示答案等其他职责的 after 任务
-        self._after_jobs: list[Any] = []  # 非保存类 after 任务
+        self._after_jobs: list[str] = []  # 非保存类 after 任务
         self._save_job_id: str | None = None  # 防抖保存任务
         self.engine: QuizEngine | None = None  # 基类保证属性存在，子类覆盖
         # P2-9: 防抖保存标记，统一在基类管理
         self._pending_save: bool = False
 
-        if isinstance(progress, AppState):
-            self._state = progress
-        else:
-            if data_manager is None:
-                raise ValueError("data_manager required when progress is not AppState")
-            self._state = AppState(data_manager, progress)
+        self._state = progress
 
     @property
     def app_state(self) -> AppState:

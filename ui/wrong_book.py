@@ -1,12 +1,11 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Any
-
 from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
 
 from quiz_engine import QuizEngine
 from models import Question
 from data_manager import DataManager
+from app_state import AppState
 from .base_mode import BaseMode
 from .practice_session import PracticeSession
 from .practice_panel import PracticePanel
@@ -20,7 +19,7 @@ class WrongBook(BaseMode):
         parent: tk.Misc,
         questions: list[Question],
         data_manager: DataManager | None,
-        progress: Any | None,
+        progress: AppState,
     ) -> None:
         super().__init__(parent, questions, data_manager, progress)
 
@@ -54,6 +53,7 @@ class WrongBook(BaseMode):
             self._detail_dialog = None
             self._detail_card = None
             self._detail_header_label = None
+            self._current_detail_q_num = None
 
         if self._practice_window is not None:
             try:
@@ -242,9 +242,12 @@ class WrongBook(BaseMode):
         self._ensure_detail_dialog()  # 懒加载创建（仅首次）
 
         # _ensure_detail_dialog 保证以下三个属性已初始化
-        assert self._detail_dialog is not None
-        assert self._detail_card is not None
-        assert self._detail_header_label is not None
+        if (
+            self._detail_dialog is None
+            or self._detail_card is None
+            or self._detail_header_label is None
+        ):
+            return
 
         # 复用已有对话框：更新标题 + 内容 + 显示
         self._detail_dialog.title(f"第{q_num}题")
@@ -489,6 +492,7 @@ class WrongBook(BaseMode):
             except tk.TclError:
                 pass
             self._practice_window = None
+            self._practice_panel = None
         self._practice_session = None
 
     def clear_all_wrong(self) -> None:

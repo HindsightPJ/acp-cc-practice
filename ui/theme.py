@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import platform
 import tkinter as tk
 from tkinter import font as tkfont
@@ -371,6 +372,7 @@ def create_card(
     return card, inner
 
 
+@dataclass(frozen=True)
 class Theme:
     """主题访问器：以属性方式读取本模块定义的全局颜色常量。
 
@@ -379,20 +381,62 @@ class Theme:
         frame = tk.Frame(parent, bg=theme.BG_PAGE)
     """
 
-    def __getattr__(self, name: str) -> str:
-        if name.startswith("_"):
-            raise AttributeError(name)
-        try:
-            return cast(str, globals()[name])
-        except KeyError:
-            raise AttributeError(name)
-
-    def __dir__(self) -> list[str]:
-        return sorted(
-            name
-            for name in globals()
-            if name.isupper() and isinstance(globals()[name], str) and name[0] != "_"
-        )
+    BG_PAGE: str = BG_PAGE
+    BG_CARD: str = BG_CARD
+    BG_INPUT: str = BG_INPUT
+    BG_HOVER: str = BG_HOVER
+    BG_SELECT: str = BG_SELECT
+    BORDER: str = BORDER
+    BORDER_LIGHT: str = BORDER_LIGHT
+    INK: str = INK
+    INK_SOFT: str = INK_SOFT
+    INK_TEXT: str = INK_TEXT
+    INK_TEXT_MUTED: str = INK_TEXT_MUTED
+    INK_DIVIDER: str = INK_DIVIDER
+    TEXT_PRIMARY: str = TEXT_PRIMARY
+    TEXT_SECONDARY: str = TEXT_SECONDARY
+    TEXT_MUTED: str = TEXT_MUTED
+    TEXT_PLACEHOLDER: str = TEXT_PLACEHOLDER
+    ACCENT: str = ACCENT
+    ACCENT_HOVER: str = ACCENT_HOVER
+    ACCENT_LIGHT: str = ACCENT_LIGHT
+    ACCENT_BORDER: str = ACCENT_BORDER
+    GREEN: str = GREEN
+    GREEN_BG: str = GREEN_BG
+    GREEN_BORDER: str = GREEN_BORDER
+    GREEN_TEXT: str = GREEN_TEXT
+    RED: str = RED
+    RED_BG: str = RED_BG
+    RED_BORDER: str = RED_BORDER
+    RED_TEXT: str = RED_TEXT
+    YELLOW: str = YELLOW
+    YELLOW_BG: str = YELLOW_BG
+    YELLOW_BORDER: str = YELLOW_BORDER
+    YELLOW_TEXT: str = YELLOW_TEXT
+    PURPLE: str = PURPLE
+    PURPLE_BG: str = PURPLE_BG
+    PURPLE_BORDER: str = PURPLE_BORDER
+    PURPLE_TEXT: str = PURPLE_TEXT
+    SELECTED_BG: str = SELECTED_BG
+    SELECTED_TEXT: str = SELECTED_TEXT
+    CORRECT_BG: str = CORRECT_BG
+    CORRECT_TEXT: str = CORRECT_TEXT
+    CORRECT_HINT_BG: str = CORRECT_HINT_BG
+    CORRECT_HINT_TEXT: str = CORRECT_HINT_TEXT
+    WRONG_BG: str = WRONG_BG
+    WRONG_TEXT: str = WRONG_TEXT
+    BTN_PRIMARY: str = BTN_PRIMARY
+    BTN_PRIMARY_HOVER: str = BTN_PRIMARY_HOVER
+    BTN_PRIMARY_ACTIVE: str = BTN_PRIMARY_ACTIVE
+    BTN_NORMAL: str = BTN_NORMAL
+    BTN_NORMAL_FG: str = BTN_NORMAL_FG
+    BTN_NORMAL_HOVER: str = BTN_NORMAL_HOVER
+    BTN_NORMAL_ACTIVE: str = BTN_NORMAL_ACTIVE
+    BTN_DISABLED: str = BTN_DISABLED
+    BTN_DISABLED_FG: str = BTN_DISABLED_FG
+    TAB_ACTIVE_FG: str = TAB_ACTIVE_FG
+    TAB_ACTIVE_BORDER: str = TAB_ACTIVE_BORDER
+    TAB_INACTIVE_FG: str = TAB_INACTIVE_FG
 
 
 # 模块级单例：所有 UI 组件共享同一 Theme 实例（无状态访问器，等价于多次实例化）

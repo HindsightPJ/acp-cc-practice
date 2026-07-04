@@ -1,5 +1,7 @@
 """encrypt_questions.py 单元测试。"""
 import json
+import sys
+from unittest.mock import Mock
 
 import pytest
 from cryptography.fernet import Fernet
@@ -36,7 +38,6 @@ def setup_workdir(tmp_path, fake_questions, monkeypatch):
     (tmp_path / '.env').write_text(f'QUESTIONS_MASTER_KEY={key}\n', encoding='utf-8')
 
     # monkeypatch encrypt_questions 的路径常量
-    monkeypatch.setattr(encrypt_questions, 'BASE_DIR', str(tmp_path))
     monkeypatch.setattr(encrypt_questions, 'ENV_FILE', str(tmp_path / '.env'))
     monkeypatch.setattr(encrypt_questions, 'QUESTIONS_JSON', str(tmp_path / 'data' / 'questions.json'))
     monkeypatch.setattr(encrypt_questions, 'QUESTIONS_ENC', str(tmp_path / 'data' / 'questions.enc'))
@@ -103,3 +104,73 @@ def test_re_encrypt_with_same_k_produces_decryptable_enc(setup_workdir):
     f = Fernet(key1.encode())
     assert json.loads(f.decrypt(enc1).decode('utf-8'))
     assert json.loads(f.decrypt(enc2).decode('utf-8'))
+
+
+# ---------- load_master_key 边界测试 ----------
+
+
+def test_load_master_key_returns_key(tmp_path, monkeypatch):
+    """.env 存在且包含 QUESTIONS_MASTER_KEY 时返回该 key。"""
+    key = Fernet.generate_key().decode()
+    env_path = tmp_path / '.env'
+    env_path.write_text(f'QUESTIONS_MASTER_KEY={key}\n', encoding='utf-8')
+    monkeypatch.setattr(encrypt_questions, 'ENV_FILE', str(env_path))
+
+    assert encrypt_questions.load_master_key() == key
+
+
+def test_load_master_key_exits_when_env_missing(tmp_path, monkeypatch):
+    """.env 缺失时调用 sys.exit(1)。"""
+    monkeypatch.setattr(
+        encrypt_questions, 'ENV_FILE', str(tmp_path / 'missing.env')
+    )
+    mock_exit = Mock(side_effect=SystemExit)
+    monkeypatch.setattr(sys, 'exit', mock_exit)
+
+    with pytest.raises(SystemExit):
+        encrypt_questions.load_master_key()
+
+    mock_exit.assert_called_once_with(1)
+
+
+def test_load_master_key_exits_when_key_missing(tmp_path, monkeypatch):
+    """.env 存在但缺少 QUESTIONS_MASTER_KEY 时调用 sys.exit(1)。"""
+    env_path = tmp_path / '.env'
+    env_path.write_text('OTHER=value\n', encoding='utf-8')
+    monkeypatch.setattr(encrypt_questions, 'ENV_FILE', str(env_path))
+    mock_exit = Mock(side_effect=SystemExit)
+    monkeypatch.setattr(sys, 'exit', mock_exit)
+
+    with pytest.raises(SystemExit):
+        encrypt_questions.load_master_key()
+
+    mock_exit.assert_called_once_with(1)
+
+
+# ---------- main() 成功路径（mock 依赖） ----------
+
+
+def test_main_success_with_mocked_dependencies(monkeypatch):
+    """main() 成功路径：mock 所有依赖，验证调用链与返回值。"""
+    fake_key = Fernet.generate_key().decode()
+    fake_questions = [{'number': 1, 'content': 'test'}]
+
+    mock_load_master_key = Mock(return_value=fake_key)
+    mock_load_questions = Mock(return_value=fake_questions)
+    mock_encrypt_and_write = Mock()
+    mock_write_trial = Mock()
+    mock_write_meta = Mock()
+
+    monkeypatch.setattr(encrypt_questions, 'load_master_key', mock_load_master_key)
+    monkeypatch.setattr(encrypt_questions, 'load_questions', mock_load_questions)
+    monkeypatch.setattr(encrypt_questions, 'encrypt_and_write', mock_encrypt_and_write)
+    monkeypatch.setattr(encrypt_questions, 'write_trial', mock_write_trial)
+    monkeypatch.setattr(encrypt_questions, 'write_meta', mock_write_meta)
+
+    assert encrypt_questions.main() == 0
+
+    mock_load_master_key.assert_called_once()
+    mock_load_questions.assert_called_once()
+    mock_encrypt_and_write.assert_called_once_with(fake_questions, fake_key)
+    mock_write_trial.assert_called_once_with(fake_questions)
+    mock_write_meta.assert_called_once_with(len(fake_questions))

@@ -11,6 +11,8 @@ from models import Question, Option
 from quiz_engine import QuizEngine
 from ui.exam_mode import ExamMode
 
+pytestmark = pytest.mark.gui
+
 
 # ---------- 辅助函数 / fixtures ----------
 
@@ -54,7 +56,7 @@ class _MockAppState:
 @pytest.fixture
 def mode(root, monkeypatch):
     """提供一个已初始化的 ExamMode 实例。"""
-    monkeypatch.setattr('ui.base_mode.AppState', _MockAppState)
+    state = _MockAppState(MagicMock(), {})
     monkeypatch.setattr('tkinter.messagebox.showinfo', lambda *a, **k: None)
     monkeypatch.setattr('tkinter.messagebox.showwarning', lambda *a, **k: None)
     monkeypatch.setattr('tkinter.messagebox.showerror', lambda *a, **k: None)
@@ -68,7 +70,7 @@ def mode(root, monkeypatch):
     monkeypatch.setattr(QuizEngine, 'start_exam_mode', _deterministic_start_exam_mode)
 
     questions = [make_question(1), make_question(2), make_question(3, q_type='multiple', answer='AC')]
-    m = ExamMode(root, questions, MagicMock(), {})
+    m = ExamMode(root, questions, MagicMock(), state)
     m.pack()
     yield m
     try:
@@ -95,9 +97,9 @@ def test_start_exam_initializes_engine_and_session(mode):
 
 def test_start_exam_invalid_input_shows_error(root, monkeypatch):
     """输入非法数值时弹出错误且不启动考试。"""
-    monkeypatch.setattr('ui.base_mode.AppState', _MockAppState)
+    state = _MockAppState(MagicMock(), {})
     monkeypatch.setattr('tkinter.messagebox.showerror', lambda *a, **k: None)
-    m = ExamMode(root, [make_question(1)], MagicMock(), {})
+    m = ExamMode(root, [make_question(1)], MagicMock(), state)
     m.question_count_var.set('abc')
     m.duration_var.set('60')
 
