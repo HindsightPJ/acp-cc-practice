@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from typing import Any
 
 from .theme import theme
@@ -156,7 +156,25 @@ class MainWindow(tk.Tk):
             self.current_frame.destroy()
             self.current_frame = None
 
+    def _is_exam_in_progress(self) -> bool:
+        """检查当前是否在考试中（用于切 tab 前确认，避免丢失考试状态）。"""
+        if not isinstance(self.current_frame, ExamMode):
+            return False
+        # P0-3: timer_running 为 True 表示考试进行中（开始按钮已禁用、计时器在跑）
+        return bool(self.current_frame.timer_running)
+
     def _switch_to(self, mode_title: str, factory) -> None:
+        # P0-3: 考试进行中切 tab 会丢失 answers/marked/时间，先确认
+        if self._is_exam_in_progress():
+            if not messagebox.askyesno(
+                "确认切换",
+                "考试正在进行中，切换模式将放弃本次考试。\n\n确定要切换吗？",
+                parent=self,
+            ):
+                # 用户取消：恢复 sidebar 高亮到当前 tab（_handle_nav_click 已切到新 tab）
+                if self.sidebar is not None:
+                    self.sidebar.set_active_nav(self._active_nav)
+                return
         self.clear_content()
         self._active_nav = mode_title
         self._update_nav_highlight()
