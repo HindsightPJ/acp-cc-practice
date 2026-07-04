@@ -35,6 +35,8 @@ class ExamMode(BaseMode):
         self.exam_total_seconds = 0
         self.exam_session: ExamSession | None = None
         self.panel: ExamPanel | None = None
+        # P1-4: 跟踪当前待执行的 timer job，避免 _after_jobs 列表无限增长
+        self._timer_job_id: str | None = None
 
         self._setup_mode_ui()
         self._bind_keyboard()
@@ -332,8 +334,13 @@ class ExamMode(BaseMode):
         if self.panel is not None:
             self.panel.update_timer_display(self.time_remaining, self.exam_total_seconds)
 
-        job_id = self.after(1000, self.update_timer)
-        self._add_after_job(job_id)
+        # P1-4: 周期性 timer 只保留最新的待执行 job，避免 _after_jobs 列表
+        # 在长时间考试中无限增长（60 分钟 = 3600 个无效引用）。
+        # 旧 job 已执行完毕，从列表移除；新 job 加入列表并更新引用。
+        if self._timer_job_id is not None and self._timer_job_id in self._after_jobs:
+            self._after_jobs.remove(self._timer_job_id)
+        self._timer_job_id = self.after(1000, self.update_timer)
+        self._add_after_job(self._timer_job_id)
 
     def load_exam_question(self) -> None:
         if self.panel is None:
