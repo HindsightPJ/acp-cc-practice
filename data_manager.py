@@ -301,6 +301,8 @@ class DataManager:
             "practice_stats": {"correct": 0, "wrong": 0, "total": 0},
             "exam_history": [],
             "favorites": [],
+            # P2-15: 与 AppState._ensure_defaults 保持一致，避免默认 dict 缺 settings
+            "settings": {},
         }
 
     def _backup_corrupt_progress(self) -> None:
