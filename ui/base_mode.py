@@ -108,15 +108,13 @@ class BaseMode(ABC, ttk.Frame):
             "break" 如果处理了事件，否则 None
         """
         active_engine = engine or self.engine
-        if not active_engine or not active_engine.get_current_question():
+        # P2-8: 入口仅调用一次 get_current_question()，避免重复调用
+        question = active_engine.get_current_question() if active_engine else None
+        if question is None:
             return None
 
         key = event.char.upper() if event.char else ""
         keysym = event.keysym
-
-        question = active_engine.get_current_question()
-        if question is None:
-            return None
 
         # 字母选择 (A-F)
         if key and key in "ABCDEF" and not is_answered_check():
