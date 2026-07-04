@@ -415,7 +415,8 @@ class WrongBook(BaseMode):
         if messagebox.askyesno(
             "练习完成", msg + "\n\n是否将本次答对的错题从错题本中移除？（答错的仍会保留）"
         ):
-            correct_nums = self._practice_session.get_correct_question_numbers()
+            # P2-13: correct_nums 转 set，避免 O(N*M) 的线性查找
+            correct_nums = set(self._practice_session.get_correct_question_numbers())
             self.app_state.set_wrong_questions(
                 [
                     q_num
