@@ -256,10 +256,10 @@
 - **完成**：
   - `pyproject.toml` 新增 `[project.optional-dependencies]` 的 `release = ["pyinstaller>=6.0,<7.0", "sigstore>=3.0,<4.0"]`
   - 新增 `.github/workflows/release.yml`：推送 `v*` tag 时触发
-    - Windows runner 上 `pip install -e ".[release]"`
+    - Windows runner 上安装项目依赖 + `pyinstaller` + `sigstore`
     - `pyinstaller acp-cc-practice.spec --noconfirm --clean` 构建 EXE
-    - 使用 `sigstore/gh-action-sigstore-python@v3.0.0` 对 `dist/acp-cc-practice.exe` 进行 OIDC 无密钥签名，生成 `.sig` 和 `.crt`
-    - 通过 `softprops/action-gh-release@v2` 创建 GitHub Release 并上传 EXE + `.sig` + `.crt`
+    - 使用 `sigstore/gh-action-sigstore-python@v3.0.0` 对 `dist/acp-cc-practice.exe` 进行 OIDC 无密钥签名，生成 `.sigstore.json` bundle
+    - 通过 `softprops/action-gh-release@v2` 创建 GitHub Release 并上传 EXE + `.sigstore.json`
   - 工作流所需权限：`contents: write` + `id-token: write`
 
 - **问题**：未签名，Windows SmartScreen 会拦截未签名 EXE
