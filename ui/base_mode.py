@@ -8,6 +8,7 @@ from quiz_engine import QuizEngine
 from models import Question
 from app_state import AppState
 from data_manager import DataManager
+from .constants import OPTION_KEYS, OPTION_NUMBERS, SAVE_DEBOUNCE_MS
 
 
 class BaseMode(ABC, ttk.Frame):
@@ -34,7 +35,10 @@ class BaseMode(ABC, ttk.Frame):
         self.data_manager = data_manager
         # P2-TIMER: 保存任务单独跟踪，避免 _save_progress_delayed 误取消计时器、
         # 自动显示答案等其他职责的 after 任务
-        self._after_jobs: list[str] = []  # 非保存类 after 任务
+        # P0-5: 改用 set 自动去重，配合 _cancel_after_job 统一 cancel+remove 语义，
+        # 避免调用方忘记从集合移除导致内存累积（此前 ReviewMode._auto_show_job_id
+        # 在 load_question 中 cancel 后未移除，长时间使用列表无限增长）。
+        self._after_jobs: set[str] = set()  # 非保存类 after 任务
         self._save_job_id: str | None = None  # 防抖保存任务
         self.engine: QuizEngine | None = None  # 基类保证属性存在，子类覆盖
         # P2-9: 防抖保存标记，统一在基类管理
@@ -48,8 +52,25 @@ class BaseMode(ABC, ttk.Frame):
         return self._state
 
     def _add_after_job(self, job_id: str) -> None:
-        """添加非保存类 after 作业并跟踪"""
-        self._after_jobs.append(job_id)
+        """添加非保存类 after 作业并跟踪（set 自动去重）。"""
+        self._after_jobs.add(job_id)
+
+    def _cancel_after_job(self, job_id: str | None) -> None:
+        """取消单个待执行的 after 回调，并从跟踪集合中移除。
+
+        P0-5: 统一 cancel + remove 语义，避免调用方忘记从 _after_jobs 移除
+        导致集合无限增长（此前 ReviewMode._auto_show_job_id 即为此类泄漏）。
+
+        Args:
+            job_id: after 任务标识符；None 时直接返回（方便调用方传可空变量）
+        """
+        if job_id is None:
+            return
+        try:
+            self.after_cancel(job_id)
+        except tk.TclError:
+            pass  # widget 已销毁或 job 已执行
+        self._after_jobs.discard(job_id)  # set.discard 不抛 KeyError
 
     def _cancel_all_after_jobs(self) -> None:
         """取消所有待执行的非保存类 after 回调（保存任务单独管理）。"""
@@ -80,7 +101,7 @@ class BaseMode(ABC, ttk.Frame):
         # P2-TIMER: 只取消保存任务，不碰计时器、自动显示答案等其他任务
         self._cancel_save_job()
         self._pending_save = True
-        self._save_job_id = self.after(2000, self._do_save_progress)
+        self._save_job_id = self.after(SAVE_DEBOUNCE_MS, self._do_save_progress)
 
     def _do_save_progress(self) -> None:
         """延迟计时器到期时执行实际保存。"""
@@ -188,7 +209,7 @@ class BaseMode(ABC, ttk.Frame):
         keysym = event.keysym
 
         # 字母选择 (A-F)
-        if key and key in "ABCDEF" and not is_answered_check():
+        if key and key in OPTION_KEYS and not is_answered_check():
             card_idx = ord(key) - ord("A")
             options_count = len(question.options)
             if card_idx < options_count:
@@ -196,7 +217,7 @@ class BaseMode(ABC, ttk.Frame):
             return "break"
 
         # 数字选择 (1-6)
-        if key and key in "123456" and not is_answered_check():
+        if key and key in OPTION_NUMBERS and not is_answered_check():
             card_idx = int(key) - 1
             options_count = len(question.options)
             if card_idx < options_count:

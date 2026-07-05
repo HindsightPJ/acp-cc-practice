@@ -69,7 +69,7 @@ class PracticeMode(BaseMode):
         self.panel = PracticePanel(
             self,
             session=self.session,
-            on_finish=lambda: (messagebox.showinfo("提示", "已完成所有题目！"), None)[1],
+            on_finish=lambda: (messagebox.showinfo("提示", "已完成所有题目！", parent=self), None)[1],
         )
         self.panel.pack(fill=tk.BOTH, expand=True)
 

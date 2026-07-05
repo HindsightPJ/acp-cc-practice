@@ -9,6 +9,7 @@ from app_state import AppState
 from .base_mode import BaseMode
 from .question_detail_card import QuestionDetailCard, get_question_type_style
 from .mode_toolbar import ModeToolbar
+from .constants import AUTO_SHOW_ANSWER_DELAY_MS
 
 
 class ReviewMode(BaseMode):
@@ -149,11 +150,6 @@ class ReviewMode(BaseMode):
             option_pady=2,
         )
         self.detail_card.pack(fill=tk.BOTH, expand=True)
-        # 保留旧别名，让 load_question / toggle_answer 等方法平滑迁移
-        self.review_question_text = self.detail_card.question_text
-        self.review_option_rows = self.detail_card.option_cards
-        self.answer_label = self.detail_card.answer_label
-        self.review_explanation_text = self.detail_card.explanation_text
 
         action_bar = tk.Frame(self, bg=theme.BG_PAGE)
         action_bar.pack(fill=tk.X, pady=(12, 0))
@@ -195,12 +191,9 @@ class ReviewMode(BaseMode):
 
     def load_question(self) -> None:
         # P2-UX: 快速切题时取消尚未执行的自动显示答案任务，避免作用到下一题
-        if self._auto_show_job_id is not None:
-            try:
-                self.after_cancel(self._auto_show_job_id)
-            except tk.TclError:
-                pass
-            self._auto_show_job_id = None
+        # P0-5: 改用 _cancel_after_job 统一 cancel+remove，避免 _after_jobs 集合泄漏
+        self._cancel_after_job(self._auto_show_job_id)
+        self._auto_show_job_id = None
 
         question = self.engine.get_current_question()
         if question is None:
@@ -227,7 +220,7 @@ class ReviewMode(BaseMode):
         self._sync_filter_button()
 
         if self.auto_show_answer:
-            self._auto_show_job_id = self.after(100, self.toggle_answer)
+            self._auto_show_job_id = self.after(AUTO_SHOW_ANSWER_DELAY_MS, self.toggle_answer)
             self._add_after_job(self._auto_show_job_id)
 
     def toggle_answer(self) -> None:
@@ -268,9 +261,9 @@ class ReviewMode(BaseMode):
                 self.engine.set_current_index(num - 1)
                 self.load_question()
             else:
-                messagebox.showerror("错误", f"请输入 1-{total} 之间的题号！")
+                messagebox.showerror("错误", f"请输入 1-{total} 之间的题号！", parent=self)
         except ValueError:
-            messagebox.showerror("错误", "请输入有效的数字！")
+            messagebox.showerror("错误", "请输入有效的数字！", parent=self)
 
     def toggle_favorite(self) -> None:
         question = self.engine.get_current_question()

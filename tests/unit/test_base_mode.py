@@ -101,7 +101,7 @@ def test_flush_pending_save_clears_pending_on_success(mode):
     mode.flush_pending_save()
 
     assert mode._pending_save is False
-    assert mode._after_jobs == []
+    assert len(mode._after_jobs) == 0
 
 
 def test_flush_pending_save_keeps_pending_on_failure(monkeypatch, mode):
@@ -113,7 +113,7 @@ def test_flush_pending_save_keeps_pending_on_failure(monkeypatch, mode):
     mode.flush_pending_save()
 
     assert mode._pending_save is True
-    assert mode._after_jobs == []
+    assert len(mode._after_jobs) == 0
 
 
 def test_flush_pending_save_no_op_when_not_pending(mode):
@@ -122,6 +122,51 @@ def test_flush_pending_save_no_op_when_not_pending(mode):
 
     assert mode._pending_save is False
     mode.app_state.save_safe.assert_not_called()
+
+
+def test_cancel_after_job_removes_from_tracking_set(mode):
+    """P0-5 回归测试：_cancel_after_job 必须从 _after_jobs 移除，避免集合累积。
+
+    此前 ReviewMode._auto_show_job_id 在 load_question 中 after_cancel 后
+    未从 _after_jobs 移除，长时间使用导致列表/set 无限增长。
+    """
+    job_id = mode.after(5000, lambda: None)  # 永不执行的占位任务
+    mode._add_after_job(job_id)
+    assert job_id in mode._after_jobs
+    assert len(mode._after_jobs) == 1
+
+    mode._cancel_after_job(job_id)
+
+    assert job_id not in mode._after_jobs
+    assert len(mode._after_jobs) == 0
+
+
+def test_cancel_after_job_none_is_noop(mode):
+    """P0-5: _cancel_after_job(None) 应安全返回，不抛异常。"""
+    # 调用方常传可空变量（如 self._auto_show_job_id），None 时应直接返回
+    mode._cancel_after_job(None)
+    assert len(mode._after_jobs) == 0
+
+
+def test_cancel_after_job_idempotent(mode):
+    """P0-5: 对同一 job_id 重复调用 _cancel_after_job 不抛异常。"""
+    job_id = mode.after(5000, lambda: None)
+    mode._add_after_job(job_id)
+
+    mode._cancel_after_job(job_id)
+    mode._cancel_after_job(job_id)  # 重复调用应安全（discard 不抛 KeyError）
+
+    assert len(mode._after_jobs) == 0
+
+
+def test_add_after_job_dedup(mode):
+    """P0-5: 重复添加同一 job_id 不会产生重复条目（set 自动去重）。"""
+    job_id = mode.after(5000, lambda: None)
+
+    mode._add_after_job(job_id)
+    mode._add_after_job(job_id)  # 重复添加
+
+    assert len(mode._after_jobs) == 1
 
 
 def test_destroy_calls_flush_pending_save(root):

@@ -13,6 +13,7 @@ import tkinter as tk
 from typing import Callable
 
 from .theme import theme, font_ui, create_card
+from .constants import MAX_OPTIONS, QUESTION_TYPE_MULTIPLE
 from .option_row import OptionRow
 from models import Question
 
@@ -26,7 +27,7 @@ def get_question_type_style(question_type: str) -> tuple[str, str]:
     Returns:
         (标签文本, 前景色)
     """
-    if question_type == "multiple":
+    if question_type == QUESTION_TYPE_MULTIPLE:
         return "多选题", theme.YELLOW
     return "单选题", theme.ACCENT
 
@@ -121,7 +122,7 @@ class QuestionDetailCard(tk.Frame):
         )
         options_card.pack(fill=tk.X, pady=(0, 12))
 
-        for idx in range(6):
+        for idx in range(MAX_OPTIONS):
             letter = chr(ord("A") + idx)
             card = OptionRow(
                 opt_inner,

@@ -9,6 +9,7 @@ from typing import Any
 from quiz_engine import QuizEngine
 from app_state import AppState
 from models import Question
+from .constants import QUESTION_TYPE_SINGLE
 
 
 class PracticeSession:
@@ -30,7 +31,7 @@ class PracticeSession:
         self.engine = engine
         self.app_state = app_state
         self.selected_answers: list[str] = []
-        self.current_question_type = "single"
+        self.current_question_type = QUESTION_TYPE_SINGLE
         self.is_answered = False
 
     def load_current_question(self) -> Question | None:
@@ -59,7 +60,7 @@ class PracticeSession:
         if card_idx >= options_count:
             return
 
-        if self.current_question_type == "single":
+        if self.current_question_type == QUESTION_TYPE_SINGLE:
             # 单选题：只选中当前选项
             self.selected_answers = [letter]
         else:

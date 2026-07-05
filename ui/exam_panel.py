@@ -20,6 +20,7 @@ from .theme import (
     create_normal_button,
     create_card,
 )
+from .constants import MAX_OPTIONS
 from .option_row import OptionRow
 from .question_detail_card import get_question_type_style
 from quiz_engine import QuizEngine
@@ -81,7 +82,31 @@ class ExamPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        # 计时器条
+        """构建考试视图 UI（P0-1: 拆分为 4 个子方法以控制单方法复杂度）。"""
+        self._build_timer_bar()
+
+        # 主体：左题区 + 右题号导航
+        main_paned = tk.PanedWindow(
+            self,
+            orient=tk.HORIZONTAL,
+            bg=theme.BG_PAGE,
+            sashrelief=tk.FLAT,
+            sashwidth=4,
+        )
+        main_paned.pack(fill=tk.BOTH, expand=True)
+
+        left_panel = tk.Frame(main_paned, bg=theme.BG_PAGE)
+        main_paned.add(left_panel, minsize=600)
+
+        self._build_question_area(left_panel)
+        self._build_action_bar(left_panel)
+        self._build_nav_panel(main_paned)
+
+        # P2-UX: 窗口缩放时同步更新选项文本换行宽度
+        self.bind("<Configure>", self._on_configure)
+
+    def _build_timer_bar(self) -> None:
+        """构建顶部计时器条（计时器标签 + 进度标签 + 题型标签）。"""
         timer_bar, timer_inner = create_card(self, inner_padx=24, inner_pady=12)
         timer_bar.pack(fill=tk.X, pady=(0, 12))
 
@@ -112,19 +137,8 @@ class ExamPanel(tk.Frame):
         )
         self.exam_type_label.pack(side=tk.RIGHT, padx=(0, 16))
 
-        # 主体：左题区 + 右题号导航
-        main_paned = tk.PanedWindow(
-            self,
-            orient=tk.HORIZONTAL,
-            bg=theme.BG_PAGE,
-            sashrelief=tk.FLAT,
-            sashwidth=4,
-        )
-        main_paned.pack(fill=tk.BOTH, expand=True)
-
-        left_panel = tk.Frame(main_paned, bg=theme.BG_PAGE)
-        main_paned.add(left_panel, minsize=600)
-
+    def _build_question_area(self, left_panel: tk.Frame) -> None:
+        """构建题干卡 + 选项卡。"""
         # 题干卡
         question_card, q_inner = create_card(left_panel, inner_pady=16)
         question_card.pack(fill=tk.X, pady=(0, 12))
@@ -145,14 +159,11 @@ class ExamPanel(tk.Frame):
         self.exam_question_text.pack(fill=tk.X)
         self.exam_question_text.config(state=tk.DISABLED)
 
-        # P2-UX: 窗口缩放时同步更新选项文本换行宽度
-        self.bind("<Configure>", self._on_configure)
-
         # 选项卡
         options_card, opt_inner = create_card(left_panel, inner_pady=14)
         options_card.pack(fill=tk.X, pady=(0, 12))
 
-        for idx in range(6):
+        for idx in range(MAX_OPTIONS):
             letter = chr(ord("A") + idx)
             row = OptionRow(
                 opt_inner,
@@ -168,7 +179,8 @@ class ExamPanel(tk.Frame):
                 }
             )
 
-        # 操作栏
+    def _build_action_bar(self, left_panel: tk.Frame) -> None:
+        """构建操作栏（上一题/下一题 + 跳转 + 标记 + 交卷）。"""
         action_bar = tk.Frame(left_panel, bg=theme.BG_PAGE)
         action_bar.pack(fill=tk.X, pady=(0, 8))
 
@@ -244,7 +256,8 @@ class ExamPanel(tk.Frame):
         )
         submit_exam_btn.pack(side=tk.RIGHT)
 
-        # 题号导航
+    def _build_nav_panel(self, main_paned: tk.PanedWindow) -> None:
+        """构建右侧题号导航面板（可滚动按钮网格）。"""
         nav_panel = tk.Frame(
             main_paned, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
         )

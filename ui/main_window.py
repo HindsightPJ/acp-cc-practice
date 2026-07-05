@@ -1,3 +1,5 @@
+import os
+import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Any, Callable
@@ -31,6 +33,17 @@ class MainWindow(tk.Tk):
         self.title("ACP 云计算练习")
         self.geometry("1200x760")
         self.minsize(1000, 640)
+
+        # TD-22: 开发模式下设置 Tk 窗口图标；打包后 EXE 图标由 PyInstaller spec 的 icon= 参数控制
+        if not getattr(sys, "frozen", False):
+            icon_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)), "icons", "icon.ico"
+            )
+            if os.path.exists(icon_path):
+                try:
+                    self.iconbitmap(icon_path)
+                except tk.TclError:
+                    pass
 
         self.questions: list[Question] = questions
         self.data_manager = data_manager

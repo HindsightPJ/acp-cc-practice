@@ -28,7 +28,7 @@ pytest -m gui
 pytest tests/unit/test_quiz_engine.py -v
 ```
 
-当前非 GUI 测试数：约 251 项（总计 312 项，含 GUI 测试）。
+当前非 GUI 测试数：251 项（总计 316 项，含 GUI 测试）。
 
 ## 项目结构
 
@@ -56,6 +56,8 @@ acp-cc-practice/
 │   ├── header.py              # 顶部标题栏
 │   ├── sidebar.py             # 侧栏导航
 │   ├── base_mode.py           # 模式基类
+│   ├── base_dialog.py         # 对话框基类
+│   ├── constants.py           # UI 层共享常量
 │   ├── practice_mode.py       # 练习模式
 │   ├── practice_panel.py      # 可复用练习视图
 │   ├── practice_session.py    # 练习会话逻辑

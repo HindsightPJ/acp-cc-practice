@@ -90,4 +90,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     version=version_info,
+    # TD-22: 使用 icons/original/icon-1024.png 生成的多尺寸 ICO 作为 EXE 图标
+    icon=os.path.join(SPECPATH, 'icons', 'icon.ico'),
 )

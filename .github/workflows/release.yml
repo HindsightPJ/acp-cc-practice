@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[release]"
+
+      - name: Build EXE
+        run: pyinstaller acp-cc-practice.spec --noconfirm --clean
+
+      # TD-23: 使用 Sigstore 对 EXE 进行无密钥签名
+      # 生成 .sig（签名）和 .crt（签名证书）两个文件，与 EXE 一起上传到 Release
+      - name: Sign EXE with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        with:
+          inputs: ./dist/acp-cc-practice.exe
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: acp-cc-practice-${{ github.ref_name }}
+          path: |
+            ./dist/acp-cc-practice.exe
+            ./dist/acp-cc-practice.exe.sig
+            ./dist/acp-cc-practice.exe.crt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./dist/acp-cc-practice.exe
+            ./dist/acp-cc-practice.exe.sig
+            ./dist/acp-cc-practice.exe.crt
+          generate_release_notes: true

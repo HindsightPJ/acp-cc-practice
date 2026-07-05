@@ -6,6 +6,7 @@ P3: 将 ExamMode 中分散的选项选择、答案记录逻辑集中到这里，
 
 from quiz_engine import QuizEngine
 from models import Question
+from .constants import QUESTION_TYPE_MULTIPLE
 
 
 class ExamSession:
@@ -33,7 +34,7 @@ class ExamSession:
         question = self.get_current_question()
         if question is None:
             return False
-        return question.type == "multiple"
+        return question.type == QUESTION_TYPE_MULTIPLE
 
     def select_option(self, letter: str) -> str | None:
         """切换当前题目的选项选择状态。

@@ -9,9 +9,10 @@ P3: 题干+选项+答案/解析三段卡片复用 QuestionDetailCard，进一步
 
 import tkinter as tk
 from tkinter import messagebox
-from typing import Callable, cast
+from typing import Callable
 
 from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button
+from .constants import QUESTION_TYPE_SINGLE
 from .option_row import OptionRow
 from .practice_session import PracticeSession
 from .question_detail_card import QuestionDetailCard, get_question_type_style
@@ -114,12 +115,10 @@ class PracticePanel(tk.Frame):
         )
         self.detail_card.pack(fill=tk.BOTH, expand=True)
 
-        # 别名：保留对 QuestionDetailCard 内部组件的引用，便于 load_current_question / submit_answer 操作
-        # _build_ui 已保证 question_text / answer_label 在 QuestionDetailCard 中被创建，使用 cast 收窄类型
-        self.question_text = cast(tk.Text, self.detail_card.question_text)
+        # P1: option_cards 被 handle_option_click / _on_configure 读取，保留引用；
+        # 其余 QuestionDetailCard 内部组件（question_text / answer_label / explanation_text）
+        # 已通过 self.detail_card.XXX 直接访问，无需保留旧别名。
         self.option_cards = self.detail_card.option_cards
-        self.result_label = cast(tk.Label, self.detail_card.answer_label)
-        self.explanation_text = self.detail_card.explanation_text
 
     def _build_action_bar(self, container: tk.Frame) -> None:
         """构建操作栏（提交/上一题/下一题 + 统计）。
@@ -179,7 +178,7 @@ class PracticePanel(tk.Frame):
             if self.on_finish:
                 self.on_finish()
             else:
-                messagebox.showinfo("提示", "已完成所有题目！")
+                messagebox.showinfo("提示", "已完成所有题目！", parent=self)
             return
 
         # P3: 题干 + 选项 + 清空答案/解析状态由 QuestionDetailCard 统一渲染
@@ -204,7 +203,7 @@ class PracticePanel(tk.Frame):
         self.session.handle_option_click(letter, options_count)
 
         card_idx = ord(letter) - ord("A")
-        if self.session.current_question_type == "single":
+        if self.session.current_question_type == QUESTION_TYPE_SINGLE:
             for i, card in enumerate(self.option_cards):
                 if i < options_count:
                     card.set_selected(i == card_idx)
@@ -216,7 +215,7 @@ class PracticePanel(tk.Frame):
     def submit_answer(self) -> None:
         """提交答案并更新视图。"""
         if not self.session.selected_answers:
-            messagebox.showwarning("提示", "请先选择一个答案！")
+            messagebox.showwarning("提示", "请先选择一个答案！", parent=self)
             return
 
         question = self.session.engine.get_current_question()
@@ -257,7 +256,7 @@ class PracticePanel(tk.Frame):
             self.session.next_question()
             self.load_current_question()
         else:
-            messagebox.showinfo("提示", "已经是最后一题了！")
+            messagebox.showinfo("提示", "已经是最后一题了！", parent=self)
 
     def prev_question(self) -> None:
         """上一题。"""
@@ -265,7 +264,7 @@ class PracticePanel(tk.Frame):
             self.session.prev_question()
             self.load_current_question()
         else:
-            messagebox.showinfo("提示", "已经是第一题了！")
+            messagebox.showinfo("提示", "已经是第一题了！", parent=self)
 
     def reset_session(self, shuffle: bool = False) -> None:
         """重置练习会话。"""

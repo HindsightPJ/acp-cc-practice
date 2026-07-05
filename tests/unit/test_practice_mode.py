@@ -31,6 +31,10 @@ def mode(root):
     mode = PracticeMode(root, questions, MagicMock(), state)
     mode.pack()
     yield mode
+    # 清理：重置 save_safe 与 _pending_save，避免 destroy → flush_pending_save
+    # 触发真实 messagebox.showwarning 阻塞测试（monkeypatch 已在此时撤销）
+    mode.app_state.save_safe.return_value = True
+    mode._pending_save = False
     mode.destroy()
 
 

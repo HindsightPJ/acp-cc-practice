@@ -3,20 +3,24 @@
 > 本文档记录 v1.0 发布时已知的代码质量问题与限制。
 > 按风险等级和修复 ROI 排序，作为后续迭代的依据。
 >
-> 最后更新：2026-07-04（类型注解清理完成，P0-P2 全部修复；同步 TD-05/TD-08/TD-18/TD-25 完成状态；覆盖率报告已更新至核心模块 83%）
+> 最后更新：2026-07-05（P0-P1 代码审查收尾：after job 内存泄漏、ExamPanel._build_ui 拆分、死代码清理、messagebox 一致性、UI 常量集中管理；CI 配置修复；测试数 316，覆盖率报告同步）
 
 ---
 
 ## P0 — 高风险（核心逻辑无测试覆盖）
 
-### TD-01: `quiz_engine.py` 零单元测试
+### TD-01: `quiz_engine.py` 零单元测试 ✅ 已修复
+
+- **完成**：新增 `tests/unit/test_quiz_engine.py`，59 个用例覆盖单选/多选、正确/错误、跳跃答题、错题索引反查、统计累积、考试流程；`quiz_engine.py` 覆盖率 98%
 
 - **位置**：`quiz_engine.py` 全文件
 - **问题**：核心业务逻辑（答题判定、统计、考试流程、错题索引反查）完全无测试覆盖
 - **风险**：`submit_answer` 的多选排序比较、`record_exam_answer` 的跳跃答题、`get_wrong_answers` 依赖 `queue_index` 的索引反查都是易错逻辑，回归风险高
 - **修复**：编写覆盖单选/多选、正确/错误、跳跃答题、统计累积的单元测试
 
-### TD-02: `data_manager.parse_docx` 复杂正则未测试
+### TD-02: `data_manager.parse_docx` 复杂正则未测试 ✅ 已修复
+
+- **完成**：新增 13 个 `parse_docx` 测试，覆盖题干/选项/答案/解析各种格式；修复正则分支中的解析 bug；`data_manager.py` 覆盖率 88%
 
 - **位置**：`data_manager.py:48-117`
 - **问题**：70 行正则密集分支，单行条件判断超 300 字符（`data_manager.py:78`），完全未测试
@@ -99,6 +103,16 @@
 - **问题**：使用 `except Exception` 捕获过宽，注释里有 `# pylint: disable=broad-exception-caught` 自我承认
 - **修复**（已完成）：两处 `except Exception` 细化为 `(ValueError, OSError, json.JSONDecodeError, UnicodeDecodeError, InvalidToken)`——覆盖密钥格式错误 / 文件IO / 解密失败 / JSON损坏 / 编码错误；移除 `# pylint: disable=broad-exception-caught` 注释；延迟导入 `InvalidToken` 保持与原有 `Fernet` 延迟导入风格一致
 
+### TD-28: after job 跟踪集合无限增长 ✅ 已修复
+
+- **位置**：`ui/base_mode.py`、派生模式（`exam_mode.py` / `review_mode.py`）
+- **问题**：`_after_jobs` 用 `list[str]` 跟踪待执行 `after` 回调，旧 job 取消后未从列表移除；`ExamMode.update_timer` 每秒生成新 job，60 分钟考试会累积 3600 个无效引用，造成内存泄漏与悬挂回调
+- **修复**（已完成）：
+  - `_after_jobs: list[str]` → `set[str]`，自动去重
+  - 新增 `_cancel_after_job(job_id)` 统一封装 `after_cancel` + `discard`，从 API 层面防止「取消后忘记移除」
+  - `ExamMode.update_timer` 每次用 `_cancel_after_job` 清理旧 job 再注册新 job
+  - 新增 4 个回归测试：remove-from-tracking / None-noop / idempotent / dedup
+
 ---
 
 ## P3 — 代码质量
@@ -110,6 +124,9 @@
 | `PracticeMode._setup_mode_ui` | `ui/practice_mode.py:37-169` | ~130 | 拆分为 `_build_toolbar` / `_build_question_card` / `_build_options` / `_build_result_area` |
 | `MainWindow._show_license_dialog` | `ui/main_window.py:266-348` | ~82 | 拆分为 UI 构建 / 机器码读取 / 验证逻辑 / 错误映射 |
 | `DataManager.parse_docx` | `data_manager.py:48-117` | ~70 | 拆分为 `_detect_question` / `_detect_option` / `_detect_answer` / `_detect_explanation` |
+| `ExamPanel._build_ui` | `ui/exam_panel.py:83-282` | ~200 | 拆分为 `_build_timer_bar` / `_build_question_area` / `_build_action_bar` / `_build_nav_panel` |
+
+- **完成（2026-07-05）**：`ExamPanel._build_ui` 拆分为 4 个子方法；17 个 `test_exam_panel.py` 用例全部通过；`mypy` / `ruff` / `pytest` 全绿
 
 ### TD-12: God Object 倾向 ⊝ 评估保留
 
@@ -154,6 +171,27 @@
   - `engine.questions_queue`：exam_mode.py(2处)、review_mode.py(6处) 直接读写
   - `review_mode.py:33` 直接赋值 `engine.questions_queue = list(questions)`（最危险）
   - 建议新增 `get_current_index()`/`set_current_index()`/`get_questions_queue()`/`set_questions_queue()` 方法
+
+### TD-29: write-only 死代码别名属性 ✅ 已修复
+
+- **位置**：`ui/review_mode.py`（`review_question_text`、`review_option_rows`、`answer_label`、`review_explanation_text`）、`ui/practice_panel.py`（`question_text`、`result_label`、`explanation_text`）
+- **问题**：从 `PracticePanel` / `QuestionDetailCard` 抽取可复用组件后，原模式类里留下大量只写不读的别名属性，误导维护者、增加混淆
+- **修复**（已完成）：grep 确认无读取引用后删除 7 个别名属性；保留真正被使用的 `option_cards`；61 个 GUI 测试通过
+
+### TD-30: UI messagebox 缺少 `parent=` ✅ 已修复
+
+- **位置**：`ui/exam_mode.py`、`ui/review_mode.py`、`ui/practice_mode.py`、`ui/practice_panel.py`、`ui/wrong_book.py`
+- **问题**：17 处 `messagebox.*` 调用未传 `parent=self`，导致弹窗可能不模态、焦点错乱、在 headless/多窗口场景下行为不可预期
+- **修复**（已完成）：系统 grep 所有 35 处 messagebox 调用，为 17 处缺失 `parent=` 的调用补全；保留 `license_dialog.py:91` 例外（对话框尚未实例化，传 `parent=None` 合理）；mypy 类型检查辅助守卫
+
+### TD-31: UI 魔法数字/字符串散落 ✅ 已修复
+
+- **位置**：`ui/base_mode.py`、`ui/exam_panel.py`、`ui/practice_panel.py`、`ui/practice_session.py`、`ui/question_detail_card.py`、`ui/review_mode.py`、`ui/exam_mode.py`、`ui/exam_session.py`
+- **问题**：`"ABCDEF"`、`"123456"`、`"single"`、`"multiple"`、`2000`、`1000`、`100`、`range(6)` 等魔法值硬编码在 8 个文件中，修改选项数量或题型标识时极易遗漏
+- **修复**（已完成）：
+  - 新增 `ui/constants.py` 集中管理：`MAX_OPTIONS`、`OPTION_KEYS`、`OPTION_NUMBERS`、`QUESTION_TYPE_SINGLE`、`QUESTION_TYPE_MULTIPLE`、`SAVE_DEBOUNCE_MS`、`AUTO_SHOW_ANSWER_DELAY_MS`、`TIMER_TICK_MS`
+  - 8 个文件 12 处引用全部替换为常量
+  - CI 已同步：Ubuntu runner 安装 Xvfb + 系统 Tk/X11 库，设置 `DISPLAY=:99`；pytest 使用 `-o addopts="" -m "not gui"` 避免 addopts 与命令行 marker 冲突
 
 ---
 
@@ -202,16 +240,30 @@
 - **完成**：`acp-cc-practice.spec` 顶部添加 `VSVersionInfo` 块（CompanyName=HindsightPJ, FileDescription=ACP 云计算练习软件, FileVersion=1.0.0, ProductName=ACP 云计算练习, ProductVersion=1.0.0, LegalCopyright=© 2026 HindsightPJ）；EXE() 调用添加 `version=version_info` 参数
 - **修复**：添加 `VSVersionInfo` 块
 
-### TD-22: 无图标
+### TD-22: 无图标 ✅ 已修复
+
+- **完成**：
+  - 从 `icons/original/icon-1024.png` 生成 `icons/icon.ico`（含 16/32/48/64/128/256 多尺寸）
+  - `acp-cc-practice.spec` 的 `EXE()` 调用添加 `icon=os.path.join(SPECPATH, 'icons', 'icon.ico')`
+  - `ui/main_window.py` 在开发模式（`python main.py`）下调用 `self.iconbitmap('icons/icon.ico')` 设置窗口标题栏图标；打包后由 EXE 图标控制
 
 - **位置**：`acp-cc-practice.spec`
 - **问题**：`icon=` 参数缺失，EXE 用默认 PyInstaller 图标
 - **修复**：制作 `.ico` 文件并引用
 
-### TD-23: 无代码签名
+### TD-23: 无代码签名 ✅ 已修复
+
+- **完成**：
+  - `pyproject.toml` 新增 `[project.optional-dependencies]` 的 `release = ["pyinstaller>=6.0,<7.0", "sigstore>=3.0,<4.0"]`
+  - 新增 `.github/workflows/release.yml`：推送 `v*` tag 时触发
+    - Windows runner 上 `pip install -e ".[release]"`
+    - `pyinstaller acp-cc-practice.spec --noconfirm --clean` 构建 EXE
+    - 使用 `sigstore/gh-action-sigstore-python@v3.0.0` 对 `dist/acp-cc-practice.exe` 进行 OIDC 无密钥签名，生成 `.sig` 和 `.crt`
+    - 通过 `softprops/action-gh-release@v2` 创建 GitHub Release 并上传 EXE + `.sig` + `.crt`
+  - 工作流所需权限：`contents: write` + `id-token: write`
 
 - **问题**：未签名，Windows SmartScreen 会拦截未签名 EXE
-- **修复**：购买代码签名证书或使用 sigstore
+- **修复**：使用 Sigstore 无密钥代码签名
 
 ### TD-24: 依赖未锁定版本 ✅ 已修复
 
@@ -258,7 +310,7 @@
 | TD-08 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 |
 | TD-09 | P2 | ✅ 已修复 | tmp + os.replace 原子写入 + 失败上抛异常 |
 | TD-10 | P2 | ✅ 已修复 | 细化为 (ValueError, OSError, InvalidToken, JSONDecodeError, UnicodeDecodeError) |
-| TD-11 | P3 | ✅ 已修复 | 3 个长函数全部拆分（_setup_mode_ui + _show_license_dialog + parse_docx） |
+| TD-11 | P3 | ✅ 已修复 | 4 个长函数拆分（_setup_mode_ui + _show_license_dialog + parse_docx + ExamPanel._build_ui） |
 | TD-12 | P3 | ⊝ 评估保留 | 344 行但无方法超 70 行；无 UI 测试，风险>收益 |
 | TD-13 | P3 | ✅ 已修复 | 统一为 PEP 604 `str | None`，补齐核心模块类型签名 |
 | TD-14 | P3 | ✅ 已修复 | 移除 category 参数 |
@@ -267,11 +319,15 @@
 | TD-17 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.pytest.ini_options] |
 | TD-18 | P4 | ✅ 已修复 | pyproject.toml 添加 [tool.coverage.*]，整体覆盖率 74% |
 | TD-19 | P4 | ⏳ 部分修复 | 10 个 import 冒烟测试；完整实例化测试需 xvfb 待后续 |
-| TD-20 | P4 | ✅ 已修复 | .github/workflows/ci.yml（Ubuntu + Python 3.10/3.11/3.12） |
+| TD-20 | P4 | ✅ 已修复 | .github/workflows/ci.yml（Ubuntu + Python 3.10；ruff/mypy/pytest + Xvfb headless 支持） |
 | TD-21 | P5 | ✅ 已修复 | spec 添加 VSVersionInfo（右键属性可见版本/公司/产品名） |
-| TD-22 | P5 | 待修复 | — |
-| TD-23 | P5 | 待修复 | — |
+| TD-22 | P5 | ✅ 已修复 | 从 icon-1024.png 生成 icons/icon.ico，spec 引用 |
+| TD-23 | P5 | ✅ 已修复 | release.yml + Sigstore OIDC 签名 |
 | TD-24 | P5 | ✅ 已修复 | 上界约束 + requirements-dev.txt |
 | TD-25 | P5 | ✅ 已修复 | 新增 pyproject.toml |
 | TD-26 | P6 | ✅ 已修复 | 新增 docs/architecture.md |
 | TD-27 | P6 | ✅ 已修复 | 新增 CONTRIBUTING.md |
+| TD-28 | P2 | ✅ 已修复 | `_after_jobs` set + `_cancel_after_job` 统一取消语义 |
+| TD-29 | P3 | ✅ 已修复 | 删除 write-only 别名属性 |
+| TD-30 | P3 | ✅ 已修复 | 17 处 messagebox 补全 `parent=` |
+| TD-31 | P3 | ✅ 已修复 | 新增 `ui/constants.py`，12 处魔法值替换 |

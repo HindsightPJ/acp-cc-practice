@@ -1,6 +1,6 @@
 # 测试覆盖率报告
 
-**生成日期**: 2026-07-04  
+**生成日期**: 2026-07-05  
 **项目**: acp-cc-practice  
 **Python 版本**: 3.10+  
 **测试框架**: pytest 7.0+ with pytest-cov
@@ -45,7 +45,7 @@ CI 已启用 `--cov-fail-under=70` 作为当前底线阈值，后续将逐步提
 | test_exam_mode.py | ui/exam_mode.py | 15 |
 | test_exam_panel.py | ui/exam_panel.py | 17 |
 | test_exam_session.py | ui/exam_session.py | 15 |
-| test_base_mode.py | ui/base_mode.py | 8 |
+| test_base_mode.py | ui/base_mode.py | 12 |
 | test_practice_mode.py | ui/practice_mode.py | 2 |
 | test_practice_session.py | ui/practice_session.py | 10 |
 | test_review_mode.py | ui/review_mode.py | 7 |
@@ -61,7 +61,7 @@ CI 已启用 `--cov-fail-under=70` 作为当前底线阈值，后续将逐步提
 | test_main_window_ui.py | ui/* | 12 |
 | test_ui_smoke.py | ui/* | 14 |
 
-**单元测试总计**: 约 309 个测试用例
+**单元测试总计**: 312 个测试用例
 
 ### 2.2 集成测试 (tests/integration/)
 
@@ -77,9 +77,9 @@ CI 已启用 `--cov-fail-under=70` 作为当前底线阈值，后续将逐步提
 
 | 类别 | 用例数 | 执行时间（估算） |
 |------|--------|----------------|
-| 单元测试 | ~307 | ~5-7 秒 |
+| 单元测试 | 312 | ~5-7 秒 |
 | 集成测试 | 4 | ~1-2 秒 |
-| GUI 测试 | 61 | ~6-8 秒 |
+| GUI 测试 | 65 | ~6-8 秒 |
 | **非 GUI 总计** | **251** | **~7 秒** |
 
 ## 3. 模块级覆盖率汇总
@@ -136,7 +136,7 @@ CI 已启用 `--cov-fail-under=70` 作为当前底线阈值，后续将逐步提
 
 - **整体覆盖率**: 83%（未达 ≥85% 项目目标，已超过 CI 70% 底线）
 - **核心模块**: `quiz_engine` 98%、env_utils 100%、data_manager 88%，覆盖扎实
-- **测试用例数**: 非 GUI 251 个，总计 312 个
+- **测试用例数**: 非 GUI 251 个，GUI 65 个，总计 316 个
 - **最大缺口**: `author_tools` CLI 分支、`license/fingerprint` 平台分支
 
 ## 附录：运行覆盖率报告

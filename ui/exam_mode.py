@@ -13,6 +13,7 @@ from .base_mode import BaseMode
 from .exam_panel import ExamPanel
 from .exam_report_dialog import ExamReportDialog
 from .exam_session import ExamSession
+from .constants import TIMER_TICK_MS
 
 
 class ExamMode(BaseMode):
@@ -291,7 +292,7 @@ class ExamMode(BaseMode):
             question_count = int(self.question_count_var.get())
             duration = int(self.duration_var.get())
         except ValueError:
-            messagebox.showerror("错误", "请输入有效的数值！")
+            messagebox.showerror("错误", "请输入有效的数值！", parent=self)
             return
 
         self.engine = QuizEngine(self.questions)
@@ -335,19 +336,19 @@ class ExamMode(BaseMode):
 
         if self.time_remaining <= 0:
             self.timer_running = False
-            messagebox.showwarning("时间到", "考试时间已到，将自动交卷！")
+            messagebox.showwarning("时间到", "考试时间已到，将自动交卷！", parent=self)
             self.submit_exam(force=True)
             return
 
         if self.panel is not None:
             self.panel.update_timer_display(self.time_remaining, self.exam_total_seconds)
 
-        # P1-4: 周期性 timer 只保留最新的待执行 job，避免 _after_jobs 列表
-        # 在长时间考试中无限增长（60 分钟 = 3600 个无效引用）。
-        # 旧 job 已执行完毕，从列表移除；新 job 加入列表并更新引用。
-        if self._timer_job_id is not None and self._timer_job_id in self._after_jobs:
-            self._after_jobs.remove(self._timer_job_id)
-        self._timer_job_id = self.after(1000, self.update_timer)
+        # P1-4 + P0-5: 周期性 timer 只保留最新的待执行 job，避免 _after_jobs
+        # 集合在长时间考试中无限增长（60 分钟 = 3600 个无效引用）。
+        # _cancel_after_job 统一 cancel+remove 语义，旧 job 已执行则 after_cancel
+        # 抛 TclError 被吞，仅从集合移除；新 job 加入集合并更新引用。
+        self._cancel_after_job(self._timer_job_id)
+        self._timer_job_id = self.after(TIMER_TICK_MS, self.update_timer)
         self._add_after_job(self._timer_job_id)
 
     def load_exam_question(self) -> None:
@@ -373,7 +374,7 @@ class ExamMode(BaseMode):
             self.engine.next_question()
             self.load_exam_question()
         else:
-            messagebox.showinfo("提示", "已经是最后一题了！")
+            messagebox.showinfo("提示", "已经是最后一题了！", parent=self)
 
     def exam_prev_question(self) -> None:
         if self.engine is None:
@@ -382,7 +383,7 @@ class ExamMode(BaseMode):
             self.engine.prev_question()
             self.load_exam_question()
         else:
-            messagebox.showinfo("提示", "已经是第一题了！")
+            messagebox.showinfo("提示", "已经是第一题了！", parent=self)
 
     def jump_to_question(self, idx: int) -> None:
         if self.engine is None:
@@ -404,7 +405,7 @@ class ExamMode(BaseMode):
 
     def submit_exam(self, force: bool = False) -> None:
         if not force and not messagebox.askyesno(
-            "确认交卷", "确定要交卷吗？\n\n提交后将无法修改答案。"
+            "确认交卷", "确定要交卷吗？\n\n提交后将无法修改答案。", parent=self
         ):
             return
 
@@ -476,4 +477,4 @@ class ExamMode(BaseMode):
                 parent=self,
             )
         else:
-            messagebox.showinfo("成功", f"已将 {added} 道错题加入错题本！")
+            messagebox.showinfo("成功", f"已将 {added} 道错题加入错题本！", parent=self)

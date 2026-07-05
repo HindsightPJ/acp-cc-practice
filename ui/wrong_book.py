@@ -354,7 +354,7 @@ class WrongBook(BaseMode):
 
             self._close_detail_dialog()
             if save_ok:
-                messagebox.showinfo("成功", "该题已从错题本移除！")
+                messagebox.showinfo("成功", "该题已从错题本移除！", parent=self)
             else:
                 messagebox.showwarning(
                     "保存失败",
@@ -364,7 +364,7 @@ class WrongBook(BaseMode):
 
     def start_practice_wrong(self) -> None:
         if not self.wrong_questions:
-            messagebox.showinfo("提示", "错题本是空的，继续加油！")
+            messagebox.showinfo("提示", "错题本是空的，继续加油！", parent=self)
             return
 
         self.practice_engine = QuizEngine(self.wrong_questions)
@@ -443,8 +443,12 @@ class WrongBook(BaseMode):
 
         # P1-4: 无论正确率多少，都只询问移除"本次答对"的错题，
         # 从不自动清空全部错题，避免一次性丢失还需复习的题目。
+        # _practice_window 理论上非空，但类型为 Toplevel | None，fallback 到 self 满足 mypy
+        practice_parent = self._practice_window if self._practice_window is not None else self
         if messagebox.askyesno(
-            "练习完成", msg + "\n\n是否将本次答对的错题从错题本中移除？（答错的仍会保留）"
+            "练习完成",
+            msg + "\n\n是否将本次答对的错题从错题本中移除？（答错的仍会保留）",
+            parent=practice_parent,
         ):
             # P2-13: correct_nums 转 set，避免 O(N*M) 的线性查找
             correct_nums = set(self._practice_session.get_correct_question_numbers())
@@ -497,10 +501,10 @@ class WrongBook(BaseMode):
 
     def clear_all_wrong(self) -> None:
         if not self.wrong_questions:
-            messagebox.showinfo("提示", "错题本已经是空的了！")
+            messagebox.showinfo("提示", "错题本已经是空的了！", parent=self)
             return
 
-        if messagebox.askyesno("确认", "确定要清空所有错题吗？此操作不可恢复！"):
+        if messagebox.askyesno("确认", "确定要清空所有错题吗？此操作不可恢复！", parent=self):
             self.app_state.set_wrong_questions([])
             # P2-4: 统一用 save_safe 提示保存失败
             if not self.app_state.save_safe():

@@ -101,6 +101,10 @@ pytest
 
 # 打包
 pyinstaller acp-cc-practice.spec
+
+# 发布（推送 v* tag 后由 GitHub Actions 自动构建并签名上传）
+git tag -a v1.0.1 -m "release v1.0.1"
+git push origin v1.0.1
 ```
 
 ## 6. 修改前必查
@@ -109,4 +113,7 @@ pyinstaller acp-cc-practice.spec
 - [ ] 是否新增未类型注解的函数/方法？
 - [ ] 是否直接访问 `QuizEngine` 内部属性？（应走显式接口）
 - [ ] 进度/错题保存是否使用 `AppState.save_safe()` 并提示失败？
+- [ ] UI 层新增的魔法数字/字符串是否已加入 [`ui/constants.py`](ui/constants.py)？
+- [ ] 取消 `after` 回调是否使用 `_cancel_after_job(job_id)`（统一 cancel + remove，禁止手动 `after_cancel` 后忘记 `discard`）？
+- [ ] 新增 `messagebox.*` 调用是否传了 `parent=self`？
 - [ ] 是否更新了 `TECH_DEBT.md` 对应条目？

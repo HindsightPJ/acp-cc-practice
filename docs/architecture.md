@@ -17,7 +17,7 @@ ACP 云计算练习软件——基于 Tkinter 的桌面题库练习应用，支�
 │  exam_mode.py · exam_panel.py · exam_session.py             │
 │  review_mode.py · wrong_book.py · license_dialog.py         │
 │  option_row.py · question_detail_card.py · mode_toolbar.py  │
-│  base_mode.py · base_dialog.py · theme.py                   │
+│  base_mode.py · base_dialog.py · theme.py · constants.py    │
 ├─────────────────────────────────────────────────────────────┤
 │  业务层                                                     │
 │  quiz_engine.py（答题/统计/考试流程）                       │
