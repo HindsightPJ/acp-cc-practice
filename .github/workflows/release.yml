@@ -39,7 +39,8 @@ jobs:
           inputs: ./dist/acp-cc-practice.exe
 
       - name: List dist artifacts
-        run: ls -la dist/
+        shell: pwsh
+        run: Get-ChildItem -Path dist/ | Select-Object Name, Length
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
