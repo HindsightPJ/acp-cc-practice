@@ -1,5 +1,6 @@
 """fingerprint.py 单元测试。"""
 import hashlib
+import sys
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -13,6 +14,7 @@ from license.fingerprint import (
 )
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="winreg is Windows-only")
 def test_get_machine_guid_on_windows(monkeypatch):
     """Windows 下应通过注册表读取 MachineGuid。"""
     monkeypatch.setattr('sys.platform', 'win32')
@@ -54,6 +56,7 @@ def test_compute_machine_code_deterministic():
     assert compute_machine_code('abc', 'XXX', 'YYY', 'BIOS1') != compute_machine_code('abc', 'XXX', 'YYY')
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="winreg is Windows-only")
 def test_get_machine_code_or_none_normal(monkeypatch):
     """Windows 正常路径应返回 64 字符机器码（四维度组合）。"""
     monkeypatch.setattr('sys.platform', 'win32')
@@ -131,6 +134,7 @@ def test_get_machine_code_or_none_non_windows(monkeypatch):
     assert get_machine_code_or_none() is None
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="winreg is Windows-only")
 def test_get_machine_code_or_none_registry_error(monkeypatch):
     """注册表读取失败应降级返回 None。"""
     monkeypatch.setattr('sys.platform', 'win32')
@@ -138,6 +142,7 @@ def test_get_machine_code_or_none_registry_error(monkeypatch):
         assert get_machine_code_or_none() is None
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="winreg is Windows-only")
 def test_get_machine_code_or_none_volume_error(monkeypatch):
     """卷序列号读取失败应降级返回 None。"""
     monkeypatch.setattr('sys.platform', 'win32')
