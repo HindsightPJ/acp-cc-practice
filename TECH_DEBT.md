@@ -244,8 +244,8 @@
 
 - **完成**：
   - 从 `icons/original/icon-1024.png` 生成 `icons/icon.ico`（含 16/32/48/64/128/256 多尺寸）
-  - `acp-cc-practice.spec` 的 `EXE()` 调用添加 `icon=os.path.join(SPECPATH, 'icons', 'icon.ico')`
-  - `ui/main_window.py` 在开发模式（`python main.py`）下调用 `self.iconbitmap('icons/icon.ico')` 设置窗口标题栏图标；打包后由 EXE 图标控制
+  - `acp-cc-practice.spec` 的 `EXE()` 调用添加 `icon=os.path.join(SPECPATH, 'icons', 'icon.ico')`；`Analysis.datas` 同步把 `icons/icon.ico` 作为资源打包进 EXE
+  - `ui/main_window.py` 统一设置窗口标题栏图标：开发模式从项目根目录读取，打包后从 `sys._MEIPASS` 读取，确保 EXE 文件图标与运行后窗口图标一致
 
 - **位置**：`acp-cc-practice.spec`
 - **问题**：`icon=` 参数缺失，EXE 用默认 PyInstaller 图标
