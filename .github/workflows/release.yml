@@ -32,26 +32,23 @@ jobs:
         run: pyinstaller acp-cc-practice.spec --noconfirm --clean
 
       # TD-23: 使用 Sigstore 对 EXE 进行无密钥签名
-      # 生成 .sig（签名）和 .crt（签名证书）两个文件，与 EXE 一起上传到 Release
+      # sigstore-python 默认生成 .sigstore.json bundle（含签名与证书）
       - name: Sign EXE with Sigstore
         uses: sigstore/gh-action-sigstore-python@v3.0.0
         with:
           inputs: ./dist/acp-cc-practice.exe
 
+      - name: List dist artifacts
+        run: ls -la dist/
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: acp-cc-practice-${{ github.ref_name }}
-          path: |
-            ./dist/acp-cc-practice.exe
-            ./dist/acp-cc-practice.exe.sig
-            ./dist/acp-cc-practice.exe.crt
+          path: ./dist/acp-cc-practice.exe*
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ./dist/acp-cc-practice.exe
-            ./dist/acp-cc-practice.exe.sig
-            ./dist/acp-cc-practice.exe.crt
+          files: ./dist/acp-cc-practice.exe*
           generate_release_notes: true
