@@ -52,6 +52,8 @@ a = Analysis(
         (os.path.join(_DATA_DIR, 'questions.enc'), 'data'),
         (os.path.join(_DATA_DIR, 'questions_trial.json'), 'data'),
         (os.path.join(_DATA_DIR, 'questions_meta.json'), 'data'),
+        # TD-22: 把图标文件打包进 EXE，打包后运行时通过 sys._MEIPASS 访问
+        (os.path.join(SPECPATH, 'icons', 'icon.ico'), 'icons'),
     ],
     hiddenimports=[
         'cryptography.fernet',

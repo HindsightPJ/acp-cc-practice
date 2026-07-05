@@ -34,16 +34,15 @@ class MainWindow(tk.Tk):
         self.geometry("1200x760")
         self.minsize(1000, 640)
 
-        # TD-22: 开发模式下设置 Tk 窗口图标；打包后 EXE 图标由 PyInstaller spec 的 icon= 参数控制
-        if not getattr(sys, "frozen", False):
-            icon_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "icons", "icon.ico"
-            )
-            if os.path.exists(icon_path):
-                try:
-                    self.iconbitmap(icon_path)
-                except tk.TclError:
-                    pass
+        # TD-22: 统一设置 Tk 窗口图标
+        # 开发模式从项目根目录读取；PyInstaller 打包后从 sys._MEIPASS 临时目录读取
+        icon_base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(__file__)))
+        icon_path = os.path.join(icon_base, "icons", "icon.ico")
+        if os.path.exists(icon_path):
+            try:
+                self.iconbitmap(icon_path)
+            except tk.TclError:
+                pass
 
         self.questions: list[Question] = questions
         self.data_manager = data_manager
