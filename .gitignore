@@ -50,6 +50,12 @@ desktop.ini
 *.docx
 *.doc
 
+# 图标多平台产物（桌面应用只需 icons/icon.ico + original 源图）
+icons/android/
+icons/ios/
+icons/web/
+icons/README.md
+
 # 工程化文件（本地保留，不推送到仓库）
 requirements-dev.txt
 .env.example
