@@ -3,7 +3,7 @@
 > 本文档记录 v1.0 发布时已知的代码质量问题与限制。
 > 按风险等级和修复 ROI 排序，作为后续迭代的依据。
 >
-> 最后更新：2026-07-05（P0-P1 代码审查收尾：after job 内存泄漏、ExamPanel._build_ui 拆分、死代码清理、messagebox 一致性、UI 常量集中管理；CI 配置修复；测试数 316，覆盖率报告同步）
+> 最后更新：2026-07-06（winreg 测试加平台 skipif 修复 Ubuntu CI；图标打包与窗口图标统一；Release v1.0.0 已发布）
 
 ---
 
@@ -228,6 +228,9 @@
 
 - **问题**：无 `.github/workflows/`，推送不触发测试
 - **修复**：添加 GitHub Actions CI
+- **后续（2026-07-06）**：
+  - 修复 Ubuntu runner 上 `winreg` 测试失败：4 个直接 mock `winreg` 的测试加 `@pytest.mark.skipif(sys.platform != "win32")`
+  - CI 命令使用 `-o addopts="" -m "not gui"` 正确跳过 GUI 测试，并安装 Xvfb + Tk/X11 依赖避免 display 错误
 
 ---
 

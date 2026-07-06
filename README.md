@@ -193,7 +193,8 @@ python main.py
 ```
 acp-cc-practice/
 ├── .gitignore
-├── .github/workflows/ci.yml      # CI：ruff + mypy + pytest
+├── .github/workflows/ci.yml      # CI：ruff + mypy + pytest（非 GUI）
+├── .github/workflows/release.yml # Release：构建并签名 EXE
 ├── LICENSE.md
 ├── README.md
 ├── CLAUDE.md                     # Agent 规则手册
@@ -251,7 +252,11 @@ acp-cc-practice/
     └── base_dialog.py
 ```
 
-**发布产物**：`dist/acp-cc-practice.exe`（约 22 MB，无 cmd 窗口）— 打包好的可执行文件，可直接分发给最终用户，无需安装 Python 环境。作为 GitHub Release 二进制附件发布，不纳入源码仓库。
+**发布产物**：
+- `dist/acp-cc-practice.exe`（约 14–22 MB，无 cmd 窗口）— 打包好的可执行文件
+- `dist/acp-cc-practice.exe.sigstore.json` — Sigstore OIDC 签名 bundle
+
+二者作为 GitHub Release 二进制附件发布，不纳入源码仓库。
 
 **不入库的文件**：`.env`、`data/progress.json`、`data/license.dat`、`data/app.log`、`data/questions.json`、`author_tools/issued_licenses.json`、`build/`、`dist/`、`__pycache__/`、`.pytest_cache/`
 

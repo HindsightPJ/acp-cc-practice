@@ -117,6 +117,10 @@ GitHub Actions 在 push/PR to main 时自动运行：
 
 - `ruff check .`
 - `mypy --disallow-untyped-defs .`
-- `pytest`
+- `pytest tests/ -q --tb=short -o addopts="" -m "not gui"`
+
+注意：
+- CI 使用 Ubuntu runner，GUI 测试通过 `-m "not gui"` 跳过
+- Windows-only 模块（如 `winreg`）的测试需加 `@pytest.mark.skipif(sys.platform != "win32")`
 
 配置文件：[.github/workflows/ci.yml](.github/workflows/ci.yml)

@@ -37,6 +37,7 @@
   pytest
   ```
 - GUI 测试标记 `@pytest.mark.gui`，CI 默认跳过
+- 依赖 Windows-only 模块（如 `winreg`）的测试，必须加 `@pytest.mark.skipif(sys.platform != "win32")`，避免 Ubuntu CI runner 无法导入
 - 非 GUI 测试应在 10 秒内完成
 
 ### 2.4 数据与授权红线
