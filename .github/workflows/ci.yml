@@ -36,7 +36,9 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install mypy ruff pytest pytest-cov cryptography python-docx
+          # 运行依赖经 -e . 从 pyproject.toml 安装（单一来源，
+          # 避免硬编码清单与 pyproject 漂移导致 ModuleNotFoundError）
+          pip install -e . mypy ruff pytest pytest-cov
 
       - name: Ruff check
         run: ruff check .

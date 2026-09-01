@@ -34,7 +34,8 @@ jobs:
       # TD-23: 使用 Sigstore 对 EXE 进行无密钥签名
       # sigstore-python 默认生成 .sigstore.json bundle（含签名与证书）
       - name: Sign EXE with Sigstore
-        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        # v3.0.0 在 TUF 根证书轮换后验签失败（root was signed by 0/3 keys），升级修复
+        uses: sigstore/gh-action-sigstore-python@v3.5.0
         with:
           inputs: ./dist/acp-cc-practice.exe
 
