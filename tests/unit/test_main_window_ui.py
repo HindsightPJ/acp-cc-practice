@@ -27,6 +27,25 @@ pytestmark = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _purge_dead_style_subscribers():
+    """清除已销毁控件残留的 ttkbootstrap 主题订阅。
+
+    ttkbootstrap import 时会 patch ttk 控件：Combobox 创建时向 Publisher
+    注册主题变更回调，但控件销毁时不注销（上游 1.10.1 已知问题）。测试
+    进程内反复创建/销毁窗口后，残留的死控件回调会在下一次 Window 创建
+    应用主题时触发 TclError。生产环境单窗口流程不受影响（主题仅在
+    Window 创建时应用一次），故仅测试侧清理。
+    """
+    try:
+        from ttkbootstrap.publisher import Publisher
+
+        Publisher.clear_subscribers()
+    except ImportError:
+        pass
+    yield
+
+
 SAMPLE_QUESTIONS = [
     Question(
         number=1,

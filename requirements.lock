@@ -42,3 +42,7 @@ typing-extensions==4.15.0
     # via
     #   mypy
     #   python-docx
+ttkbootstrap==1.10.1
+    # via acp-cc-practice (pyproject.toml)
+pillow==12.3.0
+    # via ttkbootstrap

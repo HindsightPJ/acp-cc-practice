@@ -34,13 +34,13 @@ def _get_fonts() -> dict[str, str]:
 
 
 def _detect_fonts_impl() -> dict[str, str]:
-    """Glassmorphism 极简风字体栈：Inter 优先，fallback 到系统现代字体。
+    """Journal 纸感字体栈：Georgia（西文衬线）+ 宋体（中文）。
 
-    Inter 是 Google 免费字体，粗细对比鲜明，是现代 UI 设计的首选。
-    若系统未安装 Inter，按优先级 fallback 到 Segoe UI Variable (Win11) /
-    Microsoft YaHei UI (Win10) / Segoe UI，保证中文渲染。
+    题干/标题用 Georgia——Windows GDI 字体链接会让 Georgia 缺失的 CJK
+    字形自动回退到宋体系，形成「西文衬线 + 中文宋体」的经典纸书效果；
+    正文/选项直接指定宋体，保证中文渲染不走雅黑回退。
     通过 _list_system_fonts 真实查询，避免指定不存在的字体被 Tkinter
-    静默替换为默认字体（会破坏粗细对比）。
+    静默替换为默认字体。
     """
     global _AVAILABLE_FONTS
     _AVAILABLE_FONTS = _list_system_fonts()
@@ -55,17 +55,8 @@ def _detect_fonts_impl() -> dict[str, str]:
         return fallback
 
     if system == "Windows":
-        ui = _pick(
-            [
-                "Inter",
-                "Inter Variable",
-                "Segoe UI Variable Text",
-                "Segoe UI Variable",
-                "Microsoft YaHei UI",
-                "Segoe UI",
-            ],
-            "Segoe UI",
-        )
+        # 宋体优先（中文注册名），兼容英文注册名 SimSun
+        ui = _pick(["宋体", "SimSun"], "Microsoft YaHei UI")
         emoji = _pick(["Segoe UI Emoji", "Segoe UI Symbol"], "Segoe UI")
         mono = _pick(
             [
@@ -77,29 +68,10 @@ def _detect_fonts_impl() -> dict[str, str]:
             ],
             "Consolas",
         )
-        # display 用于标题，优先 Inter / Segoe UI Variable（粗细更分明）
-        display = _pick(
-            [
-                "Inter",
-                "Inter Variable",
-                "Segoe UI Variable Display",
-                "Segoe UI Variable",
-                "Microsoft YaHei UI",
-                "Segoe UI",
-            ],
-            "Segoe UI",
-        )
+        # display 用于标题/题干：Georgia 西文衬线 + CJK 字形回退宋体
+        display = _pick(["Georgia", "Cambria"], "宋体")
     elif system == "Darwin":
-        ui = _pick(
-            [
-                "Inter",
-                "SF Pro Text",
-                ".SF NS Text",
-                "PingFang SC",
-                "Helvetica Neue",
-            ],
-            "Helvetica Neue",
-        )
+        ui = _pick(["宋体", "SimSun", "Songti SC", "STSong"], "Songti SC")
         emoji = _pick(["Apple Color Emoji"], "Helvetica Neue")
         mono = _pick(
             [
@@ -110,25 +82,15 @@ def _detect_fonts_impl() -> dict[str, str]:
             ],
             "Menlo",
         )
-        display = _pick(
-            [
-                "Inter",
-                "SF Pro Display",
-                ".SF NS Display",
-                "PingFang SC",
-                "Helvetica Neue",
-            ],
-            "Helvetica Neue",
-        )
+        display = _pick(["Georgia"], "Times New Roman")
     else:
         ui = _pick(
             [
-                "Inter",
-                "Noto Sans CJK SC",
-                "WenQuanYi Micro Hei",
-                "DejaVu Sans",
+                "Noto Serif CJK SC",
+                "AR PL UMing CN",
+                "SimSun",
             ],
-            "DejaVu Sans",
+            "DejaVu Serif",
         )
         emoji = _pick(["Noto Color Emoji"], "DejaVu Sans")
         mono = _pick(
@@ -141,12 +103,11 @@ def _detect_fonts_impl() -> dict[str, str]:
         )
         display = _pick(
             [
-                "Inter",
-                "Noto Sans CJK SC",
-                "WenQuanYi Micro Hei",
-                "DejaVu Sans",
+                "Georgia",
+                "Liberation Serif",
+                "DejaVu Serif",
             ],
-            "DejaVu Sans",
+            "DejaVu Serif",
         )
 
     return {
@@ -157,89 +118,106 @@ def _detect_fonts_impl() -> dict[str, str]:
     }
 
 
-# --- 设计 Token：Quiet Academy ----------------------------------------
-# 极简教育风：以纯白为主、教育蓝为单一强调色，配 macOS 风深灰侧栏。
-# 刻意减少颜色种类——除主色外仅保留必要的语义色（success/warn/error），
-# 其他全部灰阶。文字层级靠字重和明度差，不靠色相。
+# --- 设计 Token：Journal 纸感 + 墨蓝主色 ---------------------------------
+# 对齐 ttkbootstrap journal 主题（2026-09-01 本机实测：bg #ffffff /
+# border #ced4da / success #22b24c；primary 默认砖红 #eb6864 已覆写为
+# 墨蓝）。暖白纸面 + 白卡片 + 墨蓝单一强调色；文字层级靠字重和明度差，
+# 不靠色相。墨蓝与错误反馈红拉开语义距离，避免刷题场景混淆品牌色与
+# 答错提示。
 
 # 页面与卡片
-BG_PAGE = "#fafafa"  # APP BACKGROUND — 微灰，避免纯白刺眼
+BG_PAGE = "#f8f6f1"  # APP BACKGROUND — 暖白纸面，避免纯白刺眼
 BG_CARD = "#ffffff"  # SURFACE
-BG_INPUT = "#f5f5f7"  # INSET — macOS 输入框底色
-BG_HOVER = "#f0f0f2"  # HOVER 灰
-BG_SELECT = "#eef4ff"  # SELECT 浅蓝
+BG_INPUT = "#f4f1ea"  # INSET — 纸面内凹输入区
+BG_HOVER = "#eeeae1"  # HOVER 暖灰
+BG_SELECT = "#e7eef5"  # SELECT 浅墨蓝
 
-# 边框（极简风：单一极淡灰）
-BORDER = "#e5e7eb"  # RULE
-BORDER_LIGHT = "#f0f0f2"
+# 边框（暖灰调，与 journal 边框同族但更暖）
+BORDER = "#ddd8cc"  # RULE
+BORDER_LIGHT = "#eceae2"
 
-# 侧栏（macOS 深灰，非蓝紫调）
-INK = "#1c1c1e"  # SIDEBAR BG (iOS dark)
+# 侧栏（深墨色，与 journal dark #222222 一致）
+INK = "#1c1c1e"  # SIDEBAR BG
 INK_SOFT = "#2c2c2e"  # SIDEBAR HOVER
 INK_TEXT = "#f5f5f7"  # SIDEBAR PRIMARY TEXT
 INK_TEXT_MUTED = "#8e8e93"  # SIDEBAR SECONDARY TEXT
 INK_DIVIDER = "#38383a"
 
-# 文字（纯黑系，无色相）
-TEXT_PRIMARY = "#111814"
-TEXT_SECONDARY = "#6b7280"
-TEXT_MUTED = "#9ca3af"
-TEXT_PLACEHOLDER = "#cbd5e1"
+# 文字（深墨系，无色相）
+TEXT_PRIMARY = "#222222"
+TEXT_SECONDARY = "#666666"
+TEXT_MUTED = "#8f8a82"
+TEXT_PLACEHOLDER = "#c9c4b8"
 
-# 主强调色：教育蓝 blue-600（替代原琥珀色，更"知识/专注/学术"）
-ACCENT = "#2563eb"
-ACCENT_HOVER = "#1d4ed8"
-ACCENT_LIGHT = "#eff6ff"
-ACCENT_BORDER = "#bfdbfe"
+# 主强调色：墨蓝（覆写 journal 默认砖红，避免与错误红语义冲突）
+ACCENT = "#2f5d8a"
+ACCENT_HOVER = "#27507a"
+ACCENT_LIGHT = "#e9f0f7"
+ACCENT_BORDER = "#bfd0e0"
 
-# 语义色（保留，用于正确/警告/错误反馈）
-GREEN = "#059669"
-GREEN_BG = "#ecfdf5"
-GREEN_BORDER = "#a7f3d0"
-GREEN_TEXT = "#065f46"
+# 语义色（success 对齐 journal #22b24c，红/黄/紫做纸感柔化）
+GREEN = "#22b24c"
+GREEN_BG = "#e8f6ec"
+GREEN_BORDER = "#b5e0c1"
+GREEN_TEXT = "#176e37"
 
-RED = "#dc2626"
-RED_BG = "#fef2f2"
-RED_BORDER = "#fecaca"
-RED_TEXT = "#991b1b"
+RED = "#d64541"
+RED_BG = "#fcefee"
+RED_BORDER = "#f1c9c6"
+RED_TEXT = "#a13431"
 
 YELLOW = "#d97706"
 YELLOW_BG = "#fffbeb"
 YELLOW_BORDER = "#fde68a"
 YELLOW_TEXT = "#92400e"
 
-PURPLE = "#7c3aed"
-PURPLE_BG = "#faf5ff"
-PURPLE_BORDER = "#e9d5ff"
-PURPLE_TEXT = "#6b21a8"
+PURPLE = "#8a63ab"
+PURPLE_BG = "#f5f0f9"
+PURPLE_BORDER = "#dcccec"
+PURPLE_TEXT = "#5e4380"
 
 # 选中态
-SELECTED_BG = "#2563eb"
+SELECTED_BG = "#2f5d8a"
 SELECTED_TEXT = "#ffffff"
 
 # 结果反馈（与语义色一致）
-CORRECT_BG = "#059669"
+CORRECT_BG = "#22b24c"
 CORRECT_TEXT = "#ffffff"
-CORRECT_HINT_BG = "#ecfdf5"
-CORRECT_HINT_TEXT = "#065f46"
-WRONG_BG = "#dc2626"
+CORRECT_HINT_BG = "#e8f6ec"
+CORRECT_HINT_TEXT = "#176e37"
+WRONG_BG = "#d64541"
 WRONG_TEXT = "#ffffff"
 
 # 按钮
-BTN_PRIMARY = "#2563eb"
-BTN_PRIMARY_HOVER = "#1d4ed8"
-BTN_PRIMARY_ACTIVE = "#1e40af"
+BTN_PRIMARY = "#2f5d8a"
+BTN_PRIMARY_HOVER = "#27507a"
+BTN_PRIMARY_ACTIVE = "#1f4166"
 BTN_NORMAL = "#ffffff"
-BTN_NORMAL_FG = "#374151"
-BTN_NORMAL_HOVER = "#f3f4f6"
-BTN_NORMAL_ACTIVE = "#e5e7eb"
-BTN_DISABLED = "#f3f4f6"
-BTN_DISABLED_FG = "#9ca3af"
+BTN_NORMAL_FG = "#444444"
+BTN_NORMAL_HOVER = "#f4f1ea"
+BTN_NORMAL_ACTIVE = "#e8e4da"
+BTN_DISABLED = "#f1eee7"
+BTN_DISABLED_FG = "#b0aba1"
 
 # Tab（与主色一致）
-TAB_ACTIVE_FG = "#2563eb"
-TAB_ACTIVE_BORDER = "#2563eb"
-TAB_INACTIVE_FG = "#8e8e93"
+TAB_ACTIVE_FG = "#2f5d8a"
+TAB_ACTIVE_BORDER = "#2f5d8a"
+TAB_INACTIVE_FG = "#8f8a82"
+
+
+def apply_ink_blue_primary(window: Any) -> None:
+    """将 ttkbootstrap journal 主色覆写为墨蓝（ttk 控件层）。
+
+    tk.* 控件经本模块常量取色；ttk 控件（Combobox/Treeview/bootstyle
+    按钮）取色于 ttkbootstrap 主题定义——在定义层覆写 primary 并重新
+    应用主题，两套控件保持同色。
+    [VERSION_LOCKED] ttkbootstrap 1.10.1：Colors 对象无 update 方法，
+    须直接改属性后 theme_use 重应用触发样式重建。
+    """
+    style = window.style
+    journal_def = style._theme_definitions["journal"]  # noqa: SLF001 上游无公开覆写 API
+    journal_def.colors.primary = ACCENT
+    style.theme_use("journal")
 
 
 def font_ui(size: int = 11, bold: bool = False) -> tuple[str, int, str] | tuple[str, int]:
@@ -364,9 +342,7 @@ def create_card(
     card 是外层边框 Frame（未 pack），inner 是内层内容 Frame（已设置 padding）。
     调用方负责 pack card，然后往 inner 里填充内容即可。
     """
-    card = tk.Frame(
-        parent, bg=BG_CARD, highlightbackground=BORDER, highlightthickness=1
-    )
+    card = tk.Frame(parent, bg=BG_CARD, highlightbackground=BORDER, highlightthickness=1)
     inner = tk.Frame(card, bg=BG_CARD)
     inner.pack(fill=tk.BOTH, expand=True, padx=inner_padx, pady=inner_pady)
     return card, inner

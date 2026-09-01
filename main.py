@@ -2,6 +2,7 @@ import sys
 import os
 import logging
 import tkinter as tk
+import ttkbootstrap as ttkb
 import threading
 import queue
 from dataclasses import dataclass
@@ -75,6 +76,18 @@ class LoadFailure:
     mode: str = "unknown"
 
 
+def _reset_ttkbootstrap_style() -> None:
+    """重置 ttkbootstrap 进程级 Style 单例，使其绑定下一个新建的 root。
+
+    splash 销毁后单例仍指向已销毁解释器；不重置的话，MainWindow 应用
+    journal 主题时会在死解释器上触发 ttk::ThemeChanged 后台报错（stderr
+    噪音）。同时清理 Publisher 残留订阅：ttkbootstrap 1.10.1 注册的控件
+    主题回调不随控件销毁注销。
+    """
+    ttkb.style.Style.instance = None
+    ttkb.publisher.Publisher.clear_subscribers()
+
+
 def _show_splash(root: tk.Tk) -> None:
     """在 root 上显示加载中界面。"""
     from ui.theme import theme, font_ui_semibold
@@ -129,7 +142,8 @@ def main() -> None:
     verifier = LicenseVerifier(data_dir=user_data_dir)
 
     # P0-1: 先显示 splash 窗口，避免 PowerShell + PBKDF2 阻塞 UI 0.5~6 秒
-    splash = tk.Tk()
+    # [VERSION_LOCKED] ttkbootstrap 1.10.1：splash 与主窗口统一 journal 主题
+    splash = ttkb.Window(themename="journal")
     splash.title("ACP 云计算练习")
     splash.geometry("320x160")
     # 居中显示（基于屏幕尺寸）
@@ -177,6 +191,9 @@ def main() -> None:
             return
 
         try:
+            # splash（第一个 root）已销毁：重置 Style 单例后 MainWindow 的
+            # journal 主题才能正确应用到新解释器
+            _reset_ttkbootstrap_style()
             app = MainWindow(
                 result.questions,
                 data_manager,

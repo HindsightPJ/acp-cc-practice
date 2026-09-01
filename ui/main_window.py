@@ -1,10 +1,11 @@
 import os
 import sys
 import tkinter as tk
+import ttkbootstrap as ttkb
 from tkinter import ttk, messagebox
 from typing import Any, Callable
 
-from .theme import theme
+from .theme import apply_ink_blue_primary, theme
 
 from .practice_mode import PracticeMode
 from .exam_mode import ExamMode
@@ -19,7 +20,7 @@ from license import LicenseStatus
 from models import Question
 
 
-class MainWindow(tk.Tk):
+class MainWindow(ttkb.Window):
     def __init__(
         self,
         questions: list[Question],
@@ -28,7 +29,8 @@ class MainWindow(tk.Tk):
         meta: dict[str, Any] | None = None,
         license_dir: str | None = None,
     ) -> None:
-        super().__init__()
+        # [VERSION_LOCKED] ttkbootstrap 1.10.1：Window(themename=...) 在创建时应用 journal 主题
+        super().__init__(themename="journal")
 
         self.title("ACP 云计算练习")
         self.geometry("1200x760")
@@ -66,8 +68,11 @@ class MainWindow(tk.Tk):
     def configure_ui(self) -> None:
         self.configure(bg=theme.BG_PAGE)
 
+        # ttk 控件层主色覆写为墨蓝（theme.py 是 tk.* 控件的取色源，
+        # ttk 控件取色于 ttkbootstrap 主题定义，须两处同步）
+        apply_ink_blue_primary(self)
+        # journal 主题已应用；此处仅对齐 TFrame/TSeparator 与 tk.Frame 纸面底色
         style = ttk.Style()
-        style.theme_use("clam")
         style.configure("TFrame", background=theme.BG_PAGE)
         style.configure("TSeparator", background=theme.BORDER)
 

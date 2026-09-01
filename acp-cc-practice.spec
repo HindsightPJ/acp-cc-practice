@@ -10,8 +10,8 @@ from PyInstaller.utils.win32.versioninfo import (
 # TD-21: Windows EXE 版本信息（右键属性可见）
 version_info = VSVersionInfo(
     ffi=FixedFileInfo(
-        filevers=(1, 0, 0, 0),
-        prodvers=(1, 0, 0, 0),
+        filevers=(1, 1, 0, 0),
+        prodvers=(1, 1, 0, 0),
         mask=0x3f,
         flags=0x0,
         OS=0x40004,
@@ -24,12 +24,12 @@ version_info = VSVersionInfo(
             StringTable('040904B0', [
                 StringStruct('CompanyName', 'HindsightPJ'),
                 StringStruct('FileDescription', 'ACP 云计算练习软件'),
-                StringStruct('FileVersion', '1.0.0'),
+                StringStruct('FileVersion', '1.1.0'),
                 StringStruct('InternalName', 'acp-cc-practice'),
                 StringStruct('LegalCopyright', '© 2026 HindsightPJ'),
                 StringStruct('OriginalFilename', 'acp-cc-practice.exe'),
                 StringStruct('ProductName', 'ACP 云计算练习'),
-                StringStruct('ProductVersion', '1.0.0'),
+                StringStruct('ProductVersion', '1.1.0'),
             ])
         ]),
         VarFileInfo([VarStruct('Translation', [0x409, 1200])])
@@ -56,6 +56,11 @@ a = Analysis(
         (os.path.join(SPECPATH, 'icons', 'icon.ico'), 'icons'),
     ],
     hiddenimports=[
+        # ttkbootstrap 动态加载的主题/样式模块，显式声明避免打包遗漏
+        'ttkbootstrap',
+        'ttkbootstrap.style',
+        'ttkbootstrap.publisher',
+        'ttkbootstrap.themes.standard',
         'cryptography.fernet',
         'cryptography.hazmat.primitives.ciphers.aead',
         'cryptography.hazmat.primitives.kdf.pbkdf2',
