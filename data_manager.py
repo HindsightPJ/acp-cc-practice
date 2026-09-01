@@ -260,8 +260,9 @@ class DataManager:
                 if os.path.exists(self.progress_file):
                     try:
                         os.replace(self.progress_file, bak_file)
-                    except OSError:
-                        pass  # 备份失败不阻塞主流程
+                    except OSError as backup_err:
+                        # 备份失败不阻塞主流程，但留痕便于排查（静默失败零容忍）
+                        logger.debug("进度备份失败: %s", backup_err)
                 with open(tmp_file, "w", encoding="utf-8") as f:
                     json.dump(progress_data, f, ensure_ascii=False, indent=2)
                 os.replace(tmp_file, self.progress_file)
@@ -269,14 +270,14 @@ class DataManager:
                 if os.path.exists(tmp_file):
                     try:
                         os.remove(tmp_file)
-                    except OSError:
-                        pass
+                    except OSError as cleanup_err:
+                        logger.debug("临时进度文件清理失败: %s", cleanup_err)
                 # 尝试从 .bak 恢复
                 if os.path.exists(bak_file) and not os.path.exists(self.progress_file):
                     try:
                         os.replace(bak_file, self.progress_file)
-                    except OSError:
-                        pass
+                    except OSError as restore_err:
+                        logger.debug("进度备份恢复失败: %s", restore_err)
                 log_error(logger, "无法保存进度数据", exc=e, progress_file=self.progress_file)
                 raise DataSaveError(f"无法保存进度数据: {e}")
 

@@ -30,4 +30,5 @@ def derive_dk(machine_code: str, salt: bytes) -> bytes:
         salt=salt,
         iterations=PBKDF2_ITERATIONS,
     )
-    return kdf.derive(machine_code.encode("utf-8"))
+    # bytes() 消除 derive() 返回 Any 的类型不确定性（mypy no-any-return）
+    return bytes(kdf.derive(machine_code.encode("utf-8")))
