@@ -1,8 +1,8 @@
 # ACP 云计算练习
 
-v1.0
+v1.1
 
-一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + Tkinter，零外部依赖（除 `python-docx` 用于解析题库、`cryptography` 用于授权机制），开箱即用。
+一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + Tkinter（ttkbootstrap 主题库），运行依赖仅 `python-docx` / `cryptography` / `ttkbootstrap` 三个，开箱即用。
 
 ## 免责声明
 
@@ -29,12 +29,13 @@ v1.0
 
 ## 设计取向
 
-UI 走「Quiet Academy」极简教育风，并融合 Glassmorphism 视觉暗示：
+UI 基于 ttkbootstrap journal 主题，走「纸感学术」风（v1.1 重构）：
 
-- **冷白页面 + macOS 深灰侧栏**：纯白主背景 + `#1c1c1e` 深灰侧栏，长时间刷题不刺眼，强对比聚焦内容
-- **教育蓝单一强调色**：`#2563eb`（blue-600）替代常见 Tailwind 默认蓝，传达「知识 / 专注 / 学术」气质，刻意减少颜色种类
-- **Inter 字体优先 + 真实检测**：优先使用 Inter（Google 免费字体，粗细分明），系统未安装时 fallback 到 Segoe UI Variable / Microsoft YaHei UI，通过 `font.families()` 真实查询避免指定字体被静默替换
-- **Canvas 真圆字母块**：选项左侧字母圆块用 `tk.Canvas.create_oval` 绘制真圆（非方块），暗示 Glassmorphism 的柔和质感
+- **暖白纸面 + 深墨侧栏**：`#f8f6f1` 暖白主背景 + `#1c1c1e` 深墨侧栏，长时间刷题不刺眼，强对比聚焦内容
+- **墨蓝单一强调色**：`#2f5d8a` 墨蓝替代 journal 默认砖红，传达「教科书 / 墨水 / 学术」气质，且与答错反馈红拉开语义距离，避免「品牌色 vs 答错」混淆
+- **衬线字体组合 + 真实检测**：题干/标题用 Georgia（西文衬线，中文回退宋体），正文选项用宋体，计时用等宽字体；通过 `font.families()` 真实查询避免指定字体被静默替换
+- **统一取色源**：所有颜色/字体集中在 `ui/theme.py` 设计 Token；ttk 控件层通过主题定义覆写与 tk 控件保持同色
+- **Canvas 真圆字母块**：选项左侧字母圆块用 `tk.Canvas.create_oval` 绘制真圆（非方块），柔和质感
 - **统一 OptionRow 组件**：练习 / 考试 / 背题 / 错题四种模式共用同一选项行，状态机 `idle → hover → selected → correct/wrong/revealed` 集中管理
 - **就绪度环**：避免堆砌「已练 / 正确率 / 连击 / 勋章」四个数字，把用户真正关心的「能不能过」做成单一弧线
 - **空状态视图**：错题本为空时显示引导文案，而非空白列表
@@ -69,7 +70,7 @@ acp-cc-practice/
 │   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
 │   └── questions_meta.json  # 元数据（入库）
-├── tests/                   # 测试套件（约 309 单元/集成 + 61 GUI 冒烟，非 GUI 251）
+├── tests/                   # 测试套件（316 项 = 非 GUI 251 + GUI 65）
 │   ├── unit/                # 单元测试
 │   └── integration/         # 集成测试
 └── ui/
@@ -182,11 +183,11 @@ python main.py
 - **授权仅支持 Windows**：机器指纹基于 Windows 系统信息，非 Windows 平台降级试用（20 题）
 - **离线授权无过期机制**：注册码永久有效，作者可轮换密钥让所有已签发注册码失效
 - **重装系统/换硬盘会失效**：指纹含系统硬件信息，变更需重新申请注册码
-- **Tkinter 视觉限制**：不支持 `backdrop-filter blur`（Glassmorphism 核心），仅用 Canvas 真圆 + 柔和边框暗示玻璃感
-- **字体依赖系统安装**：Inter 字体需用户自行从 Google Fonts 下载安装，未安装时 fallback 到系统默认字体
+- **Tkinter 视觉限制**：不支持 `backdrop-filter blur`，仅用 Canvas 真圆 + 柔和边框营造质感
+- **字体依赖系统安装**：Georgia / 宋体为 Windows 系统自带；macOS/Linux 按平台 fallback 链降级
 - 暂不支持题库分类筛选、多用户、暗色模式
 
-## 发布清单（v1.0）
+## 发布清单（v1.1）
 
 以下文件应包含在 GitHub 仓库中：
 
@@ -197,8 +198,6 @@ acp-cc-practice/
 ├── .github/workflows/release.yml # Release：构建并签名 EXE
 ├── LICENSE.md
 ├── README.md
-├── CLAUDE.md                     # Agent 规则手册
-├── AGENTS.md -> CLAUDE.md        # 软链，与 CLAUDE.md 同源
 ├── main.py
 ├── data_manager.py
 ├── quiz_engine.py
@@ -225,9 +224,6 @@ acp-cc-practice/
 ├── tests/
 │   ├── unit/                     # 单元测试
 │   └── integration/              # 集成测试
-├── docs/
-│   ├── architecture.md           # 架构与授权协议
-│   └── test_coverage_report.md   # 覆盖率报告
 └── ui/
     ├── __init__.py
     ├── main_window.py
@@ -253,12 +249,12 @@ acp-cc-practice/
 ```
 
 **发布产物**：
-- `dist/acp-cc-practice.exe`（约 14–22 MB，无 cmd 窗口）— 打包好的可执行文件
+- `dist/acp-cc-practice.exe`（约 15–25 MB，无 cmd 窗口）— 打包好的可执行文件
 - `dist/acp-cc-practice.exe.sigstore.json` — Sigstore OIDC 签名 bundle
 
 二者作为 GitHub Release 二进制附件发布，不纳入源码仓库。
 
-**不入库的文件**：`.env`、`data/progress.json`、`data/license.dat`、`data/app.log`、`data/questions.json`、`author_tools/issued_licenses.json`、`build/`、`dist/`、`__pycache__/`、`.pytest_cache/`
+**不入库的文件**：`.env`、`data/progress.json`、`data/license.dat`、`data/app.log`、`data/questions.json`、`author_tools/issued_licenses.json`、`build/`、`dist/`、`__pycache__/`、`.pytest_cache/`、`.ai_context/`（AI 工作区）、`docs/`（本地文档）
 
 ## License
 

@@ -60,7 +60,13 @@ icons/README.md
 requirements-dev.txt
 .env.example
 
-# 测试缓存
+# AI 工作区与本地文档（本地保留，不入库）
+.ai_context/
+docs/
+
+# 测试与工具缓存
+.ruff_cache/
+.mypy_cache/
 .pytest_cache/
 .coverage
 .coverage.*

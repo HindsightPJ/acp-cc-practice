@@ -10,7 +10,7 @@
 pip install -e ".[dev]"
 ```
 
-包含运行依赖（`python-docx`、`cryptography`）+ 开发依赖（`pytest`、`pytest-cov`、`mypy`、`ruff`）。
+包含运行依赖（`python-docx`、`cryptography`、`ttkbootstrap`）+ 开发依赖（`pytest`、`pytest-cov`、`mypy`、`ruff`）。
 
 ### 运行测试
 
@@ -74,13 +74,10 @@ acp-cc-practice/
 ├── tests/                     # 测试
 │   ├── unit/                  # 单元测试
 │   └── integration/           # 集成测试
-├── data/                      # 题库数据
-├── README.md                  # 安装与使用
-├── TECH_DEBT.md               # 技术债追踪
-└── docs/
-    ├── architecture.md        # 架构与授权协议
-    └── test_coverage_report.md # 覆盖率报告
+└── data/                      # 题库数据
 ```
+
+> `TECH_DEBT.md` / `TASK_PLAN.md` 等 AI 工作文档在 `.ai_context/`（本地保留，不入库）；`docs/`（架构文档、覆盖率报告、UI 截图）同样仅本地保留。
 
 ## 代码风格
 
@@ -90,6 +87,7 @@ acp-cc-practice/
 - 模块级函数优先于静态方法
 - 延迟导入 `cryptography` 相关模块（保持与原有风格一致）
 - UI 父容器类型统一为 `tk.Misc`
+- 颜色/字体只允许定义在 `ui/theme.py` 设计 Token，禁止控件内散写（ttk 控件经 `apply_ink_blue_primary` 主题覆写同步）
 
 ## 提交规范
 
@@ -104,7 +102,7 @@ acp-cc-practice/
 
 ## 技术债
 
-技术债记录在 [TECH_DEBT.md](TECH_DEBT.md)，按 P0-P6 分级。修复时：
+技术债记录在 `.ai_context/TECH_DEBT.md`（本地文件，不入库），按 P0-P6 分级。修复时：
 
 1. 每次只做一项修改
 2. 运行 `mypy --disallow-untyped-defs .`、`ruff check .`、`pytest` 验证无回归
