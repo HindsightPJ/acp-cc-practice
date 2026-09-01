@@ -26,6 +26,11 @@ release = [
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
+# 显式包发现：平铺布局下自动发现会撞上 data/ icons/ 等非包目录
+# （Multiple top-level packages discovered），限定真实 Python 包
+[tool.setuptools.packages.find]
+include = ["ui*", "license*"]
+
 # TD-17: pytest 配置
 [tool.pytest.ini_options]
 testpaths = ["tests"]
