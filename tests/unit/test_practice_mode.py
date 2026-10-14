@@ -2,6 +2,7 @@
 
 覆盖练习提交后的延迟保存触发、子类 _save_failure_message 生效等。
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -41,7 +42,7 @@ def mode(root):
 def test_submit_answer_triggers_delayed_save(mode):
     """PracticeMode.submit_answer 应触发延迟保存。"""
     # mock 面板提交，避免依赖 PracticePanel 的完整行为
-    with patch.object(mode.panel, 'submit_answer'):
+    with patch.object(mode.panel, "submit_answer"):
         mode.submit_answer()
 
     assert mode._pending_save is True
@@ -51,10 +52,10 @@ def test_submit_answer_triggers_delayed_save(mode):
 def test_save_failure_message_is_practice_specific(mode, monkeypatch):
     """PracticeMode 的保存失败提示应使用子类文案。"""
     mode.app_state.save_safe.return_value = False
-    monkeypatch.setattr('tkinter.messagebox.showwarning', lambda *a, **k: None)
+    monkeypatch.setattr("tkinter.messagebox.showwarning", lambda *a, **k: None)
 
     mode._pending_save = True
     mode._do_save_progress()
 
     # 文案应包含"学习进度"（子类覆盖的 _save_failure_message）
-    assert '学习进度' in mode._save_failure_message
+    assert "学习进度" in mode._save_failure_message

@@ -6,6 +6,7 @@
 
 P1-1: count 方法返回值与 len(get_xxx()) 一致，但 O(1) 读取。
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -55,6 +56,7 @@ def test_save_safe_logs_warning_on_failure(app_state, caplog):
 
 
 # ---------- P1-1: count 方法测试 ----------
+
 
 def test_wrong_count_empty(app_state):
     """空错题本时 wrong_count 返回 0。"""
