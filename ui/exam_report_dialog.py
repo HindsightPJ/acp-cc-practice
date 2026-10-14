@@ -14,6 +14,7 @@ from .theme import (
     create_card,
 )
 from .base_dialog import BaseDialog
+from .rounded import RoundedButton
 
 
 class ExamReportDialog(BaseDialog):
@@ -35,7 +36,7 @@ class ExamReportDialog(BaseDialog):
         super().__init__(parent, title="考试成绩报告", size="600x550")
         self.report = report
         self.on_add_wrong = on_add_wrong
-        self._add_wrong_btn: tk.Button | None = None
+        self._add_wrong_btn: RoundedButton | None = None
         self._wrong_added = False
 
     def show(self) -> None:
