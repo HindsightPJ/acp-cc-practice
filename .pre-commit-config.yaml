@@ -1,17 +1,19 @@
 # .pre-commit-config.yaml —— 由 global-rules skill 的 init_project.py 生成（判据见 machine checks 的 Python 本地门禁一节）
-# 用 local hooks 复用项目 venv 里的工具，避免第三方 mirror 的 rev 版本漂移。
-# 依赖需作为 dev 依赖精确锁进 pyproject/requirements.lock：pre-commit、ruff、mypy、bandit。
+# local hooks 直接调用 PATH 上的可执行文件：ruff / bandit 装在系统 Python 3.14（Scripts 已在 PATH）。
+# 不写死 `python -m xxx`：本机默认 python 是 WorkBuddy 托管 3.13（无这些工具），写死会误判。
+# check_secrets / check_deps_lock 纯标准库，任何 python3 可跑。
+# 版本对齐：ruff 与 requirements.lock 的 dev 钉同版（0.15.20）；pre-commit / bandit 尚未进 lock [DECISION_REQUIRED]。
 repos:
   - repo: local
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: python -m ruff check .
+        entry: ruff check .
         language: system
         pass_filenames: false
       - id: ruff-format
         name: ruff format --check
-        entry: python -m ruff format --check .
+        entry: ruff format --check .
         language: system
         pass_filenames: false
       - id: check-secrets
@@ -26,7 +28,7 @@ repos:
         pass_filenames: false
       - id: bandit
         name: bandit 安全扫描
-        entry: python -m bandit -c pyproject.toml -r .
+        entry: bandit -c pyproject.toml -r .
         language: system
         pass_filenames: false
         stages: [pre-push]

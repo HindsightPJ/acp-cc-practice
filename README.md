@@ -53,7 +53,7 @@ acp-cc-practice/
 ├── pyproject.toml           # 项目元数据 + 依赖声明（单一来源）+ 工具配置
 ├── requirements.lock        # 锁定依赖版本（pip-compile 自动生成，可复现安装）
 ├── acp-cc-practice.spec     # PyInstaller 打包配置
-├── .github/workflows/       # CI（ruff + mypy + pytest）与 Release（构建并签名 EXE）
+├── .github/workflows/       # CI（ruff + mypy + 密钥/依赖锁门禁 + pytest）与 Release（构建并签名 EXE）
 ├── .gitignore
 ├── license/                 # 授权模块
 │   ├── __init__.py          # LicenseStatus / LicenseError 枚举
@@ -65,7 +65,7 @@ acp-cc-practice/
 │   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
 │   └── questions_meta.json  # 元数据（入库）
-├── tests/                   # 测试套件（261 项 = 非 GUI 196 + GUI 65）
+├── tests/                   # 测试套件（273 项 = 非 GUI 208 + GUI 65）
 │   └── unit/                # 单元测试
 └── ui/
     ├── __init__.py
