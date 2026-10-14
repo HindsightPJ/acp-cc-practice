@@ -30,10 +30,16 @@ pycparser==3.0
     # via cffi
 pygments==2.20.0
     # via pytest
+pyside6-essentials==6.12.0
+    # via acp-cc-practice (pyproject.toml)
 pytest==9.1.1
+    # via acp-cc-practice (pyproject.toml)
+pytest-qt==4.5.0
     # via acp-cc-practice (pyproject.toml)
 ruff==0.15.20
     # via acp-cc-practice (pyproject.toml)
+shiboken6==6.12.0
+    # via pyside6-essentials
 typing-extensions==4.15.0
     # via
     #   mypy
