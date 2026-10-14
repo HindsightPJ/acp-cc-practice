@@ -12,6 +12,7 @@
 
 from typing import Callable
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
@@ -37,6 +38,9 @@ _STRETCH_RESTART, _STRETCH_NAV, _STRETCH_SUBMIT, _STRETCH_GO = 7, 10, 10, 14
 def _make_action_button(text: str, kbd: str = "", go: bool = False) -> QPushButton:
     """构造动作条按钮：文本 + 等宽键位提示（QSS actBtn/goBtn 语义类）。"""
     btn = QPushButton()
+    # 动作条按钮不抢焦点：点击后 Enter 仍走 QShortcut 提交语义，
+    # 而不是再次触发最后点过的按钮（如"下一题"）
+    btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
     if go:
         btn.setObjectName("goBtn")
     else:
@@ -168,16 +172,22 @@ class PracticePanel(QFrame):
         self._update_stats_col()
 
     def _update_sheet(self) -> None:
-        """答题卡全量同步：done（答对）/ miss（答错）/ now（当前）。"""
+        """答题卡全量同步：done（答对）/ miss（答错）/ now（当前）。
+
+        行显示号同步为原题号（与题区大号一致）；乱序队列中它不等于
+        队列序号，mockup（proposal_F_transit 乱序 09/10/11/12/13/03）即此语义。
+        """
         engine = self.session.engine
         current = engine.get_current_index()
         correct = engine.get_correct_question_numbers()  # 题号集合（非队列索引）
         total = engine.queue_length()
         for i in range(total):
+            q = engine.get_question_at(i)
+            if q is not None:
+                self.sheet.update_no(i, q.number)
             if i == current:
                 state = "now"
             elif engine.is_answered(i):
-                q = engine.get_question_at(i)
                 state = "done" if q is not None and q.number in correct else "miss"
             else:
                 state = ""

@@ -67,9 +67,9 @@ def test_main_window_can_instantiate(window):
 
 
 def test_license_btn_trial_state(window):
-    """试用模式：授权按钮可点、文案为试用模式。"""
+    """试用模式：授权按钮可点、文案引导输入注册码。"""
     assert window.license_btn.isEnabled()
-    assert window.license_btn.text() == "试用模式"
+    assert window.license_btn.text() == "输入注册码"
 
 
 def test_license_btn_authorized_disabled(qtbot, tmp_path):

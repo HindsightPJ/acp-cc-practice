@@ -64,7 +64,7 @@ NAV_DEFS: tuple[tuple[str, str, str, str], ...] = (
     ("wrong", "04", "错题本", "WRONGBOOK"),
 )
 
-_BRAND = "ACP·云算题库"
+_BRAND = "ACP·云计算题库"
 _SUB = "阿里云专业认证\n每日练习"
 
 
@@ -138,7 +138,8 @@ class MainWindow(QMainWindow):
         v.setContentsMargins(1, 1, 1, 1)  # 让 windowRoot 的 1px 分界线可见
         v.setSpacing(0)
 
-        self.titlebar = TitleBar(tag=NAV_DEFS[0][3])
+        self.titlebar = TitleBar(tag=NAV_DEFS[0][3], on_theme_toggle=self.toggle_theme)
+        self.titlebar.set_theme_icon(current_theme_mode())
         v.addWidget(self.titlebar)
 
         v.addWidget(self._build_head())
@@ -182,9 +183,12 @@ class MainWindow(QMainWindow):
         clock_box.addWidget(self._clock_date, 0, Qt.AlignmentFlag.AlignRight)
         h.addLayout(clock_box)
 
-        # 授权入口（补 tkinter 版缺口：LicenseDialog 此前无生产调用点）
+        # 授权入口（补 tkinter 版缺口：LicenseDialog 此前无生产调用点）；
+        # 独立 licenseBtn 语义类（pill 边框）——此前复用 actBtn 无边框纯文字，
+        # 可发现性为零（用户找不到"输入注册码"）
         self.license_btn = QPushButton()
-        self.license_btn.setProperty("actBtn", True)
+        self.license_btn.setObjectName("licenseBtn")
+        self.license_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.license_btn.clicked.connect(self._open_license_dialog)
         self._sync_license_btn()
         h.addWidget(self.license_btn)
@@ -193,7 +197,7 @@ class MainWindow(QMainWindow):
     def _sync_license_btn(self) -> None:
         """授权按钮状态：已授权禁用；试用模式可点开授权对话框。"""
         authorized = self.license_status == LicenseStatus.AUTHORIZED
-        self.license_btn.setText("已授权" if authorized else "试用模式")
+        self.license_btn.setText("已授权" if authorized else "输入注册码")
         self.license_btn.setEnabled(not authorized)
 
     def _open_license_dialog(self) -> None:
@@ -344,6 +348,7 @@ class MainWindow(QMainWindow):
         """浅色/深色切换：换 Token + 重应用 QSS + 持久化（fail-safe 落盘）。"""
         new_mode = THEME_DARK if current_theme_mode() == THEME_LIGHT else THEME_LIGHT
         set_theme_mode(new_mode)
+        self.titlebar.set_theme_icon(new_mode)
         app = QApplication.instance()
         if isinstance(app, QApplication):
             apply_qss(app, new_mode)

@@ -29,6 +29,7 @@ from logging_utils import configure_app_logging, log_error
 from models import Question
 from ui.main_window import MainWindow
 from ui.theme import apply_qss, center_window
+from ui.titlebar import BRAND_TEXT
 from app_state import AppState
 
 
@@ -114,7 +115,7 @@ def _build_splash(app: QApplication, theme_mode: str) -> QWidget:
     splash.setFixedSize(320, 160)
     v = QVBoxLayout(splash)
     v.addStretch(1)
-    brand = QLabel("ACP·云算题库")
+    brand = QLabel(BRAND_TEXT)
     brand.setObjectName("brand")
     brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
     v.addWidget(brand)

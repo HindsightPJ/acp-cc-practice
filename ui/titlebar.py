@@ -21,7 +21,9 @@ from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
 
-BRAND_TEXT = "ACP·云算题库"
+from .theme import THEME_DARK
+
+BRAND_TEXT = "ACP·云计算题库"
 
 _TITLEBAR_HEIGHT = 44
 _BTN_WIDTH = 50
@@ -46,7 +48,12 @@ _EDGE_CURSORS: tuple[tuple[int, Qt.CursorShape], ...] = (
 class TitleBar(QFrame):
     """站牌条标题栏：brand + tag + 窗口按钮，空白菜区可拖拽移动窗口。"""
 
-    def __init__(self, parent: QWidget | None = None, tag: str = "") -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        tag: str = "",
+        on_theme_toggle: Callable[[], None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("titlebar")
         self.setFixedHeight(_TITLEBAR_HEIGHT)
@@ -68,6 +75,12 @@ class TitleBar(QFrame):
 
         layout.addStretch(1)
 
+        # 主题切换钮（浅色显 ☾ = 点击入夜；深色显 ☀），无回调则不创建
+        self._btn_theme: QPushButton | None = None
+        if on_theme_toggle is not None:
+            self._btn_theme = self._make_btn("☾", "win", on_theme_toggle)
+            self._btn_theme.setToolTip("切换 浅色 / 深色（Ctrl+T）")
+
         self._btn_min = self._make_btn("—", "win", self._show_minimized)
         self._btn_max = self._make_btn("▢", "win", self._toggle_maximized)
         self._btn_close = self._make_btn("✕", "close", self._close_window)
@@ -79,6 +92,11 @@ class TitleBar(QFrame):
         normalized = text.strip()
         self._tag.setText(normalized.upper())
         self._tag.setVisible(bool(normalized))
+
+    def set_theme_icon(self, mode: str) -> None:
+        """按当前主题模式更新切换钮符号（☾=当前浅色 / ☀=当前深色）。"""
+        if self._btn_theme is not None:
+            self._btn_theme.setText("☀" if mode == THEME_DARK else "☾")
 
     # -------------------------------------------------------------- 按钮
     def _make_btn(self, symbol: str, role: str, slot: Callable[[], None]) -> QPushButton:
@@ -108,8 +126,11 @@ class TitleBar(QFrame):
     # -------------------------------------------------------------- 拖拽
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt 命名
         if event.button() == Qt.MouseButton.LeftButton:
-            # 系统级拖拽（原生手感，跨多显示器跟随）；按钮区已被子控件消费
-            self.window().startSystemMove()  # type: ignore[attr-defined]  # PySide6 stub 缺口
+            # 系统级拖拽（原生手感，跨多显示器跟随）；按钮区已被子控件消费。
+            # startSystemMove/startSystemResize 在 QWindow 上，QWidget 没有
+            handle = self.window().windowHandle()
+            if handle is not None:
+                handle.startSystemMove()
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt 命名
@@ -133,16 +154,17 @@ class _ResizeFilter(QObject):
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt 命名
         if obj is not self._window:
             return False
-        etype = event.type()
-        if etype == QEvent.Type.MouseMove:
-            self._update_cursor(event)
-        elif etype == QEvent.Type.MouseButtonPress:
-            if self._try_start_resize(event):
-                return True
+        if isinstance(event, QMouseEvent):
+            etype = event.type()
+            if etype == QEvent.Type.MouseMove:
+                self._update_cursor(event)
+            elif etype == QEvent.Type.MouseButtonPress:
+                if self._try_start_resize(event):
+                    return True
         return False
 
-    def _edges_at(self, event: QEvent) -> int:
-        pos = event.position().toPoint()  # type: ignore[attr-defined]  # PySide6 stub 缺口
+    def _edges_at(self, event: QMouseEvent) -> int:
+        pos = event.position().toPoint()
         rect = self._window.rect()
         edges = 0
         if pos.x() <= _EDGE:
@@ -155,7 +177,7 @@ class _ResizeFilter(QObject):
             edges |= _BOTTOM
         return edges
 
-    def _update_cursor(self, event: QEvent) -> None:
+    def _update_cursor(self, event: QMouseEvent) -> None:
         window = self._window
         if window.isMaximized() or window.isFullScreen():
             window.unsetCursor()
@@ -163,10 +185,8 @@ class _ResizeFilter(QObject):
         edges = self._edges_at(event)
         window.setCursor(_cursor_for_edges(edges))
 
-    def _try_start_resize(self, event: QEvent) -> bool:
-        mouse = event
-        is_press = mouse.type() == QEvent.Type.MouseButtonPress
-        if not is_press or mouse.button() != Qt.MouseButton.LeftButton:  # type: ignore[attr-defined]  # PySide6 stub 缺口
+    def _try_start_resize(self, event: QMouseEvent) -> bool:
+        if event.button() != Qt.MouseButton.LeftButton:
             return False
         window = self._window
         if window.isMaximized() or window.isFullScreen():
@@ -174,7 +194,10 @@ class _ResizeFilter(QObject):
         edges = self._edges_at(event)
         if not edges:
             return False
-        window.startSystemResize(Qt.Edges(edges))  # type: ignore[attr-defined]  # PySide6 stub 缺口
+        handle = window.windowHandle()
+        if handle is None:
+            return False
+        handle.startSystemResize(Qt.Edges(edges))  # type: ignore[attr-defined]  # PySide6 stub 缺口（运行时已验证 Qt.Edges 存在）
         return True
 
 

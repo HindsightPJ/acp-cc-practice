@@ -162,7 +162,7 @@ class QuestionDetailCard(QFrame):
                 card.reset()
 
     def set_option_result(self, correct_answer: str, selected: str) -> None:
-        """提交后标记选项结果态。
+        """提交后标记选项结果态（全部选项行参与，未选干扰项灰标"— 未选"）。
 
         Args:
             correct_answer: 正确答案字母串，如 "ABC"
@@ -172,10 +172,7 @@ class QuestionDetailCard(QFrame):
         selected_set = set(selected)
         for i, card in enumerate(self.option_cards):
             letter = chr(ord("A") + i)
-            is_correct = letter in correct_set
-            is_selected = letter in selected_set
-            if is_correct or is_selected:
-                card.set_result(is_correct, is_selected)
+            card.set_result(letter in correct_set, letter in selected_set)
 
     def reset_options(self) -> None:
         """重置所有选项状态为 idle。"""

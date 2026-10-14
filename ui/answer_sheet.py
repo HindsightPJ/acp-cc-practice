@@ -20,16 +20,20 @@ from PySide6.QtWidgets import (
 
 
 class _DepRow(QFrame):
-    """单行发车记录：队列题号 + 状态字 + 右侧符号。"""
+    """单行发车记录：题号 + 状态字 + 右侧符号。
+
+    显示号（原题号）与点击语义（队列索引）解耦：乱序队列中两者不同，
+    显示号经 set_no 由宿主同步，点击固定发出 queue_index。
+    """
 
     # 状态文案映射：(状态字, 符号)；缺省 = 待答
     _TEXT = {"done": ("已答", "✓"), "now": ("进行中", "→"), "miss": ("答错", "✗")}
 
-    clicked = Signal(int)  # 发出自身队列索引
+    clicked = Signal(int)  # 发出自身队列索引（0-based）
 
-    def __init__(self, queue_no: int, parent: QWidget | None = None) -> None:
+    def __init__(self, queue_index: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.queue_no = queue_no
+        self.queue_index = queue_index
         self.setProperty("depRow", True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -37,7 +41,7 @@ class _DepRow(QFrame):
         h.setContentsMargins(20, 9, 20, 9)
         h.setSpacing(10)
 
-        self.lbl_no = QLabel(str(queue_no))
+        self.lbl_no = QLabel(str(queue_index + 1))
         self.lbl_no.setProperty("depN", True)
         self.lbl_st = QLabel("待答")
         self.lbl_st.setProperty("depSt", True)
@@ -49,9 +53,13 @@ class _DepRow(QFrame):
         h.addStretch(1)
         h.addWidget(self.lbl_sym)
 
+    def set_no(self, no: int) -> None:
+        """更新显示号（原题号，与题区大号一致）。"""
+        self.lbl_no.setText(str(no))
+
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt 命名
         if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit(self.queue_no - 1)
+            self.clicked.emit(self.queue_index)
         super().mousePressEvent(event)
 
     def set_state(self, state: str) -> None:
@@ -111,11 +119,16 @@ class AnswerSheet(QFrame):
             row.deleteLater()
         self._rows.clear()
         for i in range(total):
-            row = _DepRow(i + 1, self._rows_host)
+            row = _DepRow(i, self._rows_host)
             row.clicked.connect(self.row_clicked)
             # 插到尾弹簧之前，保持顶部对齐
             self._rows_layout.insertWidget(self._rows_layout.count() - 1, row)
             self._rows.append(row)
+
+    def update_no(self, index: int, no: int) -> None:
+        """同步行显示号为原题号（乱序队列中与队列序号不同）。"""
+        if 0 <= index < len(self._rows):
+            self._rows[index].set_no(no)
 
     def update_row(self, index: int, state: str) -> None:
         """增量更新单行状态（state ∈ ""/done/now/miss）。"""

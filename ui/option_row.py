@@ -28,10 +28,11 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel
 
 from .theme import repolish
 
-# mark 文案（mockup 语义：选中行反白、正确答案蓝标、错选行灰标）
+# mark 文案（mockup 语义：选中行反白、正确答案蓝标、未选行灰标）
 _MARK_SELECTED = "已选"
 _MARK_CORRECT = "✓ 正确答案"
 _MARK_WRONG_PICKED = "已选 ✗"
+_MARK_UNSELECTED = "— 未选"
 
 
 class OptionRow(QFrame):
@@ -97,19 +98,21 @@ class OptionRow(QFrame):
         self._set_state("selected" if selected else None, _MARK_SELECTED if selected else "")
 
     def set_result(self, is_correct: bool, is_selected_answer: bool) -> None:
-        """提交后标记结果态。
+        """提交后标记结果态（四象限，对齐 mockup proposal_F_transit）。
 
         - (True, True)   → 选对：反白 + ✓ 正确答案
-        - (True, False)  → 正确答案但没选：字母转蓝 + 标"正确答案"
-        - (False, True)  → 选错：整行灰 + "已选 ✗"
-        - (False, False) → 调用方不应调用本方法
+        - (True, False)  → 正确答案但没选：字母转蓝 + ✓ 正确答案
+        - (False, True)  → 选错：仍反白（保留"被点过"视觉）+ 已选 ✗
+        - (False, False) → 未选的干扰项：整行灰 + — 未选
         """
         if is_correct and is_selected_answer:
             self._set_state("selected", _MARK_CORRECT)
         elif is_correct:
             self._set_state("ok", _MARK_CORRECT)
         elif is_selected_answer:
-            self._set_state("wrong", _MARK_WRONG_PICKED)
+            self._set_state("selected", _MARK_WRONG_PICKED)
+        else:
+            self._set_state("wrong", _MARK_UNSELECTED)
 
     def reveal_correct(self) -> None:
         """背题模式：高亮正确答案。"""

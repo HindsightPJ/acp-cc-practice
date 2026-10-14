@@ -199,6 +199,18 @@ QPushButton[role="win"] {
 QPushButton[role="win"]:hover { background: %(ACCENT_TINT)s; color: %(INK)s; }
 QPushButton[role="close"]:hover { background: %(CLOSE_RED)s; color: %(ON_ACCENT)s; }
 
+/* ── 授权入口（head 右侧 pill 按钮，试用态可点开注册码对话框）── */
+QPushButton#licenseBtn {
+    background: transparent; border: 1px solid %(LINE)s; color: %(INK2)s;
+    padding: 7px 16px; font-size: 12px;
+}
+QPushButton#licenseBtn:hover {
+    border-color: %(ACCENT)s; color: %(ACCENT)s; background: %(ACCENT_TINT)s;
+}
+QPushButton#licenseBtn:disabled {
+    color: %(INK3)s; border-color: %(LINE)s; background: transparent;
+}
+
 /* ── 站牌头（4px 粗规则线压底）── */
 QFrame#head { background: %(BG)s; border-bottom: 4px solid %(INK)s; }
 QLabel#brand { font-family: "%(SANS)s"; font-weight: 600; font-size: 34px; color: %(INK)s; }
