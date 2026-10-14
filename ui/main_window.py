@@ -91,7 +91,6 @@ class MainWindow(ttkb.Window):
         self.sidebar = Sidebar(
             body,
             nav_defs,
-            on_nav_clicked=self._on_nav_clicked,
         )
         self.sidebar.pack(side=tk.LEFT, fill=tk.Y)
 
@@ -123,11 +122,6 @@ class MainWindow(ttkb.Window):
         dialog.show()
 
     # -------------------------------------------------------------- 交互
-    def _on_nav_clicked(self, tab_id: str) -> None:
-        """Sidebar 导航点击后的外部回调：同步主窗口状态。"""
-        self._active_nav = tab_id
-        self._update_stats_display()
-
     def _update_nav_highlight(self) -> None:
         if self.sidebar is None:
             return

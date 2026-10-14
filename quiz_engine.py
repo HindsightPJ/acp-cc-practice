@@ -60,19 +60,10 @@ class QuizEngine:
         }
 
     def submit_answer(self, selected_letter: str) -> dict[str, Any] | None:
-        """提交答案并判断对错"""
-        current = self.get_current_question()
-        if not current:
+        """提交答案并判断对错（记录到当前索引）"""
+        if self.get_current_question() is None:
             return None
-
-        is_correct = self._grade_answer(selected_letter, current.answer)
-        result = self._build_result_record(
-            self.current_index, current, selected_letter, is_correct
-        )
-
-        self.answers_record[self.current_index] = result
-
-        return result
+        return self.record_exam_answer(self.current_index, selected_letter)
 
     def next_question(self) -> Question | None:
         """下一题"""
@@ -180,9 +171,7 @@ class QuizEngine:
             if r.get("is_correct") and r.get("question_number") is not None
         }
 
-    def record_exam_answer(
-        self, queue_index: int, selected_letter: str
-    ) -> dict[str, Any] | None:
+    def record_exam_answer(self, queue_index: int, selected_letter: str) -> dict[str, Any] | None:
         """记录考试模式下的答题结果（支持跳跃答题，覆盖更新而非追加）。
 
         与 submit_answer 不同，本方法不推进 current_index，仅把指定题号
@@ -195,9 +184,7 @@ class QuizEngine:
 
         question = self.questions_queue[queue_index]
         is_correct = self._grade_answer(selected_letter, question.answer)
-        result = self._build_result_record(
-            queue_index, question, selected_letter, is_correct
-        )
+        result = self._build_result_record(queue_index, question, selected_letter, is_correct)
 
         self.answers_record[queue_index] = result
 
@@ -233,7 +220,3 @@ class QuizEngine:
             "time_used": f"{minutes}分{seconds}秒",
             "wrong_questions": self.get_wrong_answers(),
         }
-
-    def get_review_questions(self) -> list[Question]:
-        """获取背题模式的题目列表"""
-        return list(self.all_questions)

@@ -2,7 +2,7 @@
 
 核心目标：
 - 替代项目内大量使用的 Dict[str, Any]，让题目字段在静态检查阶段可见；
-- 提供 from_dict / to_dict 以便与 JSON/加密题库无缝转换；
+- 提供 from_dict 以便与 JSON/加密题库无缝转换；
 - 保持与现有 UI 逻辑的兼容（如 options 列表、answer 字符串等）。
 """
 
@@ -26,9 +26,6 @@ class Option:
             text=str(data.get("text", "")),
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        return {"letter": self.letter, "text": self.text}
-
 
 @dataclass
 class Question:
@@ -44,7 +41,10 @@ class Question:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Question":
         raw_options = data.get("options", []) or []
-        options = [Option.from_dict(opt) if isinstance(opt, dict) else Option("", "") for opt in raw_options]
+        options = [
+            Option.from_dict(opt) if isinstance(opt, dict) else Option("", "")
+            for opt in raw_options
+        ]
         answer = str(data.get("answer", "") or "").upper()
         q_type = data.get("type", "single")
         if q_type not in ("single", "multiple"):
@@ -57,16 +57,6 @@ class Question:
             type=q_type,
             explanation=str(data.get("explanation", "")),
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "number": self.number,
-            "content": self.content,
-            "options": [opt.to_dict() for opt in self.options],
-            "answer": self.answer,
-            "type": self.type,
-            "explanation": self.explanation,
-        }
 
     @property
     def option_letters(self) -> list[str]:

@@ -57,7 +57,6 @@ def _detect_fonts_impl() -> dict[str, str]:
     if system == "Windows":
         # 宋体优先（中文注册名），兼容英文注册名 SimSun
         ui = _pick(["宋体", "SimSun"], "Microsoft YaHei UI")
-        emoji = _pick(["Segoe UI Emoji", "Segoe UI Symbol"], "Segoe UI")
         mono = _pick(
             [
                 "JetBrains Mono",
@@ -72,7 +71,6 @@ def _detect_fonts_impl() -> dict[str, str]:
         display = _pick(["Georgia", "Cambria"], "宋体")
     elif system == "Darwin":
         ui = _pick(["宋体", "SimSun", "Songti SC", "STSong"], "Songti SC")
-        emoji = _pick(["Apple Color Emoji"], "Helvetica Neue")
         mono = _pick(
             [
                 "JetBrains Mono",
@@ -92,7 +90,6 @@ def _detect_fonts_impl() -> dict[str, str]:
             ],
             "DejaVu Serif",
         )
-        emoji = _pick(["Noto Color Emoji"], "DejaVu Sans")
         mono = _pick(
             [
                 "JetBrains Mono",
@@ -112,7 +109,6 @@ def _detect_fonts_impl() -> dict[str, str]:
 
     return {
         "ui": ui,
-        "emoji": emoji,
         "mono": mono,
         "display": display,
     }
@@ -233,10 +229,6 @@ def font_ui_semibold(size: int = 11) -> tuple[str, int, str]:
     return (_get_fonts()["ui"], size, "bold")
 
 
-def font_emoji(size: int = 14) -> tuple[str, int]:
-    return (_get_fonts()["emoji"], size)
-
-
 def font_mono(size: int = 12) -> tuple[str, int]:
     """计时器/数字数据用等宽，避免布局漂移。"""
     return (_get_fonts()["mono"], size)
@@ -346,6 +338,16 @@ def create_card(
     inner = tk.Frame(card, bg=BG_CARD)
     inner.pack(fill=tk.BOTH, expand=True, padx=inner_padx, pady=inner_pady)
     return card, inner
+
+
+def center_window(window: tk.Tk | tk.Toplevel) -> None:
+    """把窗口居中到屏幕中央（先取真实尺寸再算坐标）。"""
+    window.update_idletasks()
+    width = window.winfo_width()
+    height = window.winfo_height()
+    x = (window.winfo_screenwidth() // 2) - (width // 2)
+    y = (window.winfo_screenheight() // 2) - (height // 2)
+    window.geometry(f"{width}x{height}+{x}+{y}")
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,14 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button, create_card
+from .theme import (
+    theme,
+    font_ui,
+    font_ui_semibold,
+    create_primary_button,
+    create_normal_button,
+    create_card,
+    center_window,
+)
 
 from quiz_engine import QuizEngine
 from models import Question
@@ -274,12 +282,7 @@ class WrongBook(BaseMode):
         detail_window.transient(self.winfo_toplevel())
         detail_window.protocol("WM_DELETE_WINDOW", self._close_detail_dialog)
 
-        detail_window.update_idletasks()
-        width = detail_window.winfo_width()
-        height = detail_window.winfo_height()
-        x = (detail_window.winfo_screenwidth() // 2) - (width // 2)
-        y = (detail_window.winfo_screenheight() // 2) - (height // 2)
-        detail_window.geometry(f"{width}x{height}+{x}+{y}")
+        center_window(detail_window)
 
         header, h_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
         header.pack(fill=tk.X, padx=20, pady=(20, 0))

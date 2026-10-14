@@ -109,26 +109,5 @@ class Header(tk.Frame):
             wrong_count: 错题数量
         """
         self.stats_label.configure(
-            text=(
-                f"已练 {practiced} 题  ·  "
-                f"正确率 {accuracy:.0f}%  ·  "
-                f"错题 {wrong_count}"
-            )
+            text=(f"已练 {practiced} 题  ·  正确率 {accuracy:.0f}%  ·  错题 {wrong_count}")
         )
-
-    def set_license_status(
-        self,
-        license_status: LicenseStatus | None,
-        total_count: int | None = None,
-        trial_count: int | None = None,
-    ) -> None:
-        """更新授权状态显示。
-
-        通常用于授权成功后重新设置状态；按钮不会重新创建。
-        """
-        self.license_status = license_status
-        if total_count is not None:
-            self.total_count = total_count
-        if trial_count is not None:
-            self.trial_count = trial_count
-        self._refresh_license_text()

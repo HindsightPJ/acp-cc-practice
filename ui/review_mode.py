@@ -343,9 +343,7 @@ class ReviewMode(BaseMode):
         if not hasattr(self, "filter_fav_btn"):
             return
         if self.filtering_favorites:
-            self.filter_fav_btn.configure(
-                text="显示全部", fg=theme.ACCENT, bg=theme.ACCENT_LIGHT
-            )
+            self.filter_fav_btn.configure(text="显示全部", fg=theme.ACCENT, bg=theme.ACCENT_LIGHT)
         else:
             self.filter_fav_btn.configure(
                 text="只看收藏", fg=theme.BTN_NORMAL_FG, bg=theme.BTN_NORMAL

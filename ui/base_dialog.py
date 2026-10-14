@@ -2,7 +2,7 @@
 
 import tkinter as tk
 
-from .theme import theme
+from .theme import center_window, theme
 
 
 class BaseDialog:
@@ -47,12 +47,7 @@ class BaseDialog:
         """将对话框居中到屏幕中央。"""
         if self.dialog is None:
             return
-        self.dialog.update_idletasks()
-        width = self.dialog.winfo_width()
-        height = self.dialog.winfo_height()
-        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
-        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+        center_window(self.dialog)
 
     def close(self) -> None:
         """安全关闭对话框。"""

@@ -45,7 +45,7 @@ class PracticeMode(BaseMode):
             toolbar.right,
             text="随机出题",
             variable=self.shuffle_var,
-            command=self.restart_session,
+            command=self.start_new_session,
             font=font_ui(10),
             fg=theme.TEXT_SECONDARY,
             bg=theme.BG_PAGE,
@@ -59,7 +59,7 @@ class PracticeMode(BaseMode):
         restart_btn = create_normal_button(
             toolbar.right,
             text="重新开始",
-            command=self.restart_session,
+            command=self.start_new_session,
             padx=12,
             pady=4,
         )
@@ -69,7 +69,9 @@ class PracticeMode(BaseMode):
         self.panel = PracticePanel(
             self,
             session=self.session,
-            on_finish=lambda: (messagebox.showinfo("提示", "已完成所有题目！", parent=self), None)[1],
+            on_finish=lambda: (messagebox.showinfo("提示", "已完成所有题目！", parent=self), None)[
+                1
+            ],
         )
         self.panel.pack(fill=tk.BOTH, expand=True)
 
@@ -97,22 +99,9 @@ class PracticeMode(BaseMode):
         shuffle = self.shuffle_var.get()
         self.panel.reset_session(shuffle=shuffle)
 
-    def restart_session(self) -> None:
-        self.start_new_session()
-
-    def load_current_question(self) -> None:
-        """保留方法名以便外部调用，实际由 PracticePanel 负责渲染。"""
-        self.panel.load_current_question()
-
     def submit_answer(self) -> None:
         """保留方法名以便外部调用，实际由 PracticePanel 负责提交。"""
         self.panel.submit_answer()
         # P2-UX: 确保焦点回到模式容器，使方向键导航继续生效
         self.focus_set()
         self._save_progress_delayed()
-
-    def next_question(self) -> None:
-        self.panel.next_question()
-
-    def prev_question(self) -> None:
-        self.panel.prev_question()

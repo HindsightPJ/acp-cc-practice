@@ -64,7 +64,7 @@ class ExamPanel(tk.Frame):
         self._on_jump = on_jump
         self._on_select_option = on_select_option
 
-        self.exam_option_cards: list[dict] = []
+        self.exam_option_cards: list[OptionRow] = []
         self.nav_buttons: list[tk.Label] = []
         self.timer_label: tk.Label | None = None
         self.exam_progress_label: tk.Label | None = None
@@ -164,20 +164,14 @@ class ExamPanel(tk.Frame):
         options_card.pack(fill=tk.X, pady=(0, 12))
 
         for idx in range(MAX_OPTIONS):
-            letter = chr(ord("A") + idx)
             row = OptionRow(
                 opt_inner,
-                letter=letter,
+                letter=chr(ord("A") + idx),
                 on_click=lambda sel: self._on_select_option(sel),
                 wraplength=550,
             )
             row.pack(fill=tk.X, pady=3)
-            self.exam_option_cards.append(
-                {
-                    "row": row,
-                    "letter": letter,
-                }
-            )
+            self.exam_option_cards.append(row)
 
     def _build_action_bar(self, left_panel: tk.Frame) -> None:
         """构建操作栏（上一题/下一题 + 跳转 + 标记 + 交卷）。"""
@@ -297,8 +291,8 @@ class ExamPanel(tk.Frame):
     def _on_configure(self, event: tk.Event) -> None:
         """窗口 resize 时同步更新选项文本换行宽度，避免内容被截断。"""
         new_wrap = max(200, event.width - 140)
-        for item in self.exam_option_cards:
-            item["row"].update_wraplength(new_wrap)
+        for row in self.exam_option_cards:
+            row.update_wraplength(new_wrap)
 
     # ------------------------------------------------------------------
     # 公共接口
@@ -350,14 +344,6 @@ class ExamPanel(tk.Frame):
         if self.nav_canvas is not None:
             self.nav_canvas.config(scrollregion=self.nav_canvas.bbox(tk.ALL))
 
-    def update_nav_buttons(self) -> None:
-        """根据 engine 与 session 状态刷新题号导航（全量，用于初始化/reset）。"""
-        current = self.engine.get_current_index()
-        for i, btn in enumerate(self.nav_buttons):
-            self._apply_nav_button_style(i, btn, current)
-        # P1-6: 全量刷新后同步 _last_current_index
-        self._last_current_index = current
-
     def _update_single_nav_button(self, idx: int) -> None:
         """增量更新单个题号按钮的样式（P1-6: 避免全量遍历）。"""
         if not (0 <= idx < len(self.nav_buttons)):
@@ -404,21 +390,19 @@ class ExamPanel(tk.Frame):
 
         # 选项
         options_count = len(question.options)
-        for i, item in enumerate(self.exam_option_cards):
+        for i, row in enumerate(self.exam_option_cards):
             if i < options_count:
-                item["row"].pack(fill=tk.X, pady=3)
-                opt = question.options[i]
-                item["row"].update_text(opt.text)
-                item["row"].reset()
+                row.pack(fill=tk.X, pady=3)
+                row.update_text(question.options[i].text)
+                row.reset()
             else:
-                item["row"].pack_forget()
+                row.pack_forget()
 
         # 恢复已选状态
         answered_letters = self.exam_session.get_current_selected()
-        for i, item in enumerate(self.exam_option_cards):
-            letter = chr(ord("A") + i)
-            if letter in answered_letters:
-                item["row"].set_selected(True)
+        for i, row in enumerate(self.exam_option_cards):
+            if chr(ord("A") + i) in answered_letters:
+                row.set_selected(True)
 
         # 进度
         progress = self.engine.get_progress()
@@ -430,7 +414,10 @@ class ExamPanel(tk.Frame):
         # P1-6: 切题时增量更新——只刷新旧 current 和新 current 两个按钮，
         # 避免 100~200 个按钮的全量 configure（每次 Tcl IPC）
         current = self.engine.get_current_index()
-        if 0 <= self._last_current_index < len(self.nav_buttons) and self._last_current_index != current:
+        if (
+            0 <= self._last_current_index < len(self.nav_buttons)
+            and self._last_current_index != current
+        ):
             self._update_single_nav_button(self._last_current_index)
         self._update_single_nav_button(current)
         self._last_current_index = current
@@ -448,12 +435,10 @@ class ExamPanel(tk.Frame):
             return
 
         options_count = len(current.options)
-        for i, item in enumerate(self.exam_option_cards):
+        for i, row in enumerate(self.exam_option_cards):
             if i >= options_count:
                 continue
-            letter_i = chr(ord("A") + i)
-            is_selected = letter_i in selected
-            item["row"].set_selected(is_selected)
+            row.set_selected(chr(ord("A") + i) in selected)
 
         # P1-6: 选项选择只改变当前题的已答状态，只需更新当前按钮
         self._update_single_nav_button(self.engine.get_current_index())

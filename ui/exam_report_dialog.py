@@ -4,7 +4,15 @@ import tkinter as tk
 from datetime import datetime
 from typing import Any, Callable
 
-from .theme import theme, font_ui, font_ui_semibold, font_mono, create_primary_button, create_normal_button, create_card
+from .theme import (
+    theme,
+    font_ui,
+    font_ui_semibold,
+    font_mono,
+    create_primary_button,
+    create_normal_button,
+    create_card,
+)
 from .base_dialog import BaseDialog
 
 

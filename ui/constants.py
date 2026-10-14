@@ -4,12 +4,14 @@ P1: 将散落在多个 UI 文件中的魔法数字/字符串集中管理，避�
 包括：选项数量上限、选项键盘映射、题型标识、after 回调时间间隔。
 """
 
+import string
+
 # 选项数量上限——题干最多 6 个选项（A-F / 1-6）
 # 散落原位置：exam_panel.py / question_detail_card.py 的 range(6)、
 # base_mode.py 的 "ABCDEF" / "123456" 键盘映射
 MAX_OPTIONS: int = 6
-OPTION_KEYS: str = "ABCDEF"[:MAX_OPTIONS]  # 选项字母键
-OPTION_NUMBERS: str = "123456"[:MAX_OPTIONS]  # 选项数字键（备用键盘映射）
+OPTION_KEYS: str = string.ascii_uppercase[:MAX_OPTIONS]  # 选项字母键
+OPTION_NUMBERS: str = string.digits[1 : MAX_OPTIONS + 1]  # 选项数字键（备用键盘映射，1-6）
 
 # 题型标识——与 models.Question.type 字段值保持一致
 # 散落原位置：exam_session.py / practice_session.py / practice_panel.py / question_detail_card.py

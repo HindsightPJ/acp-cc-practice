@@ -15,26 +15,23 @@ class Sidebar(tk.Frame):
     """主窗口左侧边栏。
 
     负责品牌、导航项、设置入口、就绪度环、错题指示器的构建与状态更新。
-    通过回调与 MainWindow 通信，避免直接依赖主窗口内部状态。
+    导航点击直接执行 nav_defs 中的 command，不直接依赖主窗口内部状态。
     """
 
     def __init__(
         self,
         parent: tk.Misc,
         nav_defs: list[tuple[str, str, Callable[[], None] | None]],
-        on_nav_clicked: Callable[[str], None] | None = None,
     ) -> None:
         """初始化侧边栏。
 
         Args:
             parent: 父容器
             nav_defs: [(tab_id, tab_text, command), ...] 导航定义
-            on_nav_clicked: 点击导航项后的外部回调，签名为 (tab_id) -> None
         """
         super().__init__(parent, bg=theme.INK, width=SIDEBAR_WIDTH)
         self.pack_propagate(False)
         self._nav_defs = nav_defs
-        self._on_nav_clicked = on_nav_clicked
         self._active_nav = nav_defs[0][0] if nav_defs else None
         self._nav_refs: dict[str, dict[str, Any]] = {}
         self.mastery_ring: MasteryRing | None = None
@@ -71,9 +68,9 @@ class Sidebar(tk.Frame):
         self.mastery_ring = MasteryRing(ring_wrap)
         self.mastery_ring.pack()
 
-        tk.Label(
-            self, text="就绪度", font=font_ui(9), fg=theme.INK_TEXT_MUTED, bg=theme.INK
-        ).pack(pady=(0, 4))
+        tk.Label(self, text="就绪度", font=font_ui(9), fg=theme.INK_TEXT_MUTED, bg=theme.INK).pack(
+            pady=(0, 4)
+        )
 
         # 错题数小指示
         self.wrong_indicator = tk.Label(
@@ -126,7 +123,7 @@ class Sidebar(tk.Frame):
         label.bind("<space>", lambda e, t=tab_id: self._handle_nav_click(t))  # type: ignore[misc]
 
     def _handle_nav_click(self, tab_id: str) -> None:
-        """处理导航项点击：更新高亮、执行命令、触发外部回调。"""
+        """处理导航项点击：更新高亮并执行命令。"""
         # P2-14: 重复点击当前 tab 不应销毁重建 mode（会丢失答题进度/筛选状态）
         if tab_id == self._active_nav:
             return
@@ -134,8 +131,6 @@ class Sidebar(tk.Frame):
         ref = self._nav_refs.get(tab_id)
         if ref and ref["command"]:
             ref["command"]()
-        if self._on_nav_clicked:
-            self._on_nav_clicked(tab_id)
 
     def _on_nav_hover(self, tab_id: str) -> None:
         """悬停非活动项时临时高亮。"""

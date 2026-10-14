@@ -17,7 +17,9 @@ class MasteryRing(tk.Canvas):
     做成一眼可见的弧线，避免堆砌「已练 / 正确率 / 连击」四个数字。
     """
 
-    def __init__(self, parent: tk.Misc, size: int = RING_SIZE, thickness: int = RING_THICKNESS) -> None:
+    def __init__(
+        self, parent: tk.Misc, size: int = RING_SIZE, thickness: int = RING_THICKNESS
+    ) -> None:
         super().__init__(parent, width=size, height=size, bg=theme.INK, highlightthickness=0, bd=0)
         self._size = size
         self._thickness = thickness

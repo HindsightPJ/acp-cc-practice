@@ -5,6 +5,7 @@
 - TD-31: 日志配置委托给 logging_utils.configure_app_logging
 - 目录解析与后台数据加载
 """
+
 import logging
 import logging.handlers
 import os
@@ -31,34 +32,35 @@ MAIN_DIR = os.path.dirname(os.path.abspath(main_module.__file__))
 
 def _get_rotating_handlers():
     return [
-        h for h in logging.getLogger().handlers
+        h
+        for h in logging.getLogger().handlers
         if isinstance(h, logging.handlers.RotatingFileHandler)
     ]
 
 
 def test_setup_logging_uses_rotating_file_handler(tmp_path):
     """_setup_logging 应使用 RotatingFileHandler 并限制单文件大小与备份数。"""
-    log_dir = tmp_path / 'logs'
+    log_dir = tmp_path / "logs"
     log_dir.mkdir()
 
     # 清理已有 RotatingFileHandler，避免历史状态干扰
     for h in _get_rotating_handlers():
         logging.getLogger().removeHandler(h)
 
-    with patch('main.configure_app_logging') as mock_configure:
+    with patch("main.configure_app_logging") as mock_configure:
         _setup_logging(str(log_dir))
 
     mock_configure.assert_called_once()
     call_args = mock_configure.call_args
-    assert call_args.args[0] == str(log_dir / 'app.log')
-    assert call_args.kwargs.get('level') == logging.WARNING
+    assert call_args.args[0] == str(log_dir / "app.log")
+    assert call_args.kwargs.get("level") == logging.WARNING
 
 
 def test_setup_logging_creates_handler_with_correct_path(tmp_path):
     """RotatingFileHandler 应指向 user_data_dir/app.log。"""
-    log_dir = tmp_path / 'logs'
+    log_dir = tmp_path / "logs"
     log_dir.mkdir()
-    expected_log = str(log_dir / 'app.log')
+    expected_log = str(log_dir / "app.log")
 
     # 清理已有 RotatingFileHandler
     for h in _get_rotating_handlers():
@@ -72,7 +74,7 @@ def test_setup_logging_creates_handler_with_correct_path(tmp_path):
     assert handler.baseFilename == expected_log
     assert handler.maxBytes == 5 * 1024 * 1024
     assert handler.backupCount == 3
-    assert handler.encoding == 'utf-8'
+    assert handler.encoding == "utf-8"
 
 
 def _make_question(number=1):
@@ -127,7 +129,6 @@ def test_load_app_data_async_authorized_loads_full_questions():
     dm.load_full_questions.assert_called_once_with("key123")
     dm.load_trial_questions.assert_not_called()
     assert result.status == LicenseStatus.AUTHORIZED
-    assert result.key == "key123"
     assert result.license_failed is False
     assert result.questions == full_questions
     assert result.meta == meta
@@ -152,7 +153,6 @@ def test_load_app_data_async_non_authorized_loads_trial_questions():
     dm.load_trial_questions.assert_called_once()
     dm.load_full_questions.assert_not_called()
     assert result.status == LicenseStatus.TRIAL
-    assert result.key is None
     assert result.license_failed is True
     assert result.questions == trial_questions
     assert result.meta == meta

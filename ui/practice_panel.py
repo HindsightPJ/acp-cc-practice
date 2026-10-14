@@ -28,11 +28,8 @@ class PracticePanel(tk.Frame):
         parent: 父容器
         session: 练习会话逻辑对象
         on_finish: 题目队列完成后的回调（可选）
-        show_explanation: 是否显示解析文本框（默认 True）
         show_progress_bar: 是否显示顶部进度条（默认 True）
         show_prev_button: 是否显示「上一题」按钮（默认 True）
-        show_type_label: 是否显示题型标签（默认 True）
-        question_height: 题干文本框高度（默认 4）
     """
 
     def __init__(
@@ -41,21 +38,15 @@ class PracticePanel(tk.Frame):
         session: PracticeSession,
         on_finish: Callable[[], None] | None = None,
         on_submit: Callable[[], None] | None = None,
-        show_explanation: bool = True,
         show_progress_bar: bool = True,
         show_prev_button: bool = True,
-        show_type_label: bool = True,
-        question_height: int = 4,
     ) -> None:
         super().__init__(parent, bg=theme.BG_PAGE)
         self.session = session
         self.on_finish = on_finish
         self.on_submit = on_submit
-        self.show_explanation = show_explanation
         self.show_progress_bar = show_progress_bar
         self.show_prev_button = show_prev_button
-        self.show_type_label = show_type_label
-        self.question_height = question_height
 
         self.option_cards: list[OptionRow] = []
         # P1-5: 缓存容器宽度，避免切题时调用 update_idletasks 阻塞主线程
@@ -79,23 +70,22 @@ class PracticePanel(tk.Frame):
         )
         self.progress_label.pack(side=tk.LEFT)
 
-        if self.show_type_label:
-            self.type_label: tk.Label | None = tk.Label(
-                toolbar,
-                text="",
-                font=font_ui_semibold(11),
-                bg=theme.BG_PAGE,
-            )
-            self.type_label.pack(side=tk.RIGHT)
-        else:
-            self.type_label = None
+        self.type_label: tk.Label | None = tk.Label(
+            toolbar,
+            text="",
+            font=font_ui_semibold(11),
+            bg=theme.BG_PAGE,
+        )
+        self.type_label.pack(side=tk.RIGHT)
 
         # 进度条
         if self.show_progress_bar:
             progress_bg = tk.Frame(self, bg=theme.BORDER, height=3)
             progress_bg.pack(fill=tk.X, pady=(0, 16))
             progress_bg.pack_propagate(False)
-            self.progress_bar_fill: tk.Frame | None = tk.Frame(progress_bg, bg=theme.ACCENT, width=0, height=3)
+            self.progress_bar_fill: tk.Frame | None = tk.Frame(
+                progress_bg, bg=theme.ACCENT, width=0, height=3
+            )
             self.progress_bar_fill.place(x=0, y=0, relheight=1.0)
             self.progress_value: tk.DoubleVar | None = tk.DoubleVar(value=0)
         else:
@@ -107,8 +97,6 @@ class PracticePanel(tk.Frame):
         self.detail_card = QuestionDetailCard(
             self,
             on_option_click=self.handle_option_click,
-            question_height=self.question_height,
-            show_explanation=self.show_explanation,
             answer_placeholder="提交答案后查看解析",
             option_pady=4,
             insert_action_bar=self._build_action_bar,
@@ -183,6 +171,8 @@ class PracticePanel(tk.Frame):
 
         # P3: 题干 + 选项 + 清空答案/解析状态由 QuestionDetailCard 统一渲染
         self.detail_card.show_question(question)
+        # 把题型同步进 session：多选题需切换式选择，不同步会被当成单选（P1 修复）
+        self.session.get_question_type(question)
 
         if self.type_label is not None:
             type_text, type_fg = get_question_type_style(question.type)
@@ -208,9 +198,7 @@ class PracticePanel(tk.Frame):
                 if i < options_count:
                     card.set_selected(i == card_idx)
         else:
-            self.option_cards[card_idx].set_selected(
-                self.session.is_option_selected(letter)
-            )
+            self.option_cards[card_idx].set_selected(self.session.is_option_selected(letter))
 
     def submit_answer(self) -> None:
         """提交答案并更新视图。"""
@@ -239,9 +227,7 @@ class PracticePanel(tk.Frame):
             explanation = "暂无详细解析"
         self.detail_card.set_explanation(explanation)
 
-        self.detail_card.set_option_result(
-            question.answer, "".join(self.session.selected_answers)
-        )
+        self.detail_card.set_option_result(question.answer, "".join(self.session.selected_answers))
 
         self.submit_btn.configure(state=tk.DISABLED, bg=theme.BTN_DISABLED, text="已提交")
         # P2-UX: 提交后将焦点移回面板，确保方向键导航立即生效

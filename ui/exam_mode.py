@@ -155,7 +155,6 @@ class ExamMode(BaseMode):
         """构建考试历史卡片，展示最近 20 条考试记录。"""
         history_card, h_inner = create_card(self, inner_padx=20, inner_pady=16)
         history_card.pack(fill=tk.X, pady=(0, 16))
-        self._history_card = history_card
 
         header = tk.Frame(h_inner, bg=theme.BG_CARD)
         header.pack(fill=tk.X, pady=(0, 10))
