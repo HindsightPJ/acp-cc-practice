@@ -77,3 +77,6 @@ docs/
 .pytest_cache/
 .coverage
 .coverage.*
+
+# Agent 工作区（记忆/日志，本机状态，不入库）
+.workbuddy/
