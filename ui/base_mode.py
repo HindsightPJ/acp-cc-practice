@@ -12,7 +12,7 @@ PySide6 版（tkinter BaseMode 重写）：
 """
 
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtWidgets import QFrame, QMessageBox
+from PySide6.QtWidgets import QFrame, QMessageBox, QWidget
 
 from app_state import AppState
 
@@ -35,7 +35,7 @@ class BaseModePage(QFrame):
     # 子类可覆盖此属性定制保存失败提示文案
     _save_failure_message = "进度保存失败，请检查磁盘空间或文件权限。"
 
-    def __init__(self, app_state: AppState, parent: QFrame | None = None) -> None:
+    def __init__(self, app_state: AppState, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.app_state = app_state
         self._pending_save = False

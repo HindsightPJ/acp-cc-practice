@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from license import LicenseError, LicenseStatus
@@ -80,7 +81,7 @@ class LicenseDialog(BaseDialog):
 
     def __init__(
         self,
-        parent,
+        parent: QWidget | None,
         license_dir: str,
         machine_code: str,
         verify_and_save: Callable[[str, str, str | None], tuple[bool, str, bool]] | None = None,
@@ -188,7 +189,7 @@ class LicenseDialog(BaseDialog):
     # -------------------------------------------------------------- 工厂
     @staticmethod
     def open_for(
-        parent,
+        parent: QWidget | None,
         license_dir: str,
         verify_and_save: Callable[[str, str, str | None], tuple[bool, str, bool]] | None = None,
     ) -> bool:

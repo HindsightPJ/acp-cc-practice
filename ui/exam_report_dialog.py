@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from .base_dialog import BaseDialog
@@ -37,7 +38,7 @@ class ExamReportDialog(BaseDialog):
 
     def __init__(
         self,
-        parent,
+        parent: QWidget | None,
         report: dict[str, Any],
         on_add_wrong: Callable[[dict[str, Any]], int] | None = None,
     ) -> None:

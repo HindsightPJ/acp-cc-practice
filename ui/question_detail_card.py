@@ -9,6 +9,8 @@ qline 题头（大号题号 + meta 行）→ stem 题干 → opts 选项行 → 
 F 方案仅黑 + IKB 蓝一个强调色，无红绿语义）。
 """
 
+from typing import Callable
+
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 from models import Question
@@ -36,7 +38,7 @@ class QuestionDetailCard(QFrame):
 
     def __init__(
         self,
-        on_option_click=None,  # Callable[[str], None] | None
+        on_option_click: Callable[[str], None] | None = None,
         answer_placeholder: str = "",
         parent: QFrame | None = None,
     ) -> None:

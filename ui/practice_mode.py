@@ -7,7 +7,14 @@ tkinter 版重写。视图渲染全部委托 PracticePanel；本类只负责：
 - 主窗口鸭子协议转发（on_letter/on_submit/on_prev/on_next → panel）
 """
 
-from PySide6.QtWidgets import QCheckBox, QFrame, QHBoxLayout, QMessageBox, QVBoxLayout
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QFrame,
+    QHBoxLayout,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from quiz_engine import QuizEngine
 from models import Question
@@ -26,7 +33,7 @@ class PracticeMode(BaseModePage):
         self,
         questions: list[Question],
         app_state: AppState,
-        parent=None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(app_state, parent)
         self.engine = QuizEngine(questions)

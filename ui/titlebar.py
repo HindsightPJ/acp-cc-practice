@@ -15,7 +15,10 @@
 
 from __future__ import annotations
 
+from typing import Callable
+
 from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
 
 BRAND_TEXT = "ACP·云算题库"
@@ -78,7 +81,7 @@ class TitleBar(QFrame):
         self._tag.setVisible(bool(normalized))
 
     # -------------------------------------------------------------- 按钮
-    def _make_btn(self, symbol: str, role: str, slot) -> QPushButton:
+    def _make_btn(self, symbol: str, role: str, slot: Callable[[], None]) -> QPushButton:
         btn = QPushButton(symbol, self)
         btn.setObjectName("winBtn")
         btn.setProperty("role", role)
@@ -103,13 +106,13 @@ class TitleBar(QFrame):
         self.window().close()
 
     # -------------------------------------------------------------- 拖拽
-    def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt 命名
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt 命名
         if event.button() == Qt.MouseButton.LeftButton:
             # 系统级拖拽（原生手感，跨多显示器跟随）；按钮区已被子控件消费
             self.window().startSystemMove()  # type: ignore[attr-defined]  # PySide6 stub 缺口
         super().mousePressEvent(event)
 
-    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 - Qt 命名
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt 命名
         if event.button() == Qt.MouseButton.LeftButton:
             self._toggle_maximized()
         super().mouseDoubleClickEvent(event)

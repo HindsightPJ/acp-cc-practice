@@ -2,7 +2,7 @@
 
 v1.1
 
-一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + Tkinter（ttkbootstrap 主题库），运行依赖仅 `cryptography` / `ttkbootstrap` 两个，开箱即用。
+一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + PySide6（Qt 6，F 方案「时刻表/发牌板」设计语言），运行依赖仅 `cryptography` / `PySide6-Essentials` 两个，开箱即用。
 
 ## 免责声明
 
@@ -15,32 +15,31 @@ v1.1
 
 ## 界面预览
 
-![界面预览 1](screenshot-practice.png)
+![浅色主题](docs/ui_light.png)
 
-![界面预览 2](screenshot-exam.png)
+![深色主题](docs/ui_dark.png)
 
 ## 功能
 
-- **练习模式**：逐题作答，提交后即时显示对错与解析，支持单选/多选、键盘快捷键、错题自动入库
-- **考试模式**：模拟真实考试，可选题量与时长，倒计时、答题卡导航、交卷后生成成绩报告
-- **背题模式**：直接显示题干与解析，按空格键切换答案显隐，支持收藏题目
-- **错题本**：自动收集练习中的错题，空状态友好提示，可查看详情、专项练习、清空
-- **就绪度环**：侧栏底部把「练习覆盖率 × 正确率」合成为单一弧线，一眼可见离考试还差多远
-- **双主题**：浅色「云霁」/ 深色「夜航」，侧栏底部一键切换，偏好持久化、重启保持
+- **练习模式**：逐题作答，提交后即时显示对错与解析，支持单选/多选、键盘快捷键、错题自动入库，进度自动防抖保存、重启续练
+- **考试模式**：模拟真实考试，可选题量与时长，倒计时、题号导航网格（当前/标记/已答四态）、交卷生成成绩报告并可一键加入错题本
+- **背题模式**：直接显示题干与解析，按 Enter 切换答案显隐，支持收藏题目与「只看收藏」筛选
+- **错题本**：自动收集练习中的错题，可查看详情、专项练习，练习正确后可一键移除已掌握错题
+- **双主题**：浅色「纸面」/ 深色「暖炭」，`Ctrl+T` 一键切换，偏好持久化、重启保持
+- **Frameless 标题栏**：自绘 44px 站牌条（拖拽/双击最大化/8px 边缘 resize），Win10 全版本观感一致
 
 ## 设计取向
 
-UI 于 v1.2 全面重设计（像素级方案见 `docs/` 与设计提案），走「现代工具」风：
-层次靠明度不靠边框，全部圆角语言，单一强调色与语义色严格分离。
+UI 于 v1.2 采用「F 方案 · 时刻表/车站发牌板」设计语言（设计提案见 `docs/design/`）：
+排版优先、去卡片化、单一强调色——层次靠字号与明度，不靠边框与阴影。
 
-- **双主题 Token**：浅色「云霁」（冷灰蓝页面 `#eef1f6` + 无框白卡）与深色「夜航」（深蓝黑 `#0b0f16` + 亮蓝 `#4c8dff`）两套 Token 共存于 `ui/theme.py`，`set_theme_mode()` 原地换肤，控件零缓存颜色
-- **云蓝主色**：`#1668dc`（深色提亮 `#4c8dff`）替代 journal 默认砖红，传达「云 / 科技 / 信任」，且与答错红拉开语义距离
-- **全面雅黑**：正文/标题统一 Microsoft YaHei UI（真实检测 + fallback 链），弃用宋体/Georgia 屏幕小字号衬线；计时用等宽字体防抖动
-- **圆角组件体系**：卡片（r14）/ 选项行与按钮（r10）/ 芯片（r6）全部 Canvas 绘制圆角；选项行五态状态机（idle→hover→selected→correct/wrong）集中管理，四种模式共用
-- **浮动侧栏**：深色圆角卡浮于页面，Pill 导航 + 16px 线性图标；就绪度环升级 104px 分段渐变弧 Hero，下挂覆盖率/正确率双指标
-- **统一取色源**：所有颜色/字体集中在 `ui/theme.py` 设计 Token；ttk 控件层经主题定义覆写保持同色
-- **就绪度环**：避免堆砌「已练 / 正确率 / 连击 / 勋章」四个数字，把用户真正关心的「能不能过」做成单一弧线
-- **空状态视图**：错题本为空时显示引导文案，而非空白列表
+- **双主题语义 Token**：浅色「纸面」（暖灰米 `#f2f0eb`）与深色「暖炭」（`#141417`）两套 17 项语义 Token 共存于 `ui/theme.py`，`set_theme_mode()` 原地换肤，控件零缓存颜色
+- **IKB 克莱因蓝单强调色**：`#002fa7`（深色提亮 `#5272ff`）承担全部「可交互/进行中/正确」语义，F 方案无红绿（正确=蓝、错选=灰）
+- **时刻表排版**：大号题号 + `QUEUE 01/20` 式等宽 meta + 4px 规则线分段；board-nav 用「01/02/03」编号行替代图标侧栏，当前行反白
+- **发牌板行形态**：选项行/答题卡/题号网格全部是行态状态机（idle→selected→ok/wrong），QSS 动态属性驱动（`QFrame[state=...]`），四种模式共用同一 OptionRow
+- **统一取色源**：全部颜色/字体集中在 `ui/theme.py` 的 `build_qss()` 全局样式表，控件代码不写颜色
+- **字体链**：Bahnschrift → Segoe UI → Microsoft YaHei UI 懒加载检测；计时/进度数字用 Cascadia Mono 等宽防抖动
+- **Frameless 主窗口**：自绘标题栏 + `startSystemMove/Resize` 原生手感；对话框沿用系统标题栏
 
 ## 项目结构
 
@@ -67,31 +66,28 @@ acp-cc-practice/
 │   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
 │   └── questions_meta.json  # 元数据（入库）
-├── tests/                   # 测试套件（280 项 = 非 GUI 215 + GUI 65）
+├── tests/                   # 测试套件（325 项，GUI 测试经 offscreen 无头运行）
 │   └── unit/                # 单元测试
 └── ui/
     ├── __init__.py
-    ├── main_window.py       # 主窗口：侧栏 + 就绪度环 + 模式切换 + 授权状态栏
-    ├── theme.py             # 设计 Token：色板 / 字体检测 / 按钮 / 卡片工厂
-    ├── base_mode.py         # 模式基类（键盘选项分发模板方法）
-    ├── base_dialog.py       # 对话框基类（模态 / 居中 / 关闭）
-    ├── constants.py         # UI 层共享常量
-    ├── practice_mode.py     # 练习模式（使用 PracticePanel 渲染）
-    ├── practice_panel.py    # 可复用练习视图组件（PracticeMode / WrongBook 共用）
+    ├── main_window.py       # 主窗口：titlebar + 站牌头 + board-nav + 模式页栈 + modeline
+    ├── theme.py             # 设计 Token：17 项语义色双主题 / build_qss 全局样式 / 字体检测
+    ├── titlebar.py          # Frameless 标题栏（拖拽/最大化/边缘 resize）
+    ├── base_mode.py         # 模式页基类（防抖保存 + state_changed 信号协议）
+    ├── base_dialog.py       # 对话框基类（QDialog 薄封装）
+    ├── practice_mode.py     # 练习模式（快照恢复/重新开始确认）
+    ├── practice_panel.py    # 可复用练习视图（PracticeMode / WrongBookPage 共用）
     ├── practice_session.py  # 练习会话逻辑（选项管理、提交判定、统计）
-    ├── exam_mode.py         # 考试模式控制器（monotonic 时钟防计时漂移）
-    ├── exam_panel.py        # 考试视图层（答题卡、倒计时、选项渲染）
-    ├── exam_session.py      # 考试会话模型（作答状态、计分）
-    ├── exam_report_dialog.py# 考试成绩报告对话框
-    ├── review_mode.py       # 背题模式（收藏按钮状态同步）
-    ├── wrong_book.py        # 错题本（空状态视图 + 专项练习）
-    ├── option_row.py        # 统一选项行组件（Canvas 真圆字母块）
-    ├── question_detail_card.py # 题目详情卡片（多种模式共用）
-    ├── mode_toolbar.py      # 模式工具栏组件
-    ├── header.py            # 顶部标题栏组件
-    ├── sidebar.py           # 侧边栏组件（模式导航）
-    ├── mastery_ring.py      # 就绪度环组件（Canvas 弧线绘制）
-    └── license_dialog.py    # 授权输入对话框
+    ├── exam_mode.py         # 考试模式控制器（设置视图 ⇄ 考试视图、计时、交卷）
+    ├── exam_panel.py        # 考试视图（题号导航四态网格、倒计时、统计列）
+    ├── exam_session.py      # 考试会话模型（作答状态、标记、计分）
+    ├── exam_report_dialog.py# 考试成绩报告对话框（正确率大数字 + 加入错题本）
+    ├── review_mode.py       # 背题模式（收藏 / 只看收藏 / 自动显示答案）
+    ├── wrong_book.py        # 错题本（列表 ⇄ 专项练习双视图）
+    ├── answer_sheet.py      # 答题卡 + 统计列组件（练习/考试共用）
+    ├── option_row.py        # 统一选项行组件（四模式共用状态机）
+    ├── question_detail_card.py # 题目详情卡（大题号 + 选项 + 解析区）
+    └── license_dialog.py    # 授权输入对话框（异步验证）
 ```
 
 ## 快速开始
@@ -161,17 +157,17 @@ python main.py
 | 按键 | 练习模式 | 考试模式 | 背题模式 |
 |------|----------|----------|----------|
 | `A` ~ `F` | 选择选项 | 选择选项 | — |
-| `Enter` | 提交答案 | —（交卷仅按钮） | — |
-| `→` / `Space` | 下一题 | 下一题 | 下一题 / 显示答案 |
+| `Enter` | 提交答案 | —（交卷仅按钮，防误触） | 显示 / 隐藏答案 |
+| `→` | 下一题 | 下一题 | 下一题 |
 | `←` | 上一题 | 上一题 | 上一题 |
+| `Ctrl+T` | 切换深浅主题（全局） | | |
 
 ## 已知限制
 
 - **授权仅支持 Windows**：机器指纹基于 Windows 系统信息，非 Windows 平台降级试用（20 题）
 - **离线授权无过期机制**：注册码永久有效，作者可轮换密钥让所有已签发注册码失效
 - **重装系统/换硬盘会失效**：指纹含系统硬件信息，变更需重新申请注册码
-- **Tkinter 视觉限制**：无阴影/动效/平滑渐变（渐变环为 12 段插值），圆角经 Canvas 手绘；切换主题会重建界面（进行中的考试需先确认放弃）
-- **字体依赖系统安装**：Microsoft YaHei UI（Win10 1809+ 自带）为首选，旧系统回退雅黑/Segoe UI；macOS/Linux 走 PingFang/Noto fallback
+- **字体依赖系统安装**：Bahnschrift（Win10 1809+ 自带）为首选，旧系统回退 Segoe UI / 微软雅黑
 
 ## 发布清单（v1.1）
 
@@ -209,9 +205,9 @@ acp-cc-practice/
     ├── __init__.py
     ├── main_window.py
     ├── theme.py
+    ├── titlebar.py
     ├── base_mode.py
     ├── base_dialog.py
-    ├── constants.py
     ├── practice_mode.py
     ├── practice_panel.py
     ├── practice_session.py
@@ -221,17 +217,14 @@ acp-cc-practice/
     ├── exam_report_dialog.py
     ├── review_mode.py
     ├── wrong_book.py
+    ├── answer_sheet.py
     ├── option_row.py
     ├── question_detail_card.py
-    ├── mode_toolbar.py
-    ├── header.py
-    ├── sidebar.py
-    ├── mastery_ring.py
     └── license_dialog.py
 ```
 
 **发布产物**：
-- `dist/acp-cc-practice.exe`（约 15–25 MB，无 cmd 窗口）— 打包好的可执行文件
+- `dist/acp-cc-practice.exe`（约 45 MB，PySide6-Essentials 运行时，无 cmd 窗口）— 打包好的可执行文件
 - `dist/acp-cc-practice.exe.sigstore.json` — Sigstore OIDC 签名 bundle
 
 二者作为 GitHub Release 二进制附件发布，不纳入源码仓库。

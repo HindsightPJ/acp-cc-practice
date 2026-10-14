@@ -22,7 +22,7 @@ import sys
 from typing import Any
 
 from PySide6.QtCore import QDate, Qt, QTime, QTimer
-from PySide6.QtGui import QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -323,7 +323,7 @@ class MainWindow(QMainWindow):
             shortcut = QShortcut(QKeySequence(seq), self)
             shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
 
-            def _emit_route(m=method, a=args) -> None:
+            def _emit_route(m: str = method, a: tuple[Any, ...] = args) -> None:
                 # 默认参数冻结捕获值，规避循环变量迟到绑定（B023）
                 self._route(m, *a)
 
@@ -352,7 +352,7 @@ class MainWindow(QMainWindow):
             logger.warning("主题模式持久化失败（下次启动回退上次保存值）")
 
     # -------------------------------------------------------------- 退出
-    def closeEvent(self, event) -> None:  # noqa: N802 - Qt 命名
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt 命名
         # 先 flush 当前页未落盘的防抖进度（快照同步进 app_state），再兜底落盘
         page = self.stack.currentWidget()
         flush = getattr(page, "flush_pending_save", None)

@@ -10,6 +10,8 @@
 选项可反复修改；业务全部委托 ExamSession + QuizEngine。
 """
 
+from typing import Callable
+
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
@@ -40,12 +42,12 @@ class ExamPanel(QFrame):
         self,
         engine: QuizEngine,
         exam_session: ExamSession,
-        on_prev=None,  # Callable[[], None]
-        on_next=None,  # Callable[[], None]
-        on_submit=None,  # Callable[[], None] 交卷（按钮触发）
-        on_mark=None,  # Callable[[], None] 标记当前题
-        on_jump=None,  # Callable[[int], None] 跳到队列索引
-        on_select_option=None,  # Callable[[str], None] 选项切换
+        on_prev: Callable[[], None] | None = None,
+        on_next: Callable[[], None] | None = None,
+        on_submit: Callable[[], None] | None = None,  # 交卷（按钮触发）
+        on_mark: Callable[[], None] | None = None,  # 标记当前题
+        on_jump: Callable[[int], None] | None = None,  # 跳到队列索引
+        on_select_option: Callable[[str], None] | None = None,  # 选项切换
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -152,7 +154,7 @@ class ExamPanel(QFrame):
             self._nav_grid.addWidget(btn, i // _NAV_COLS, i % _NAV_COLS)
             self._nav_buttons.append(btn)
 
-    def _make_jump(self, index: int):
+    def _make_jump(self, index: int) -> Callable[[], None]:
         def handler() -> None:
             if self._on_jump is not None:
                 self._on_jump(index)

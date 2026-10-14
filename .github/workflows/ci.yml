@@ -7,8 +7,8 @@ on:
     branches: [main, master]
 
 env:
-  # headless Ubuntu runner 需要虚拟 display；即使 -m "not gui" 意外执行 GUI 测试，
-  # 也避免 _tkinter.TclError: no display name and no $DISPLAY environment variable
+  # PySide6 测试由 tests/unit/conftest.py 顶层设 QT_QPA_PLATFORM=offscreen，
+  # 理论上无需显示服务；DISPLAY + Xvfb 仅作兜底，防个别 Qt 插件回退到 xcb 时崩溃
   DISPLAY: ":99"
 
 jobs:
@@ -38,7 +38,7 @@ jobs:
           python -m pip install --upgrade pip
           # 运行依赖经 -e . 从 pyproject.toml 安装（单一来源，
           # 避免硬编码清单与 pyproject 漂移导致 ModuleNotFoundError）
-          pip install -e . mypy ruff pytest pytest-cov
+          pip install -e . mypy ruff pytest pytest-cov pytest-qt
 
       - name: Ruff check
         run: ruff check .
@@ -56,13 +56,13 @@ jobs:
       - name: Check deps lock
         run: python scripts/check_deps_lock.py .
 
-      # CI 中显式覆盖 pyproject.toml 的 addopts，避免 -m 'not gui' 与命令行 -m "not gui" 冲突
-      # 导致 GUI 测试未被正确 deselect（此前只 deselect 了 12 个而非 65 个）
-      - name: Pytest (non-GUI)
-        run: pytest tests/ -q --tb=short -o addopts="" -m "not gui"
+      # GUI 测试随全量套件在 offscreen 平台运行（conftest.py 顶层设环境变量，
+      # 先于任何 QApplication 创建）；显式置空 addopts 保持 CI 输出可控
+      - name: Pytest
+        run: pytest tests/ -q --tb=short -o addopts=""
 
       - name: Coverage
-        run: pytest tests/ -q --tb=short -o addopts="" -m "not gui" --cov=quiz_engine --cov=data_manager --cov=license --cov-fail-under=70
+        run: pytest tests/ -q --tb=short -o addopts="" --cov=quiz_engine --cov=data_manager --cov=license --cov-fail-under=70
 
       - name: Stop Xvfb
         if: always()

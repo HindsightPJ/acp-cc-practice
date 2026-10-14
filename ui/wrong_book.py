@@ -9,6 +9,7 @@ tkinter 版重写（原实现为 Toplevel 子窗口练习，PySide6 版收敛为
 错题（移除即"已掌握"），保存后回列表。
 """
 
+from PySide6.QtCore import QModelIndex
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
 from app_state import AppState
@@ -42,7 +44,7 @@ class WrongBookPage(BaseModePage):
         self,
         questions: list[Question],
         app_state: AppState,
-        parent=None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(app_state, parent)
         self.all_questions = questions
@@ -126,9 +128,9 @@ class WrongBookPage(BaseModePage):
                 self.table.setItem(r, c, QTableWidgetItem(text))
 
     # -------------------------------------------------------------- 详情
-    def _show_detail(self, index) -> None:
+    def _show_detail(self, index: QModelIndex | int) -> None:
         """查看错题详情：BaseDialog + QuestionDetailCard（F 语言复用）。"""
-        row = index.row() if hasattr(index, "row") else int(index)
+        row = index.row() if isinstance(index, QModelIndex) else int(index)
         wrong_nums = self.app_state.get_wrong_questions()
         if not (0 <= row < len(wrong_nums)):
             return

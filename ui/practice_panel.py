@@ -10,6 +10,8 @@
 调用方（宿主模式页）负责快照同步与防抖保存。
 """
 
+from typing import Callable
+
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
@@ -62,10 +64,10 @@ class PracticePanel(QFrame):
         self,
         session: PracticeSession,
         app_state: AppState,
-        on_finish=None,  # Callable[[], None] | None
-        on_submit=None,  # Callable[[], None] | None  提交完成后回调（宿主防抖保存）
-        on_navigate=None,  # Callable[[], None] | None  切题后回调（宿主防抖保存）
-        on_restart=None,  # Callable[[], None] | None  重新开始按钮回调
+        on_finish: Callable[[], None] | None = None,
+        on_submit: Callable[[], None] | None = None,
+        on_navigate: Callable[[], None] | None = None,
+        on_restart: Callable[[], None] | None = None,
         show_prev_button: bool = True,
         parent: QWidget | None = None,
     ) -> None:

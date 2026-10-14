@@ -8,6 +8,7 @@ StatColumn：statBlock 块列（k 标签 + 大号 v 数字 + 单位），展示�
 """
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -48,7 +49,7 @@ class _DepRow(QFrame):
         h.addStretch(1)
         h.addWidget(self.lbl_sym)
 
-    def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt 命名
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt 命名
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(self.queue_no - 1)
         super().mousePressEvent(event)

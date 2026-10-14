@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
 from app_state import AppState
@@ -48,7 +49,7 @@ class ExamMode(BaseModePage):
         self,
         questions: list[Question],
         app_state: AppState,
-        parent=None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(app_state, parent)
         self.questions = questions

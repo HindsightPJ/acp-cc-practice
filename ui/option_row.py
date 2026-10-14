@@ -20,7 +20,10 @@ QSS 边界（P2 工程发现）：祖先带伪类的后代选择器不可用，�
 4. 提交答案后调用 set_result(is_correct, is_selected_answer)。
 """
 
+from typing import Callable
+
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel
 
 from .theme import repolish
@@ -37,7 +40,7 @@ class OptionRow(QFrame):
     def __init__(
         self,
         letter: str,
-        on_click=None,  # Callable[[str], None] | None
+        on_click: Callable[[str], None] | None = None,
         parent: QFrame | None = None,
     ) -> None:
         super().__init__(parent)
@@ -67,7 +70,7 @@ class OptionRow(QFrame):
         h.addWidget(self.mark_label)
 
     # ------------------------------------------------------------ 事件
-    def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt 命名
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt 命名
         if event.button() == Qt.MouseButton.LeftButton and self._on_click is not None:
             self._on_click(self.letter)
         super().mousePressEvent(event)

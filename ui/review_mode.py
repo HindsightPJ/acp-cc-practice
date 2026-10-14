@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from app_state import AppState
@@ -35,7 +36,7 @@ class ReviewMode(BaseModePage):
         self,
         questions: list[Question],
         app_state: AppState,
-        parent=None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(app_state, parent)
         self.all_questions = questions
