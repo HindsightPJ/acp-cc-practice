@@ -291,8 +291,10 @@ class MainWindow(QMainWindow):
         page = self.stack.widget(self._mode_keys.index(key))
         provider = getattr(page, "modeline_text", None)
         if callable(provider):
-            self.modeline.setText(provider())
-            return
+            text = provider()
+            if text:  # 协议约定 None = 页面暂无状态（如考试未开考）→ 走缺省文案
+                self.modeline.setText(text)
+                return
         total = self.meta.get("total", len(self.questions))
         lic = "已授权" if self.license_status == LicenseStatus.AUTHORIZED else "试用模式"
         self.modeline.setText(

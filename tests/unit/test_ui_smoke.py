@@ -1,103 +1,112 @@
-"""UI 模块冒烟测试（TD-19）。
+"""UI 模块冒烟测试（TD-19，PySide6 版）。
 
-验证所有 UI 模块可导入，捕获语法错误、import 链断裂、循环依赖等问题。
-完整的 MainWindow 实例化测试需要虚拟 display（xvfb），留待后续。
+验证所有 UI 模块可导入（语法错误 / import 链断裂 / 循环依赖），
+以及关键类的 Qt 基类归属。
 """
 
 
+# ---------- 包与模块导入 ----------
+
+
 def test_ui_package_importable():
-    """TD-19: ui 包可导入。"""
     import ui  # pylint: disable=unused-import
 
     assert ui is not None
 
 
-def test_ui_theme_module_importable():
-    """TD-19: ui.theme 模块可导入（含颜色常量 + 字体工厂）。"""
-    from ui import theme  # pylint: disable=unused-import
+def test_ui_theme_importable():
+    from ui import theme
 
-    assert hasattr(theme, "BG_PAGE")
-    assert hasattr(theme, "font_ui")
+    assert hasattr(theme.theme, "BG")
+    assert hasattr(theme.theme, "ACCENT")
+    assert callable(theme.build_qss)
+    assert callable(theme.apply_qss)
 
 
 def test_ui_base_mode_importable():
-    """TD-19: ui.base_mode 模块可导入。"""
-    from ui import base_mode  # pylint: disable=unused-import
+    from ui import base_mode
 
-    assert hasattr(base_mode, "BaseMode")
+    assert hasattr(base_mode, "BaseModePage")
+    assert hasattr(base_mode, "SAVE_DEBOUNCE_MS")
 
 
-def test_ui_practice_mode_importable():
-    """TD-19: ui.practice_mode 模块可导入。"""
-    from ui import practice_mode  # pylint: disable=unused-import
+def test_ui_mode_pages_importable():
+    from ui import exam_mode, practice_mode, review_mode, wrong_book
 
     assert hasattr(practice_mode, "PracticeMode")
-
-
-def test_ui_exam_mode_importable():
-    """TD-19: ui.exam_mode 模块可导入。"""
-    from ui import exam_mode  # pylint: disable=unused-import
-
     assert hasattr(exam_mode, "ExamMode")
-
-
-def test_ui_review_mode_importable():
-    """TD-19: ui.review_mode 模块可导入。"""
-    from ui import review_mode  # pylint: disable=unused-import
-
     assert hasattr(review_mode, "ReviewMode")
+    assert hasattr(wrong_book, "WrongBookPage")
 
 
-def test_ui_wrong_book_importable():
-    """TD-19: ui.wrong_book 模块可导入。"""
-    from ui import wrong_book  # pylint: disable=unused-import
+def test_ui_panels_and_components_importable():
+    from ui import (
+        answer_sheet,
+        exam_panel,
+        option_row,
+        practice_panel,
+        question_detail_card,
+    )
 
-    assert hasattr(wrong_book, "WrongBook")
+    assert hasattr(practice_panel, "PracticePanel")
+    assert hasattr(exam_panel, "ExamPanel")
+    assert hasattr(answer_sheet, "AnswerSheet")
+    assert hasattr(answer_sheet, "StatColumn")
+    assert hasattr(option_row, "OptionRow")
+    assert hasattr(question_detail_card, "QuestionDetailCard")
+    assert hasattr(question_detail_card, "type_label")
 
 
-def test_ui_option_row_importable():
-    """TD-19: ui.option_row 模块可导入。"""
+def test_ui_dialogs_and_titlebar_importable():
+    from ui import base_dialog, exam_report_dialog, license_dialog, titlebar
+
+    assert hasattr(base_dialog, "BaseDialog")
+    assert hasattr(exam_report_dialog, "ExamReportDialog")
+    assert hasattr(license_dialog, "LicenseDialog")
+    assert hasattr(titlebar, "TitleBar")
+    assert hasattr(titlebar, "setup_frameless")
 
 
 def test_ui_main_window_importable():
-    """TD-19: ui.main_window 模块可导入（含 MainWindow）。"""
-    from ui import main_window  # pylint: disable=unused-import
+    from ui import main_window
 
     assert hasattr(main_window, "MainWindow")
+    assert hasattr(main_window, "NAV_DEFS")
 
 
-def test_ui_mastery_ring_importable():
-    """TD-19: ui.mastery_ring 模块可导入（含 MasteryRing）。"""
-    from ui import mastery_ring  # pylint: disable=unused-import
-
-    assert hasattr(mastery_ring, "MasteryRing")
-
-
-def test_ui_sidebar_importable():
-    """TD-19: ui.sidebar 模块可导入（含 Sidebar）。"""
-    from ui import sidebar  # pylint: disable=unused-import
-
-    assert hasattr(sidebar, "Sidebar")
-
-
-def test_ui_license_dialog_importable():
-    """TD-19: ui.license_dialog 模块可导入（含 LicenseDialog）。"""
-    from ui import license_dialog  # pylint: disable=unused-import
-
-    assert hasattr(license_dialog, "LicenseDialog")
+# ---------- 类层次 ----------
 
 
 def test_main_window_class_hierarchy():
-    """TD-19: MainWindow 继承 tk.Tk。"""
-    import tkinter as tk
+    from PySide6.QtWidgets import QMainWindow
+
     from ui.main_window import MainWindow
 
-    assert issubclass(MainWindow, tk.Tk)
+    assert issubclass(MainWindow, QMainWindow)
 
 
-def test_mastery_ring_class_hierarchy():
-    """TD-19: MasteryRing 继承 tk.Canvas。"""
-    import tkinter as tk
-    from ui.mastery_ring import MasteryRing
+def test_base_mode_page_class_hierarchy():
+    from PySide6.QtWidgets import QFrame
 
-    assert issubclass(MasteryRing, tk.Canvas)
+    from ui.base_mode import BaseModePage
+
+    assert issubclass(BaseModePage, QFrame)
+
+
+def test_dialogs_class_hierarchy():
+    from PySide6.QtWidgets import QDialog
+
+    from ui.base_dialog import BaseDialog
+    from ui.exam_report_dialog import ExamReportDialog
+    from ui.license_dialog import LicenseDialog
+
+    assert issubclass(BaseDialog, QDialog)
+    assert issubclass(ExamReportDialog, BaseDialog)
+    assert issubclass(LicenseDialog, BaseDialog)
+
+
+def test_theme_token_sets_have_identical_fields():
+    """浅/深两套 Token 字段名必须一致（theme.py 导入时自校验的静态复核）。"""
+    from ui.theme import _DARK_TOKENS, _LIGHT_TOKENS
+
+    assert set(_LIGHT_TOKENS) == set(_DARK_TOKENS)

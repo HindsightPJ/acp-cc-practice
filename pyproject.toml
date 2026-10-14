@@ -35,15 +35,17 @@ build-backend = "setuptools.build_meta"
 include = ["ui*", "license*"]
 
 # TD-17: pytest 配置
+# P6 迁移后 GUI 测试经 QT_QPA_PLATFORM=offscreen 无头运行，不再默认跳过；
+# gui 标记保留用于筛选（pytest -m gui 单独运行 UI 用例）。
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short -m 'not gui'"
+addopts = "-v --tb=short"
 markers = [
-    "gui: 需要 GUI display 的测试（默认跳过，单独运行：pytest -m gui）",
+    "gui: GUI（Qt widgets）测试，可用 -m gui 单独运行",
     "slow: 运行较慢的测试",
 ]
 

@@ -95,6 +95,12 @@ class ReviewMode(BaseModePage):
         next_btn.clicked.connect(self.next_question)
         th.addWidget(next_btn)
 
+        # 收藏入口（补 tkinter 版缺口：此前迁移漏掉收藏按钮，收藏功能成死路）
+        self.favorite_btn = QPushButton()
+        self.favorite_btn.setProperty("actBtn", True)
+        self.favorite_btn.clicked.connect(self.toggle_favorite)
+        th.addWidget(self.favorite_btn)
+
         v.addWidget(tools)
 
         # 题区（只读详情卡：on_option_click=None，解析占位 = 答案提示）
@@ -132,6 +138,7 @@ class ReviewMode(BaseModePage):
             question,
             meta_lines=("背题模式", f"第 {current + 1} / {total} 题"),
         )
+        self._sync_favorite_button()
         if self.auto_check.isChecked():
             self._auto_show_timer.start(AUTO_SHOW_ANSWER_DELAY_MS)
 
@@ -160,6 +167,29 @@ class ReviewMode(BaseModePage):
             self._render_answer()
 
     # -------------------------------------------------------------- 筛选/导航
+    def toggle_favorite(self) -> None:
+        """收藏/取消收藏当前题（收藏按钮触发），防抖保存并同步按钮文案。
+
+        筛选模式下取消收藏时，当前题移出队列并加载下一题（沿袭 tkinter 版）。
+        """
+        question = self.engine.get_current_question()
+        if question is None:
+            return
+        self.app_state.toggle_favorite(question.number)
+        if self.favorites_only and not self.app_state.is_favorite(question.number):
+            # 取消收藏后重建筛选队列（当前题号出队，位置从 0 重新加载）
+            self.toggle_favorites_filter(True)
+        else:
+            self._sync_favorite_button()
+        self._save_progress_delayed()
+        self.state_changed.emit()
+
+    def _sync_favorite_button(self) -> None:
+        """收藏按钮文案随当前题收藏状态变化。"""
+        question = self.engine.get_current_question()
+        fav = question is not None and self.app_state.is_favorite(question.number)
+        self.favorite_btn.setText("★ 已收藏" if fav else "收藏")
+
     def toggle_favorites_filter(self, checked: bool) -> None:
         """只看收藏：重建引擎队列（收藏题列表），位置重置。"""
         self._auto_show_timer.stop()

@@ -1,51 +1,19 @@
-"""完整 UI 实例化冒烟测试（TD-19）。
+"""MainWindow PySide6 版冒烟与框架行为测试。
 
-在 headless 环境（无 display）下自动跳过；Windows/有 display 环境可运行。
-gui 标记的测试默认被 pytest 跳过，需单独运行：pytest -m gui
+覆盖：完整实例化（titlebar/head/board-nav/stack/modeline）、四模式切换、
+导航反白与计数、授权按钮双态、快捷键鸭子路由、closeEvent flush。
 """
 
+from pathlib import Path
+from unittest.mock import MagicMock
+
 import pytest
+from PySide6.QtWidgets import QMainWindow
 
-from models import Question, Option
+from models import Option, Question
+from ui.main_window import NAV_DEFS, MainWindow
 
-
-def _tk_display_available():
-    """检测当前环境是否可以实例化 tkinter.Tk。"""
-    try:
-        import tkinter as tk
-
-        root = tk.Tk()
-        root.withdraw()
-        root.destroy()
-        return True
-    except tk.TclError:
-        return False
-
-
-HAS_DISPLAY = _tk_display_available()
-pytestmark = [
-    pytest.mark.skipif(not HAS_DISPLAY, reason="No GUI display available"),
-    pytest.mark.gui,
-]
-
-
-@pytest.fixture(autouse=True)
-def _purge_dead_style_subscribers():
-    """清除已销毁控件残留的 ttkbootstrap 主题订阅。
-
-    ttkbootstrap import 时会 patch ttk 控件：Combobox 创建时向 Publisher
-    注册主题变更回调，但控件销毁时不注销（上游 1.10.1 已知问题）。测试
-    进程内反复创建/销毁窗口后，残留的死控件回调会在下一次 Window 创建
-    应用主题时触发 TclError。生产环境单窗口流程不受影响（主题仅在
-    Window 创建时应用一次），故仅测试侧清理。
-    """
-    try:
-        from ttkbootstrap.publisher import Publisher
-
-        Publisher.clear_subscribers()
-    except ImportError:
-        pass
-    yield
+pytestmark = pytest.mark.gui
 
 
 SAMPLE_QUESTIONS = [
@@ -53,367 +21,185 @@ SAMPLE_QUESTIONS = [
         number=1,
         type="single",
         content="测试题目",
-        options=[
-            Option("A", "选项A"),
-            Option("B", "选项B"),
-        ],
+        options=[Option("A", "选项A"), Option("B", "选项B")],
         answer="A",
         explanation="解析",
-    )
+    ),
+    Question(
+        number=2,
+        type="single",
+        content="测试题目二",
+        options=[Option("A", "选项A"), Option("B", "选项B")],
+        answer="B",
+        explanation="解析二",
+    ),
 ]
 
 
 class FakeDataManager:
-    """最小化的 DataManager 替代品，仅用于 UI 实例化测试。"""
+    """最小 DataManager 替代（MainWindow 只读 load_progress/data_dir）。"""
 
-    data_dir = "/tmp/acp-test-data"
+    def __init__(self, tmp_path: Path):
+        self.data_dir = str(tmp_path)
+        self.save_progress = MagicMock()  # 落盘调用断言用
 
     def load_progress(self):
-        return {
-            "practice_stats": {"correct": 0, "total": 0},
-            "wrong_questions": [],
-        }
-
-    def save_progress(self, progress):
-        pass
-
-
-@pytest.fixture(scope="module")
-def root():
-    """模块级共享 Tk 实例，供非 MainWindow 的 UI 组件测试复用。"""
-    import tkinter as tk
-
-    r = tk.Tk()
-    r.withdraw()
-    yield r
-    r.destroy()
+        return {"practice_stats": {"correct": 0, "wrong": 0, "total": 0}, "wrong_questions": []}
 
 
 @pytest.fixture
-def clean_root(root):
-    """每次测试前清理 root 下的子组件，避免状态泄漏。"""
-    import tkinter as tk
-
-    for child in list(root.winfo_children()):
-        child.destroy()
-    # 清理可能遗留的全局绑定（子组件测试里不会绑，但防御性保留）
-    try:
-        root.unbind_all("<Button-1>")
-    except tk.TclError:
-        pass
-    root.update_idletasks()
-    yield root
-    for child in list(root.winfo_children()):
-        child.destroy()
-    root.update_idletasks()
+def window(qtbot, tmp_path):
+    w = MainWindow(SAMPLE_QUESTIONS, FakeDataManager(tmp_path), license_status=None)
+    qtbot.addWidget(w)
+    return w
 
 
-@pytest.fixture
-def fake_data_manager():
-    return FakeDataManager()
+# ---------- 实例化 ----------
 
 
-def test_main_window_can_instantiate(fake_data_manager):
-    """MainWindow 可完整实例化并包含 Sidebar。"""
-    import tkinter as tk
-    from ui.main_window import MainWindow
+def test_main_window_can_instantiate(window):
+    """MainWindow 可完整实例化：窗口标题、QMainWindow 基类、四页入栈。"""
+    assert isinstance(window, QMainWindow)
+    assert window.windowTitle() == "ACP 云计算练习"
+    assert window.stack.count() == len(NAV_DEFS)
+    assert window.titlebar is not None
+    assert window.modeline.text()
 
-    app = MainWindow(
-        SAMPLE_QUESTIONS,
-        fake_data_manager,
-        license_status=None,
-        meta={"total": len(SAMPLE_QUESTIONS)},
+
+def test_license_btn_trial_state(window):
+    """试用模式：授权按钮可点、文案为试用模式。"""
+    assert window.license_btn.isEnabled()
+    assert window.license_btn.text() == "试用模式"
+
+
+def test_license_btn_authorized_disabled(qtbot, tmp_path):
+    """已授权：按钮禁用。"""
+    from license import LicenseStatus
+
+    w = MainWindow(
+        SAMPLE_QUESTIONS, FakeDataManager(tmp_path), license_status=LicenseStatus.AUTHORIZED
     )
-    assert isinstance(app, tk.Tk)
-    assert app.title() == "ACP 云计算练习"
-    assert app.sidebar is not None
-    app.destroy()
+    qtbot.addWidget(w)
 
+    assert not w.license_btn.isEnabled()
+    assert w.license_btn.text() == "已授权"
 
-def test_main_window_mode_switching(fake_data_manager):
-    """MainWindow 可在四种模式之间切换而不抛出异常。"""
-    from ui.main_window import MainWindow
 
-    app = MainWindow(
-        SAMPLE_QUESTIONS,
-        fake_data_manager,
-        license_status=None,
-        meta={"total": len(SAMPLE_QUESTIONS)},
-    )
+# ---------- 模式切换 ----------
 
-    app.show_exam_mode()
-    assert app.mode_title.cget("text") == "考试"
-    assert app._active_nav == "exam"
 
-    app.show_review_mode()
-    assert app.mode_title.cget("text") == "背题"
-    assert app._active_nav == "review"
+def test_show_mode_switches_all_pages(window):
+    """四模式切换：nav 反白、titlebar tag、modeline 联动。"""
+    for key, _no, _name, tag in NAV_DEFS:
+        window.show_mode(key)
+        assert window.stack.currentIndex() == [d[0] for d in NAV_DEFS].index(key)
+        assert window.titlebar._tag.text() == tag
+        btn = window._nav_buttons[key][0]
+        assert btn.isChecked() is True
+        assert window.modeline.text()
 
-    app.show_wrong_book()
-    assert app.mode_title.cget("text") == "错题本"
-    assert app._active_nav == "wrong"
 
-    app.show_practice_mode()
-    assert app.mode_title.cget("text") == "练习"
-    assert app._active_nav == "practice"
+def test_show_mode_unknown_key_is_noop(window):
+    """未知模式 key 忽略且不崩溃。"""
+    window.show_mode("nonexistent")
 
-    app.destroy()
+    assert window.stack.currentIndex() == 0
 
 
-def test_sidebar_can_instantiate(clean_root):
-    """Sidebar 可独立实例化并设置活动导航项。"""
-    from ui.sidebar import Sidebar
+def test_nav_click_switches_mode(window):
+    """点击 board-nav 行切换模式（idClicked 路由）。"""
+    window._nav_buttons["exam"][0].click()
 
-    nav_defs = [
-        ("practice", "练习", lambda: None),
-        ("exam", "考试", lambda: None),
-    ]
-    sidebar = Sidebar(clean_root, nav_defs)
-    sidebar.pack()
+    assert window.stack.currentIndex() == 1
 
-    assert sidebar.winfo_exists()
-    sidebar.set_active_nav("exam")
-    assert sidebar._active_nav == "exam"
 
-    sidebar.destroy()
+def test_show_mode_flushes_previous_page(window):
+    """切页时旧页防抖进度被 flush（flush_pending_save 鸭子探测）。"""
+    practice = window.stack.widget(0)
+    practice.app_state = MagicMock()
+    practice.app_state.save_safe.return_value = True
+    practice._pending_save = True
 
+    window.show_mode("exam")
 
-def test_license_dialog_can_instantiate(clean_root):
-    """LicenseDialog 可实例化（不实际显示对话框）。"""
-    from ui.license_dialog import LicenseDialog
+    practice.app_state.save_safe.assert_called_once()
+    assert practice._pending_save is False
 
-    dialog = LicenseDialog(clean_root, "/tmp/test-license-dir")
-    assert dialog.parent is clean_root
-    assert dialog.license_dir == "/tmp/test-license-dir"
-    assert dialog.verify_and_save is not None
 
+# ---------- 导航计数 ----------
 
-def test_header_can_instantiate_and_update(clean_root):
-    """Header 组件可独立实例化并更新标题与统计。"""
-    from ui.header import Header
 
-    header = Header(clean_root, total_count=100, trial_count=20, mode_title="考试")
-    header.pack()
+def test_nav_counts_refresh(window):
+    """错题行计数来自 app_state；练习行显示位置计数。"""
+    window.app_state.add_wrong_question(1)
+    window._refresh_nav_counts()
 
-    assert header.winfo_exists()
-    assert header.mode_title.cget("text") == "考试"
-    assert "题库共 100 题" in header.license_status_label.cget("text")
+    assert window._nav_buttons["wrong"][3].text() == "1"
+    assert window._nav_buttons["practice"][3].text() == "1/2"
 
-    header.set_mode_title("练习")
-    assert header.mode_title.cget("text") == "练习"
 
-    header.update_stats(practiced=10, accuracy=80.0, wrong_count=2)
-    stats_text = header.stats_label.cget("text")
-    assert "已练 10 题" in stats_text
-    assert "正确率 80%" in stats_text
-    assert "错题 2" in stats_text
+def test_state_changed_refreshes_modeline(window):
+    """模式页 state_changed → 主窗口刷新（信号接线）。"""
+    window.show_mode("review")
+    before = window.modeline.text()
 
-    header.destroy()
+    page = window.stack.currentWidget()
+    page.on_next()  # 触发 state_changed
 
+    assert window.modeline.text() != before
 
-def test_sidebar_activate_click_callback(clean_root):
-    """Sidebar 的「输入注册码」按钮点击触发外部回调（未授权时显示）。"""
-    from ui.sidebar import Sidebar
 
-    calls = []
-    nav_defs = [("practice", "练习", None)]
-    sidebar = Sidebar(
-        clean_root,
-        nav_defs,
-        on_activate_click=lambda: calls.append("activate"),
-    )
-    sidebar.pack()
+# ---------- 快捷键路由 ----------
 
-    assert sidebar.activate_btn is not None
-    sidebar.activate_btn.invoke()
-    assert calls == ["activate"]
 
-    sidebar.destroy()
+def test_route_forwards_to_current_page(window):
+    """_route 鸭子转发：方法存在则调用，不存在则忽略。"""
+    page = window.stack.currentWidget()
+    called = []
+    page.on_submit = lambda: called.append("submit")
 
+    window._route("on_submit")
+    assert called == ["submit"]
 
-def test_sidebar_activate_button_hidden_when_authorized(clean_root):
-    """已授权（回调为 None）时侧栏不渲染「输入注册码」按钮。"""
-    from ui.sidebar import Sidebar
+    window._route("nonexistent_method")  # 不抛异常
 
-    sidebar = Sidebar(clean_root, [("practice", "练习", None)], on_activate_click=None)
-    sidebar.pack()
 
-    assert sidebar.activate_btn is None
+def test_review_page_has_no_letter_semantics(window):
+    """背题页未实现 on_letter → A-D 转发被忽略。"""
+    window.show_mode("review")
 
-    sidebar.destroy()
+    window._route("on_letter", "A")  # 不抛异常
 
 
-def test_mastery_ring_boundary_values(clean_root):
-    """MasteryRing 对越界/异常值做安全截断。"""
-    from ui.mastery_ring import MasteryRing
+# ---------- 退出 ----------
 
-    ring = MasteryRing(clean_root)
-    ring.pack()
 
-    ring.set_mastery(0.0)
-    assert ring._mastery == 0.0
+def test_close_event_flushes_pending_save(qtbot, tmp_path):
+    """closeEvent 先 flush 当前页防抖进度再兜底落盘。"""
+    w = MainWindow(SAMPLE_QUESTIONS, FakeDataManager(tmp_path), license_status=None)
+    qtbot.addWidget(w)
+    page = w.stack.currentWidget()
+    page.app_state.save_safe = MagicMock(return_value=True)
+    page._pending_save = True
 
-    ring.set_mastery(1.0)
-    assert ring._mastery == 1.0
+    w.close()
 
-    ring.set_mastery(1.5)
-    assert ring._mastery == 1.0
+    page.app_state.save_safe.assert_called()
+    assert page._pending_save is False
 
-    ring.set_mastery(-0.5)
-    assert ring._mastery == 0.0
 
-    ring.set_mastery(float("nan"))
-    assert ring._mastery == 0.0
+# ---------- 主题切换 ----------
 
-    ring.set_mastery(float("inf"))
-    assert ring._mastery == 0.0
 
-    ring.set_mastery(None)
-    assert ring._mastery == 0.0
+def test_toggle_theme_switches_and_persists(window):
+    """Ctrl+T 切主题：Token 模式翻转 + 持久化落盘。"""
+    from ui.theme import current_theme_mode
 
-    ring.set_mastery("invalid")
-    assert ring._mastery == 0.0
+    before = current_theme_mode()
 
-    ring.destroy()
+    window.toggle_theme()
 
+    assert current_theme_mode() != before
+    assert window.app_state._data_manager.save_progress.called
 
-def test_sidebar_nav_click_triggers_command(clean_root):
-    """Sidebar 导航点击触发对应 command。"""
-    from ui.sidebar import Sidebar
-
-    commands = []
-    nav_defs = [
-        ("practice", "练习", lambda: commands.append("practice_cmd")),
-        ("exam", "考试", lambda: commands.append("exam_cmd")),
-    ]
-    sidebar = Sidebar(clean_root, nav_defs)
-    sidebar.pack()
-
-    # 直接调用内部处理函数模拟点击
-    sidebar._handle_nav_click("exam")
-    assert commands == ["exam_cmd"]
-    assert sidebar._active_nav == "exam"
-
-    sidebar.destroy()
-
-
-def test_sidebar_same_tab_click_does_not_rebuild(clean_root):
-    """P2-24: 重复点击当前 tab 不应再次触发 command。"""
-    from ui.sidebar import Sidebar
-
-    commands = []
-    nav_defs = [
-        ("practice", "练习", lambda: commands.append("practice_cmd")),
-        ("exam", "考试", lambda: commands.append("exam_cmd")),
-    ]
-    sidebar = Sidebar(clean_root, nav_defs)
-    sidebar.pack()
-
-    # 首次切到 exam
-    sidebar._handle_nav_click("exam")
-    assert commands == ["exam_cmd"]
-
-    # 重复点击 exam：不应再触发 command 或重建 mode
-    sidebar._handle_nav_click("exam")
-    assert commands == ["exam_cmd"]
-    assert sidebar._active_nav == "exam"
-
-    sidebar.destroy()
-
-
-def _run_license_dialog_until_done(dialog, root, timeout: float = 2.0):
-    """辅助函数：驱动 LicenseDialog 的 after 轮询直到 dialog 关闭或超时。"""
-    import time
-
-    deadline = time.time() + timeout
-    while time.time() < deadline and dialog.dialog is not None:
-        root.update()
-        time.sleep(0.01)
-
-
-def test_license_dialog_verify_callback(clean_root, monkeypatch):
-    """LicenseDialog 验证按钮调用自定义回调并正确关闭对话框。"""
-    from ui.license_dialog import LicenseDialog
-
-    calls = []
-
-    def fake_verify(code, license_dir, machine_code=None):
-        calls.append((code, license_dir, machine_code))
-        return (True, "OK", True)
-
-    # P2-6: mock messagebox 避免 _on_verify_done 弹窗阻塞测试
-    monkeypatch.setattr("tkinter.messagebox.showinfo", lambda *a, **k: None)
-
-    dialog = LicenseDialog(clean_root, "/tmp/test-license-dir", verify_and_save=fake_verify)
-    # P0-2: 模拟 show() 缓存 machine_code，_on_verify 会传入此值
-    dialog._machine_code = "test-machine-code"
-    # 修复：原测试调用不存在的 _build_dialog，实际方法名是 _build_content
-    dialog._create_dialog()
-    dialog._build_content("machine-code")
-    dialog._license_entry.insert("1.0", "test-code")
-    dialog._on_verify()
-
-    # P2-6: 验证改为异步，轮询处理 after 回调直到 dialog 关闭（最多 2s）
-    _run_license_dialog_until_done(dialog, clean_root)
-
-    assert calls == [("test-code", "/tmp/test-license-dir", "test-machine-code")]
-    # 验证成功后对话框应已关闭
-    assert dialog.dialog is None
-
-
-def test_license_dialog_verify_failure_keeps_dialog_open(clean_root, monkeypatch):
-    """P2-6 / TC-02: 验证失败时对话框不关闭且按钮恢复为可点击。"""
-    from ui.license_dialog import LicenseDialog
-
-    error_calls = []
-
-    def fake_verify_failure(code, license_dir, machine_code=None):
-        return (False, "invalid code", False)
-
-    monkeypatch.setattr("tkinter.messagebox.showerror", lambda *a, **k: error_calls.append((a, k)))
-
-    dialog = LicenseDialog(clean_root, "/tmp/test-license-dir", verify_and_save=fake_verify_failure)
-    dialog._machine_code = "test-machine-code"
-    dialog._create_dialog()
-    dialog._build_content("machine-code")
-    dialog._license_entry.insert("1.0", "bad-code")
-
-    verify_btn = dialog._verify_btn
-    assert verify_btn is not None
-    assert verify_btn.cget("text") == "验证"
-
-    dialog._on_verify()
-
-    _run_license_dialog_until_done(dialog, clean_root)
-
-    # 失败后应弹出错误且对话框保留
-    assert len(error_calls) == 1
-    assert dialog.dialog is not None
-    # 按钮状态恢复
-    assert verify_btn.cget("state") == "normal"
-    assert verify_btn.cget("text") == "验证"
-
-
-def test_license_dialog_verify_empty_code_shows_warning(clean_root, monkeypatch):
-    """TC-02: 空注册码应直接提示且不启动后台线程。"""
-    from ui.license_dialog import LicenseDialog
-
-    warn_calls = []
-
-    def fake_verify(_code, _license_dir, _machine_code=None):
-        raise AssertionError("verify should not be called for empty code")
-
-    monkeypatch.setattr("tkinter.messagebox.showwarning", lambda *a, **k: warn_calls.append((a, k)))
-
-    dialog = LicenseDialog(clean_root, "/tmp/test-license-dir", verify_and_save=fake_verify)
-    dialog._create_dialog()
-    dialog._build_content("machine-code")
-    # 留空
-    dialog._license_entry.delete("1.0", "end")
-    dialog._on_verify()
-
-    clean_root.update()
-
-    assert len(warn_calls) == 1
-    # 不应启动轮询（queue 为空）
-    assert dialog._verify_queue.empty()
+    window.toggle_theme()  # 切回，避免污染其他用例

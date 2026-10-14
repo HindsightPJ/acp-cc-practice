@@ -245,12 +245,21 @@ class PracticePanel(QFrame):
         self._update_stats_col()
 
     def next_question(self) -> None:
-        """下一题；队列末尾提示完成。"""
+        """下一题；末题已作答再点下一题 = 队列完成，触发 on_finish。"""
         if self.session.has_next():
             self.session.next_question()
             self.load_current_question()
             if self._on_navigate is not None:
                 self._on_navigate()
+            return
+        engine = self.session.engine
+        current = engine.get_current_index()
+        if engine.queue_length() and engine.is_answered(current):
+            # 末题已提交后再点下一题 → 完成流程（宿主统计/错题移除）
+            if self._on_finish is not None:
+                self._on_finish()
+            else:
+                QMessageBox.information(self, "提示", "已完成所有题目！")
         else:
             QMessageBox.information(self, "提示", "已经是最后一题了！")
 

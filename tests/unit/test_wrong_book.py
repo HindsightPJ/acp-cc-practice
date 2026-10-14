@@ -1,39 +1,52 @@
-"""wrong_book.py 单元测试。
+"""wrong_book.py 单元测试（PySide6 版）。
 
-覆盖范围：
-- UI 层不直接访问 QuizEngine.stats（TD-15 后续修复）
-- _show_practice_result 通过 get_stats() 读取统计
-- P1-4: >=80% 正确率时只移除答对的错题，而非全部错题
+覆盖：UI 层禁止直访 QuizEngine 内部状态（TD-15 静态扫描）、
+错题练习完成流程（P6 修复 on_finish 不可达后的回归）、
+>=80% 正确率只移除答对的错题（P1-4）。
 """
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+from PySide6.QtWidgets import QMessageBox
 
-from ui.wrong_book import WrongBook
+from app_state import AppState
+from models import Option, Question
+from ui.wrong_book import WrongBookPage
+
+pytestmark = pytest.mark.gui
 
 
-class _ForbidStatsAccess:
-    """模拟 practice engine：直接访问 .stats 时抛异常。"""
+def _make_question(number: int, answer: str = "A") -> Question:
+    return Question(
+        number=number,
+        content=f"错题 {number}",
+        options=[Option("A", "选项 A"), Option("B", "选项 B")],
+        answer=answer,
+    )
 
-    def __init__(self, stats, correct_nums=None):
-        self._stats = stats
-        self._correct_nums = correct_nums or set()
 
-    def get_stats(self):
-        return dict(self._stats)
+@pytest.fixture
+def state():
+    s = AppState(MagicMock(), progress={})
+    s.set_wrong_questions([1, 2])
+    return s
 
-    def get_correct_question_numbers(self):
-        return set(self._correct_nums)
 
-    def __getattr__(self, name):
-        if name == "stats":
-            raise AttributeError("Direct access to engine.stats is forbidden")
-        raise AttributeError(name)
+@pytest.fixture
+def page(qtbot, state):
+    p = WrongBookPage([_make_question(1), _make_question(2)], state)
+    qtbot.addWidget(p)
+    return p
+
+
+# ---------- 静态扫描（TD-15） ----------
 
 
 def test_ui_source_no_direct_engine_internal_state_access():
     """ui 目录下任何模块都不应直接访问 QuizEngine 内部状态属性。"""
+    from pathlib import Path
+
     ui_dir = Path(__file__).parent.parent.parent / "ui"
     forbidden = (
         "engine.current_index",
@@ -55,48 +68,114 @@ def test_ui_source_no_direct_engine_internal_state_access():
             assert attr not in content, f"{src_file.name} directly accesses {attr}"
 
 
-def test_show_practice_result_uses_get_stats(monkeypatch):
-    """_show_practice_result 必须通过 get_stats() 读取统计。"""
-    wb = WrongBook.__new__(WrongBook)
-    wb._practice_session = _ForbidStatsAccess({"correct": 4, "wrong": 6, "total": 10})
-    wb.wrong_questions = []
-    wb._state = MagicMock()
-    wb.count_label = MagicMock()
-    wb._practice_window = None  # A3 修复后新增的属性
-
-    monkeypatch.setattr("tkinter.messagebox.showinfo", lambda *a, **k: None)
-    monkeypatch.setattr("tkinter.messagebox.askyesno", lambda *a, **k: False)
-
-    # 若代码仍直接访问 _practice_session.stats，会抛出 AttributeError
-    wb._show_practice_result()
+# ---------- 列表视图 ----------
 
 
-def test_show_practice_result_removes_only_correct(monkeypatch):
-    """P1-4: >=80% 正确率时只移除本次答对的错题，保留答错的。
+def test_list_view_populates_from_state(page, state):
+    """列表视图按错题快照渲染行数与计数标题。"""
+    assert page.table.rowCount() == 2
+    assert "2 题" in page.count_label.text()
 
-    此前 bug：遍历 self.wrong_questions 全部移除，包括答错的 20%。
-    """
-    wb = WrongBook.__new__(WrongBook)
-    # 10 题，8 对 2 错 → 正确率 80%，触发移除分支
-    wb._practice_session = _ForbidStatsAccess(
-        {"correct": 8, "wrong": 2, "total": 10},
-        correct_nums={101, 102, 103, 104, 105, 106, 107, 108},  # 答对的 8 题
-    )
-    wb._state = MagicMock()
-    wb._state.get_wrong_questions.return_value = [101, 102, 103, 104, 105, 106, 107, 108, 109, 110]
-    wb.count_label = MagicMock()
-    wb._practice_window = None
-    wb.wrong_questions = []  # 无需真实错题列表
+    state.set_wrong_questions([])
+    page._refresh_table()
 
-    # 用户选"是"
-    monkeypatch.setattr("tkinter.messagebox.askyesno", lambda *a, **k: True)
-    # _populate_tree 和 _get_wrong_questions_list 会访问 tkinter，mock 掉
-    monkeypatch.setattr(wb, "_populate_tree", lambda: None)
-    monkeypatch.setattr(wb, "_get_wrong_questions_list", lambda: [])
+    assert page.table.rowCount() == 0
+    assert "0 题" in page.count_label.text()
 
-    wb._show_practice_result()
 
-    # 验证：app_state.set_wrong_questions 应被调用，且只剩答错的 2 题（109, 110）
-    wb._state.set_wrong_questions.assert_called_once_with([109, 110])
-    # P2-4: 验证 app_state.save_safe() 被调用（替代原 save()）
-    wb._state.save_safe.assert_called_once()
+def test_start_practice_empty_book_shows_info(page, state):
+    """错题本为空时开始练习仅提示，不切入练习视图。"""
+    state.set_wrong_questions([])
+
+    page.start_practice()
+
+    assert page.panel is None
+    assert page.stack.currentIndex() == 0
+
+
+# ---------- 练习完成流程（P6 修复 on_finish 不可达后的回归） ----------
+
+
+def test_practice_finished_removes_only_correct(page, state, monkeypatch):
+    """P1-4: 完成后只移除本次答对的错题，答错保留。"""
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    page.start_practice()
+
+    # 题 1 答对（A），题 2 答错（B）
+    page.panel.handle_option_click("A")
+    page.panel.submit_answer()
+    page.panel.next_question()
+    page.panel.handle_option_click("B")
+    page.panel.submit_answer()
+
+    # 末题已答后再点下一题 → 触发完成流程（P6 修复路径）
+    page.panel.next_question()
+
+    assert state.get_wrong_questions() == [2]
+    assert state._data_manager.save_progress.call_count >= 1  # 经 AppState 落盘
+    assert page.stack.currentIndex() == 0  # 回列表视图
+    assert page.panel is None
+
+
+def test_practice_finished_declined_keeps_wrong_book(page, state, monkeypatch):
+    """完成时选择不移除 → 错题本原样保留。"""
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    page.start_practice()
+
+    page.panel.handle_option_click("A")
+    page.panel.submit_answer()
+    page.panel.next_question()
+    page.panel.handle_option_click("B")
+    page.panel.submit_answer()
+    page.panel.next_question()
+
+    assert sorted(state.get_wrong_questions()) == [1, 2]
+
+
+def test_unanswered_final_next_shows_hint_only(page):
+    """末题未作答点下一题只提示，不触发完成流程。"""
+    page.start_practice()
+
+    page.panel.next_question()
+
+    assert page.panel is not None  # 仍在练习视图
+
+
+# ---------- 主窗口协议 ----------
+
+
+def test_nav_count_tracks_wrong_book_size(page, state):
+    """board-nav 错题行计数 = 错题本数量。"""
+    assert page.nav_count() == "2"
+
+    state.set_wrong_questions([])
+    assert page.nav_count() == "0"
+
+
+def test_modeline_switches_with_view(page):
+    """modeline 随列表/练习视图切换。"""
+    assert "错题 2 题" in page.modeline_text()
+
+    page.start_practice()
+
+    assert "错题练习" in page.modeline_text()
+
+
+def test_letter_keys_only_active_in_practice_view(page):
+    """列表视图按键无语义；练习视图路由到选项点击。"""
+    page.on_letter("A")  # 列表视图：无操作
+    assert page.practice_session is None
+
+    page.start_practice()
+    page.on_letter("A")
+    assert page.practice_session.selected_answers == ["A"]
+
+
+def test_on_submit_delegates_in_practice_view(page):
+    """练习视图 Enter 委托 panel 提交。"""
+    page.start_practice()
+    page.on_letter("A")
+
+    page.on_submit()
+
+    assert page.practice_session.is_answered is True

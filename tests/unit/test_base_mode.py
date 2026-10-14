@@ -1,79 +1,77 @@
-"""base_mode.py 单元测试（P2-20）。
+"""base_mode.py 单元测试（PySide6 版）。
 
-覆盖 BaseMode 提取到基类的防抖保存三件套行为，
-避免 P2-16 类 bug（保存失败时 _pending_save 被提前清空）回归。
+覆盖 BaseModePage 防抖保存三件套（单发 QTimer 语义，替代 tkinter after job），
+避免 tkinter 版 P2-16 类 bug（保存失败时 _pending_save 被提前清空）回归。
 """
 
-import tkinter as tk
 from unittest.mock import MagicMock
 
 import pytest
+from PySide6.QtWidgets import QMessageBox
 
-from ui.base_mode import BaseMode
+from ui.base_mode import BaseModePage
 
 pytestmark = pytest.mark.gui
 
 
-class _TestMode(BaseMode):
-    """测试用最小子类，满足抽象基类要求。"""
+class _TestMode(BaseModePage):
+    """测试用最小子类（基类无抽象方法，直接可用）。"""
 
     _save_failure_message = "测试保存失败。"
 
-    def _setup_mode_ui(self) -> None:
-        pass
-
-    def _on_key_press(self, event) -> None:
-        pass
-
 
 class _MockAppState:
-    """可 patch 为 ui.base_mode.AppState 的轻量类，避免 isinstance 失败。"""
+    """轻量 AppState 替代（BaseModePage 只调用 save_safe）。"""
 
-    def __init__(self, data_manager, progress):
-        self.data_manager = data_manager
-        self.progress = progress
+    def __init__(self):
         self.save_safe = MagicMock(return_value=True)
 
 
 @pytest.fixture
-def mode(root):
-    """提供一个已初始化的 _TestMode 实例。"""
-    state = _MockAppState(MagicMock(), {})
-    widget = _TestMode(root, [], MagicMock(), state)
-    widget.pack()
-    yield widget
-    # teardown: 取消未执行的 after 回调并清空 pending 标记，
-    # 避免 destroy() 触发 flush_pending_save 时因 mock save_safe=False 而弹窗阻塞。
-    widget._cancel_all_after_jobs()
-    widget._pending_save = False
-    try:
-        widget.destroy()
-    except tk.TclError:
-        pass
+def mode(qtbot):
+    widget = _TestMode(_MockAppState())
+    qtbot.addWidget(widget)
+    return widget
 
 
-def test_save_progress_delayed_sets_pending_flag_and_schedules_job(mode):
-    """调用 _save_progress_delayed 后 _pending_save=True 且 _save_job_id 非空。"""
+# ---------- _save_progress_delayed ----------
+
+
+def test_save_progress_delayed_sets_pending_and_starts_timer(mode):
+    """调用 _save_progress_delayed 后 _pending_save=True 且计时器启动。"""
     assert not mode._pending_save
-    assert mode._save_job_id is None
+    assert not mode._save_timer.isActive()
 
     mode._save_progress_delayed()
 
     assert mode._pending_save is True
-    assert mode._save_job_id is not None
+    assert mode._save_timer.isActive()
 
 
-def test_save_progress_delayed_cancels_previous_job(mode):
-    """连续调用 _save_progress_delayed 会取消上一个 after job。"""
+def test_save_progress_delayed_restarts_timer(mode, monkeypatch, qtbot):
+    """单发 QTimer start() 自带 restart 语义：等待后再次调用重置计时。"""
+    monkeypatch.setattr("ui.base_mode.SAVE_DEBOUNCE_MS", 200)
     mode._save_progress_delayed()
-    first_job = mode._save_job_id
+    qtbot.wait(120)  # 防抖窗口消耗过半
 
     mode._save_progress_delayed()
-    second_job = mode._save_job_id
 
-    # 旧的 job 应被取消
-    assert first_job != second_job
-    assert mode._save_job_id is not None
+    # 若未重置，剩余应 <100ms；重置后应接近 200ms
+    remaining = mode._save_timer.remainingTime()
+    assert remaining > 150
+
+
+def test_debounce_timer_fires_save_on_expiry(mode, monkeypatch, qtbot):
+    """防抖到期自动执行保存（QTimer 驱动，无需手动 flush）。"""
+    monkeypatch.setattr("ui.base_mode.SAVE_DEBOUNCE_MS", 30)
+    mode._save_progress_delayed()
+
+    qtbot.waitUntil(lambda: mode.app_state.save_safe.call_count == 1, timeout=2000)
+
+    assert mode._pending_save is False
+
+
+# ---------- _do_save_progress ----------
 
 
 def test_do_save_progress_resets_pending_on_success(mode):
@@ -85,37 +83,45 @@ def test_do_save_progress_resets_pending_on_success(mode):
     mode.app_state.save_safe.assert_called_once()
 
 
-def test_do_save_progress_keeps_pending_on_failure(monkeypatch, mode):
+def test_do_save_progress_keeps_pending_on_failure(mode, monkeypatch):
     """P2-16: 保存失败时 _pending_save 应保持 True，以便下次 flush 重试。"""
     mode.app_state.save_safe.return_value = False
-    monkeypatch.setattr("tkinter.messagebox.showwarning", lambda *a, **k: None)
+    warned = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: warned.append(a))
 
     mode._pending_save = True
     mode._do_save_progress()
 
     assert mode._pending_save is True
     mode.app_state.save_safe.assert_called_once()
+    assert len(warned) == 1
+    assert "测试保存失败" in warned[0][2]  # 第三个位置参数 = 消息文案
 
 
-def test_flush_pending_save_clears_pending_on_success(mode):
-    """flush_pending_save 在保存成功后清空 _pending_save。"""
+# ---------- flush_pending_save ----------
+
+
+def test_flush_pending_save_saves_immediately(mode, monkeypatch):
+    """flush_pending_save 停表并立即落盘（切页/关窗路径）。"""
+    monkeypatch.setattr("ui.base_mode.SAVE_DEBOUNCE_MS", 60_000)
     mode._save_progress_delayed()
+
     mode.flush_pending_save()
 
     assert mode._pending_save is False
-    assert len(mode._after_jobs) == 0
+    assert not mode._save_timer.isActive()
+    mode.app_state.save_safe.assert_called_once()
 
 
-def test_flush_pending_save_keeps_pending_on_failure(monkeypatch, mode):
-    """P2-16: flush_pending_save 保存失败时 _pending_save 应保持 True。"""
+def test_flush_pending_save_keeps_pending_on_failure(mode, monkeypatch):
+    """保存失败时 flush_pending_save 保留待存标记并提示。"""
     mode.app_state.save_safe.return_value = False
-    monkeypatch.setattr("tkinter.messagebox.showwarning", lambda *a, **k: None)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: None)
+    mode._pending_save = True
 
-    mode._save_progress_delayed()
     mode.flush_pending_save()
 
     assert mode._pending_save is True
-    assert len(mode._after_jobs) == 0
 
 
 def test_flush_pending_save_no_op_when_not_pending(mode):
@@ -126,58 +132,22 @@ def test_flush_pending_save_no_op_when_not_pending(mode):
     mode.app_state.save_safe.assert_not_called()
 
 
-def test_cancel_after_job_removes_from_tracking_set(mode):
-    """P0-5 回归测试：_cancel_after_job 必须从 _after_jobs 移除，避免集合累积。
-
-    此前 ReviewMode._auto_show_job_id 在 load_question 中 after_cancel 后
-    未从 _after_jobs 移除，长时间使用导致列表/set 无限增长。
-    """
-    job_id = mode.after(5000, lambda: None)  # 永不执行的占位任务
-    mode._add_after_job(job_id)
-    assert job_id in mode._after_jobs
-    assert len(mode._after_jobs) == 1
-
-    mode._cancel_after_job(job_id)
-
-    assert job_id not in mode._after_jobs
-    assert len(mode._after_jobs) == 0
+# ---------- 主窗口鸭子协议 ----------
 
 
-def test_cancel_after_job_none_is_noop(mode):
-    """P0-5: _cancel_after_job(None) 应安全返回，不抛异常。"""
-    # 调用方常传可空变量（如 self._auto_show_job_id），None 时应直接返回
-    mode._cancel_after_job(None)
-    assert len(mode._after_jobs) == 0
+def test_nav_count_and_modeline_default_none(mode):
+    """基类默认不提供计数/modeline（None = 主窗口显示缺省值）。"""
+    assert mode.nav_count() is None
+    assert mode.modeline_text() is None
 
 
-def test_cancel_after_job_idempotent(mode):
-    """P0-5: 对同一 job_id 重复调用 _cancel_after_job 不抛异常。"""
-    job_id = mode.after(5000, lambda: None)
-    mode._add_after_job(job_id)
+def test_state_changed_signal_exists(qtbot):
+    """state_changed 信号可发射可接收（主窗口刷新链路的基础）。"""
+    mode = _TestMode(_MockAppState())
+    qtbot.addWidget(mode)
+    received = []
+    mode.state_changed.connect(lambda: received.append(1))
 
-    mode._cancel_after_job(job_id)
-    mode._cancel_after_job(job_id)  # 重复调用应安全（discard 不抛 KeyError）
+    mode.state_changed.emit()
 
-    assert len(mode._after_jobs) == 0
-
-
-def test_add_after_job_dedup(mode):
-    """P0-5: 重复添加同一 job_id 不会产生重复条目（set 自动去重）。"""
-    job_id = mode.after(5000, lambda: None)
-
-    mode._add_after_job(job_id)
-    mode._add_after_job(job_id)  # 重复添加
-
-    assert len(mode._after_jobs) == 1
-
-
-def test_destroy_calls_flush_pending_save(root):
-    """destroy() 会触发 flush_pending_save 以强制落盘。"""
-    state = _MockAppState(MagicMock(), {})
-    mode = _TestMode(root, [], MagicMock(), state)
-    mode.pack()
-    mode._save_progress_delayed()
-
-    mode.destroy()
-
-    mode.app_state.save_safe.assert_called_once()
+    assert received == [1]

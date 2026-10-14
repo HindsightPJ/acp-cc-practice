@@ -102,16 +102,18 @@ class PracticeMode(BaseModePage):
     def start_new_session(self) -> None:
         """重新开始：已有作答时先确认，避免静默清空当前进度。"""
         new_shuffle = self.shuffle_check.isChecked()
-        if self.engine.has_answers() and not QMessageBox.question(
-            self,
-            "重新开始",
-            "当前作答记录将被清空，确定重新开始吗？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        ):
-            # 取消：回滚复选框到实际生效的状态（toggled 已翻转它）
-            self.shuffle_check.setChecked(self._applied_shuffle)
-            return
+        if self.engine.has_answers():
+            answer = QMessageBox.question(
+                self,
+                "重新开始",
+                "当前作答记录将被清空，确定重新开始吗？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                # 取消：回滚复选框到实际生效的状态（toggled 已翻转它）
+                self.shuffle_check.setChecked(self._applied_shuffle)
+                return
         self._applied_shuffle = new_shuffle
         self.panel.reset_session(shuffle=new_shuffle)
         self._save_progress_delayed()

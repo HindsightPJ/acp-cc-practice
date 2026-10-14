@@ -1,15 +1,16 @@
-"""practice_mode.py 单元测试（P2-21）。
+"""practice_mode.py 单元测试（PySide6 版）。
 
-覆盖练习提交后的延迟保存触发、子类 _save_failure_message 生效、
-P0 回归（panel 提交路径必须触发防抖保存）与快照同步。
+覆盖：提交/导航触发的防抖保存、快照先行同步（进度恢复数据源）、
+快照恢复（重启续练）、重新开始确认与 shuffle 回滚、保存失败子类文案。
 """
 
 from unittest.mock import MagicMock
 
 import pytest
+from PySide6.QtWidgets import QMessageBox
 
 from app_state import AppState
-from models import Question, Option
+from models import Option, Question
 from ui.practice_mode import PracticeMode
 
 pytestmark = pytest.mark.gui
@@ -33,70 +34,161 @@ class _MockAppState(AppState):
 
 
 @pytest.fixture
-def mode(root):
-    """提供一个已初始化的 PracticeMode 实例。"""
-    state = _MockAppState()
-    questions = [_make_question(1), _make_question(2)]
-    mode = PracticeMode(root, questions, MagicMock(), state)
-    mode.pack()
-    yield mode
-    # 清理：重置 save_safe 与 _pending_save，避免 destroy → flush_pending_save
-    # 触发真实 messagebox.showwarning 阻塞测试（monkeypatch 已在此时撤销）
-    mode.app_state.save_safe.return_value = True
-    mode._pending_save = False
-    mode.destroy()
+def state():
+    return _MockAppState()
 
 
-def _select_first_option(mode) -> None:
-    """在当前题上选中 A（走 panel 的真实点击路径）。"""
-    question = mode.session.engine.get_current_question()
-    mode.session.get_question_type(question)
+@pytest.fixture
+def mode(qtbot, state):
+    m = PracticeMode([_make_question(1), _make_question(2)], state)
+    qtbot.addWidget(m)
+    return m
+
+
+def _answer_first(mode) -> None:
+    """在当前题（题 1）选中 A 并提交。"""
     mode.panel.handle_option_click("A")
-
-
-def test_panel_submit_triggers_delayed_save(mode):
-    """P0 回归：经 panel 提交（按钮/键盘同一入口）必须触发防抖保存。
-
-    回归背景：PracticePanel 构造未接线 on_submit 时，_save_progress_delayed
-    的唯一入口（PracticeMode.submit_answer 包装器）无生产调用方，练习进度
-    永不落盘。修复后 panel 提交完成统一触发 _on_answer_submitted 钩子。
-    """
-    _select_first_option(mode)
     mode.panel.submit_answer()
 
+
+# ---------- 提交触发防抖保存 ----------
+
+
+def test_panel_submit_triggers_delayed_save(mode, state):
+    """P0 回归：panel 提交必须触发防抖保存且快照先行同步。"""
+    _answer_first(mode)
+
     assert mode._pending_save is True
-    assert mode._save_job_id is not None
-    # 快照已同步进 AppState（进度恢复的数据源）
-    snapshot = mode.app_state.get_practice_progress()
+    assert mode._save_timer.isActive()
+    # 快照已同步进 AppState（不等防抖到期——进度恢复的数据源）
+    snapshot = state.get_practice_progress()
     assert snapshot["queue"] == [1, 2]
     assert snapshot["index"] == 0
     assert snapshot["answers"] == {"0": "A"}
 
 
-def test_panel_navigate_triggers_delayed_save(mode):
-    """切题后导航钩子应触发防抖保存（练习位置持久化）。"""
+def test_panel_navigate_triggers_delayed_save(mode, state):
+    """切题后导航钩子触发防抖保存（练习位置持久化）。"""
     mode.panel.next_question()
 
     assert mode._pending_save is True
-    assert mode.app_state.get_practice_progress()["index"] == 1
+    assert state.get_practice_progress()["index"] == 1
 
 
-def test_mode_submit_answer_delegates_to_panel(mode):
-    """兼容入口 submit_answer 应委托 panel 提交并触发保存。"""
-    _select_first_option(mode)
-    mode.submit_answer()
+def test_mode_on_submit_delegates_to_panel(mode):
+    """Enter 快捷键鸭子入口 on_submit 委托 panel 提交。"""
+    mode.panel.handle_option_click("A")
+
+    mode.on_submit()
 
     assert mode.session.is_answered is True
     assert mode._pending_save is True
 
 
+def test_submit_records_wrong_question_and_stats(mode, state):
+    """答错写入错题本、统计经 AppState 递增（真实 AppState 链路）。"""
+    mode.panel.handle_option_click("B")
+    mode.panel.submit_answer()
+
+    assert state.is_wrong_question(1) is True
+    assert state.get_practice_stats() == {"correct": 0, "wrong": 1, "total": 1}
+
+
+# ---------- 快照恢复 ----------
+
+
+def test_restore_session_from_snapshot(qtbot, state):
+    """重启后从 practice_progress 快照恢复队列/位置/作答。"""
+    mode1 = PracticeMode([_make_question(1), _make_question(2)], state)
+    qtbot.addWidget(mode1)
+    mode1.panel.handle_option_click("A")
+    mode1.panel.submit_answer()
+    mode1.panel.next_question()
+    # set_practice_progress 已在提交/导航钩子中同步快照（内存态）
+    snapshot = state.get_practice_progress()
+    assert snapshot["answers"] == {"0": "A"}
+
+    mode2 = PracticeMode([_make_question(1), _make_question(2)], state)
+
+    assert mode2.engine.get_current_index() == 1
+    # 已提交记录经快照重放保存在 engine（答题卡 done 态数据源）
+    assert mode2.engine.is_answered(0) is True
+    assert mode2.session.is_answered is False  # 当前题未提交
+
+
+def test_restore_skipped_when_snapshot_invalid(qtbot, state):
+    """快照损坏（题号缺失）时回退全新会话，不抛异常。"""
+    state.set_practice_progress({"queue": [99], "index": 0, "answers": {}})
+
+    mode = PracticeMode([_make_question(1)], state)
+    qtbot.addWidget(mode)
+
+    assert mode.engine.get_current_index() == 0
+    assert mode.engine.has_answers() is False
+
+
+# ---------- 重新开始 ----------
+
+
+def test_start_new_session_with_answers_requires_confirmation(mode, monkeypatch):
+    """已有作答时重新开始必须确认；确认后清空作答。"""
+    _answer_first(mode)
+
+    # 默认 question 返回 No → 取消，作答保留
+    mode.start_new_session()
+    assert mode.engine.has_answers() is True
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    mode.start_new_session()
+    assert mode.engine.has_answers() is False
+    assert mode.engine.get_current_index() == 0
+
+
+def test_start_new_session_cancel_rolls_back_shuffle(mode):
+    """取消重新开始时，shuffle 复选框回滚到实际生效状态。"""
+    _answer_first(mode)
+
+    mode.shuffle_check.setChecked(True)  # 用户想开随机（仅 UI 态）
+    mode.start_new_session()  # question 默认 No → 取消
+
+    assert mode.shuffle_check.isChecked() is False  # 回滚到 _applied_shuffle
+    assert mode._applied_shuffle is False
+
+
+def test_start_new_session_applies_shuffle(mode, monkeypatch):
+    """确认重新开始后 shuffle 生效并记录 applied 状态。"""
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    mode.shuffle_check.setChecked(True)
+
+    mode.start_new_session()
+
+    assert mode._applied_shuffle is True
+    assert mode._pending_save is True
+
+
+# ---------- 保存失败文案 ----------
+
+
 def test_save_failure_message_is_practice_specific(mode, monkeypatch):
-    """PracticeMode 的保存失败提示应使用子类文案。"""
+    """PracticeMode 的保存失败提示使用子类文案。"""
     mode.app_state.save_safe.return_value = False
-    monkeypatch.setattr("tkinter.messagebox.showwarning", lambda *a, **k: None)
+    warned = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: warned.append(k))
 
     mode._pending_save = True
     mode._do_save_progress()
 
-    # 文案应包含"学习进度"（子类覆盖的 _save_failure_message）
     assert "学习进度" in mode._save_failure_message
+    assert len(warned) == 1
+
+
+# ---------- 主窗口协议 ----------
+
+
+def test_nav_count_and_modeline(mode):
+    """nav_count = 位置/总数；modeline 含 PRACTICE 段与正确率。"""
+    assert mode.nav_count() == "1/2"
+    _answer_first(mode)
+
+    assert "PRACTICE" in mode.modeline_text()
+    assert "100%" in mode.modeline_text()
