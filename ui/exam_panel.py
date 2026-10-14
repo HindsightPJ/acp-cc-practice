@@ -16,6 +16,7 @@ from .theme import (
     font_ui,
     font_ui_semibold,
     font_mono,
+    autofit_text_height,
     create_primary_button,
     create_normal_button,
     create_card,
@@ -158,6 +159,9 @@ class ExamPanel(tk.Frame):
         )
         self.exam_question_text.pack(fill=tk.X)
         self.exam_question_text.config(state=tk.DISABLED)
+        # P3: 题干自适应高度，绑定自身 <Configure> 兜底（宽度真实到位时重算）
+        q_text = self.exam_question_text
+        self.exam_question_text.bind("<Configure>", lambda _e: autofit_text_height(q_text))
 
         # 选项卡
         options_card, opt_inner = create_card(left_panel, inner_pady=14)
@@ -245,7 +249,7 @@ class ExamPanel(tk.Frame):
             text="交卷",
             command=self._on_submit,
             bg_color=theme.RED,
-            active_bg="#dc2626",
+            active_bg=theme.RED_HOVER,
             padx=20,
         )
         submit_exam_btn.pack(side=tk.RIGHT)
@@ -382,6 +386,8 @@ class ExamPanel(tk.Frame):
             tk.END, f"{self.engine.get_current_index() + 1}. {question.content}"
         )
         self.exam_question_text.config(state=tk.DISABLED)
+        # P3: 长题干自适应高度，不再被固定 4 行裁切
+        autofit_text_height(self.exam_question_text)
 
         # 题型标签
         if self.exam_type_label is not None:

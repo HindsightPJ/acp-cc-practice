@@ -28,6 +28,10 @@ class PracticePanel(tk.Frame):
         parent: 父容器
         session: 练习会话逻辑对象
         on_finish: 题目队列完成后的回调（可选）
+        on_submit: 提交完成后的回调（可选）——panel 提交动作完成后触发，
+            用于宿主（PracticeMode）做焦点回收与防抖保存；不要传会再次
+            调用 panel.submit_answer 的函数（会无限递归）
+        on_navigate: 切题成功后的回调（可选），用于宿主持久化练习位置
         show_progress_bar: 是否显示顶部进度条（默认 True）
         show_prev_button: 是否显示「上一题」按钮（默认 True）
     """
@@ -38,6 +42,7 @@ class PracticePanel(tk.Frame):
         session: PracticeSession,
         on_finish: Callable[[], None] | None = None,
         on_submit: Callable[[], None] | None = None,
+        on_navigate: Callable[[], None] | None = None,
         show_progress_bar: bool = True,
         show_prev_button: bool = True,
     ) -> None:
@@ -45,6 +50,7 @@ class PracticePanel(tk.Frame):
         self.session = session
         self.on_finish = on_finish
         self.on_submit = on_submit
+        self.on_navigate = on_navigate
         self.show_progress_bar = show_progress_bar
         self.show_prev_button = show_prev_button
 
@@ -241,6 +247,8 @@ class PracticePanel(tk.Frame):
         if self.session.has_next():
             self.session.next_question()
             self.load_current_question()
+            if self.on_navigate is not None:
+                self.on_navigate()
         else:
             messagebox.showinfo("提示", "已经是最后一题了！", parent=self)
 
@@ -249,6 +257,8 @@ class PracticePanel(tk.Frame):
         if self.session.has_prev():
             self.session.prev_question()
             self.load_current_question()
+            if self.on_navigate is not None:
+                self.on_navigate()
         else:
             messagebox.showinfo("提示", "已经是第一题了！", parent=self)
 

@@ -1,8 +1,35 @@
 from dataclasses import dataclass
+import logging
 import platform
 import tkinter as tk
 from tkinter import font as tkfont
 from typing import Any, Callable, cast
+
+logger = logging.getLogger(__name__)
+
+
+def _disable_tk_autostyle() -> None:
+    """禁用 ttkbootstrap 对 tk 控件的自动样式重刷。
+
+    根因（2026-10-14 实测定位）：ttkbootstrap 1.10.1 在 import 时给所有
+    tk 控件构造函数打补丁（Bootstyle.override_tk_widget_constructor），
+    创建时无条件调用 update_frame_style 等 → `widget.configure(
+    background=self.colors.bg)`，用当前主题背景色覆盖创建参数里显式
+    传入的 bg——深色侧栏（INK）等自定义配色在创建瞬间被刷成 journal 白，
+    与 Tk 8.6/9.0 版本无关。本项目的 tk 控件颜色全部由本模块设计 Token
+    显式管理，自动重刷只会破坏设计；ttk 控件的主题化（journal + 墨蓝
+    覆写）走 ttk 样式系统，不受本禁用影响。
+    """
+    try:
+        from ttkbootstrap.style import Bootstyle
+
+        Bootstyle.update_tk_widget_style = staticmethod(lambda widget: None)
+    except (ImportError, AttributeError) as e:
+        # 无此机制（旧版/未来已修复的 ttkbootstrap）则无需禁用，留痕即可
+        logger.warning("ttkbootstrap autostyle 禁用跳过: %s", e)
+
+
+_disable_tk_autostyle()
 
 
 def _list_system_fonts() -> set[str]:
@@ -156,11 +183,13 @@ GREEN = "#22b24c"
 GREEN_BG = "#e8f6ec"
 GREEN_BORDER = "#b5e0c1"
 GREEN_TEXT = "#176e37"
+GREEN_HOVER = "#16a34a"  # GREEN 底按钮的 hover 深色（原硬编码收敛）
 
 RED = "#d64541"
 RED_BG = "#fcefee"
 RED_BORDER = "#f1c9c6"
 RED_TEXT = "#a13431"
+RED_HOVER = "#dc2626"  # RED 底按钮的 hover 深色（原硬编码收敛）
 
 YELLOW = "#d97706"
 YELLOW_BG = "#fffbeb"
@@ -171,6 +200,7 @@ PURPLE = "#8a63ab"
 PURPLE_BG = "#f5f0f9"
 PURPLE_BORDER = "#dcccec"
 PURPLE_TEXT = "#5e4380"
+PURPLE_HOVER = "#7c3aed"  # PURPLE 底按钮的 hover 深色（原硬编码收敛）
 
 # 选中态
 SELECTED_BG = "#2f5d8a"
@@ -350,6 +380,29 @@ def center_window(window: tk.Tk | tk.Toplevel) -> None:
     window.geometry(f"{width}x{height}+{x}+{y}")
 
 
+def autofit_text_height(
+    text: tk.Text, min_lines: int = 3, max_lines: int = 16, min_width: int = 120
+) -> None:
+    """按内容实际显示行数调整只读 Text 的高度（P3：长题干不再被固定行数裁切）。
+
+    用 displaylines 计数（含 wrap 换行的真实渲染行数）。控件尚未完成布局
+    （winfo_width < min_width）时跳过——用病态窄宽度计算会得到虚假的巨大
+    行数并把高度顶到 max_lines 卡死（须等后续 Configure 事件纠正，窗口
+    不再变化时永远等不到）。绑定到 Text 自身的 <Configure> 后，宽度真实
+    到位/变化时必然重算并收敛。TclError 仅在控件已销毁时发生。
+    """
+    try:
+        if text.winfo_width() < min_width:
+            return
+        result = text.count("1.0", "end-1c", "displaylines")
+    except tk.TclError:
+        return
+    lines = result[0] if isinstance(result, tuple) else result
+    if not isinstance(lines, int):
+        return
+    text.configure(height=max(min_lines, min(lines, max_lines)))
+
+
 @dataclass(frozen=True)
 class Theme:
     """主题访问器：以属性方式读取本模块定义的全局颜色常量。
@@ -383,10 +436,12 @@ class Theme:
     GREEN_BG: str = GREEN_BG
     GREEN_BORDER: str = GREEN_BORDER
     GREEN_TEXT: str = GREEN_TEXT
+    GREEN_HOVER: str = GREEN_HOVER
     RED: str = RED
     RED_BG: str = RED_BG
     RED_BORDER: str = RED_BORDER
     RED_TEXT: str = RED_TEXT
+    RED_HOVER: str = RED_HOVER
     YELLOW: str = YELLOW
     YELLOW_BG: str = YELLOW_BG
     YELLOW_BORDER: str = YELLOW_BORDER
@@ -395,6 +450,7 @@ class Theme:
     PURPLE_BG: str = PURPLE_BG
     PURPLE_BORDER: str = PURPLE_BORDER
     PURPLE_TEXT: str = PURPLE_TEXT
+    PURPLE_HOVER: str = PURPLE_HOVER
     SELECTED_BG: str = SELECTED_BG
     SELECTED_TEXT: str = SELECTED_TEXT
     CORRECT_BG: str = CORRECT_BG

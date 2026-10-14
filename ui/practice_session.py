@@ -33,6 +33,8 @@ class PracticeSession:
         self.selected_answers: list[str] = []
         self.current_question_type = QUESTION_TYPE_SINGLE
         self.is_answered = False
+        # 当前会话是否随机出题（快照导出用，供恢复时还原复选框状态）
+        self._shuffle = False
 
     def load_current_question(self) -> Question | None:
         """加载当前题目，返回题目数据供 UI 更新。
@@ -131,7 +133,31 @@ class PracticeSession:
             shuffle: 是否随机出题
         """
         self.engine.start_practice_mode(shuffle=shuffle)
+        self._shuffle = shuffle
         self.reset_selection()
+
+    # ---------- 会话快照（进度恢复） ----------
+
+    def export_state(self) -> dict[str, Any]:
+        """导出会话快照：引擎快照（队列题号/索引/答案）+ shuffle 状态。
+
+        队列按题号持久化（见 QuizEngine.get_snapshot）；shuffle 由会话层
+        补充，供恢复时还原复选框显示。
+        """
+        state = self.engine.get_snapshot()
+        state["shuffle"] = self._shuffle
+        return state
+
+    def restore_state(self, state: dict[str, Any]) -> bool:
+        """从快照恢复会话（供应用重启后继续上次练习）。
+
+        校验失败（题库版本变化 / 结构损坏 / 索引越界）返回 False，
+        调用方应回退到全新会话，不抛异常。shuffle 仅在引擎恢复成功后还原。
+        """
+        if self.engine.restore_snapshot(state):
+            self._shuffle = bool(state.get("shuffle", False))
+            return True
+        return False
 
     def get_progress(self) -> dict[str, Any]:
         """获取当前练习进度。"""

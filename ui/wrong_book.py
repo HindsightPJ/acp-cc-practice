@@ -316,7 +316,7 @@ class WrongBook(BaseMode):
             text="标记为已掌握",
             command=self._mark_as_mastered,
             bg_color=theme.GREEN,
-            active_bg="#16a34a",
+            active_bg=theme.GREEN_HOVER,
         )
         master_btn.pack(side=tk.LEFT)
 

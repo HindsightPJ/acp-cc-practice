@@ -133,12 +133,14 @@ class Sidebar(tk.Frame):
             ref["command"]()
 
     def _on_nav_hover(self, tab_id: str) -> None:
-        """悬停非活动项时临时高亮。"""
+        """悬停非活动项时临时高亮（字色 + 底色过渡）。"""
         if tab_id == self._active_nav:
             return
         ref = self._nav_refs.get(tab_id)
         if ref:
-            ref["label"].configure(fg=theme.INK_TEXT)
+            ref["frame"].configure(bg=theme.INK_SOFT)
+            ref["label"].configure(fg=theme.INK_TEXT, bg=theme.INK_SOFT)
+            ref["indicator"].configure(bg=theme.INK_SOFT)
 
     def _on_nav_leave(self, tab_id: str) -> None:
         """离开非活动项时恢复默认颜色。"""
@@ -146,7 +148,9 @@ class Sidebar(tk.Frame):
             return
         ref = self._nav_refs.get(tab_id)
         if ref:
-            ref["label"].configure(fg=theme.INK_TEXT_MUTED)
+            ref["frame"].configure(bg=theme.INK)
+            ref["label"].configure(fg=theme.INK_TEXT_MUTED, bg=theme.INK)
+            ref["indicator"].configure(bg=theme.INK)
 
     def set_active_nav(self, tab_id: str) -> None:
         """设置当前活动导航项并更新高亮。"""
@@ -156,10 +160,12 @@ class Sidebar(tk.Frame):
     def _update_nav_highlight(self) -> None:
         for tab_id, ref in self._nav_refs.items():
             if tab_id == self._active_nav:
-                ref["label"].configure(fg=theme.ACCENT, font=font_ui_semibold(12))
+                ref["frame"].configure(bg=theme.INK)
+                ref["label"].configure(fg=theme.ACCENT, bg=theme.INK, font=font_ui_semibold(12))
                 ref["indicator"].configure(bg=theme.ACCENT)
             else:
-                ref["label"].configure(fg=theme.INK_TEXT_MUTED, font=font_ui(12))
+                ref["frame"].configure(bg=theme.INK)
+                ref["label"].configure(fg=theme.INK_TEXT_MUTED, bg=theme.INK, font=font_ui(12))
                 ref["indicator"].configure(bg=theme.INK)
 
     def set_mastery(self, mastery: float) -> None:

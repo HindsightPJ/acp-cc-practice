@@ -12,7 +12,7 @@ PracticePanel、ReviewMode 三处复用，消除约 150 行重复样板代码。
 import tkinter as tk
 from typing import Callable
 
-from .theme import theme, font_ui, create_card
+from .theme import theme, font_ui, autofit_text_height, create_card
 from .constants import MAX_OPTIONS, QUESTION_TYPE_MULTIPLE
 from .option_row import OptionRow
 from models import Question
@@ -106,6 +106,10 @@ class QuestionDetailCard(tk.Frame):
         )
         self.question_text.pack(fill=tk.X)
         self.question_text.config(state=tk.DISABLED)
+        # P3: 长题干自适应高度。绑定到 Text 自身的 <Configure>——宽度真实
+        # 到位/变化时必然重算，避免布局早期用病态宽度误算后卡死在高高度
+        q_text = self.question_text
+        self.question_text.bind("<Configure>", lambda _e: autofit_text_height(q_text))
 
         # P2-UX: 窗口缩放时同步更新选项文本换行宽度
         self.bind("<Configure>", self._on_configure)
@@ -173,7 +177,7 @@ class QuestionDetailCard(tk.Frame):
         self.explanation_text.config(state=tk.DISABLED)
 
     def _on_configure(self, event: tk.Event) -> None:
-        """窗口 resize 时同步更新选项文本换行宽度，避免内容被截断。"""
+        """窗口 resize 时同步更新选项文本换行宽度（题干高度由其自身 Configure 兜底）。"""
         new_wrap = max(200, event.width - 100)
         for card in self.option_cards:
             card.update_wraplength(new_wrap)
@@ -194,6 +198,8 @@ class QuestionDetailCard(tk.Frame):
             return
 
         self._set_text(self.question_text, f"{question.number}. {question.content}")
+        # P3: 长题干自适应高度，不再被固定 4 行裁切
+        autofit_text_height(self.question_text)
 
         options_count = len(question.options)
         for i, card in enumerate(self.option_cards):

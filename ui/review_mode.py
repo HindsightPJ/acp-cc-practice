@@ -159,7 +159,7 @@ class ReviewMode(BaseMode):
             text="显示答案 (Space)",
             command=self.toggle_answer,
             bg_color=theme.PURPLE,
-            active_bg="#7c3aed",
+            active_bg=theme.PURPLE_HOVER,
             width=16,
         )
         self.toggle_answer_btn.pack(side=tk.LEFT, padx=(0, 8))

@@ -179,7 +179,7 @@ class MainWindow(ttkb.Window):
         # P0-3: timer_running 为 True 表示考试进行中（开始按钮已禁用、计时器在跑）
         return bool(self.current_frame.timer_running)
 
-    def _switch_to(self, mode_title: str, factory: Callable[[], tk.Widget]) -> None:
+    def _switch_to(self, tab_id: str, title: str, factory: Callable[[], tk.Widget]) -> None:
         # P0-3: 考试进行中切 tab 会丢失 answers/marked/时间，先确认
         if self._is_exam_in_progress():
             if not messagebox.askyesno(
@@ -192,7 +192,10 @@ class MainWindow(ttkb.Window):
                     self.sidebar.set_active_nav(self._active_nav)
                 return
         self.clear_content()
-        self._active_nav = mode_title
+        self._active_nav = tab_id
+        # P2: 标题在考试确认通过后才切换——取消路径不会再出现
+        # "顶部标题已换成目标模式、内容仍是考试"的状态不一致
+        self.header.set_mode_title(title)
         self._update_nav_highlight()
         new_frame = factory()
         self.current_frame = new_frame
@@ -201,33 +204,33 @@ class MainWindow(ttkb.Window):
         self._refresh_mastery()
 
     def show_practice_mode(self) -> None:
-        self.header.set_mode_title("练习")
         self._switch_to(
             "practice",
+            "练习",
             lambda: PracticeMode(
                 self.content_area, self.questions, self.data_manager, self.app_state
             ),
         )
 
     def show_exam_mode(self) -> None:
-        self.header.set_mode_title("考试")
         self._switch_to(
             "exam",
+            "考试",
             lambda: ExamMode(self.content_area, self.questions, self.data_manager, self.app_state),
         )
 
     def show_review_mode(self) -> None:
-        self.header.set_mode_title("背题")
         self._switch_to(
             "review",
+            "背题",
             lambda: ReviewMode(
                 self.content_area, self.questions, self.data_manager, self.app_state
             ),
         )
 
     def show_wrong_book(self) -> None:
-        self.header.set_mode_title("错题本")
         self._switch_to(
             "wrong",
+            "错题本",
             lambda: WrongBook(self.content_area, self.questions, self.data_manager, self.app_state),
         )

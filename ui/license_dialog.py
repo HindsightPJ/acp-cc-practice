@@ -81,6 +81,8 @@ class LicenseDialog(BaseDialog):
         # P0-2: 缓存 show() 时采集的机器码，_on_verify 时复用，
         # 避免 verify() 内部再次启动 PowerShell 子进程采集（耗时 0.2~5 秒）。
         self._machine_code: str | None = None
+        # P1: 轮询任务句柄，走 BaseDialog 的 after 跟踪，close 时统一取消
+        self._poll_job_id: str | None = None
 
     def show(self) -> bool:
         """显示对话框；若无法读取机器码则报错并返回 False。"""
@@ -210,7 +212,11 @@ class LicenseDialog(BaseDialog):
         try:
             result = self._verify_queue.get_nowait()
         except queue.Empty:
-            self.dialog.after(100, self._poll_verify_result)
+            # P1: 轮询任务走基类 after 跟踪，close 时统一取消，
+            # 避免窗口销毁后回调打在已销毁控件上抛 TclError
+            self._cancel_after_job(self._poll_job_id)
+            self._poll_job_id = self.dialog.after(100, self._poll_verify_result)
+            self._add_after_job(self._poll_job_id)
             return
         self._on_verify_done(result)
 

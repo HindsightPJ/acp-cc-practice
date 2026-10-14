@@ -460,7 +460,8 @@ class ExamMode(BaseMode):
         dialog = ExamReportDialog(self, report, on_add_wrong=self.add_wrong_to_book)
         dialog.show()
 
-    def add_wrong_to_book(self, report: dict[str, Any]) -> None:
+    def add_wrong_to_book(self, report: dict[str, Any]) -> int:
+        """把报告中的错题加入错题本，返回本次新增数量（供报告对话框防重复点击）。"""
         added = 0
         for q in report["wrong_questions"]:
             q_num = q.number
@@ -477,3 +478,4 @@ class ExamMode(BaseMode):
             )
         else:
             messagebox.showinfo("成功", f"已将 {added} 道错题加入错题本！", parent=self)
+        return added
