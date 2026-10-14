@@ -5,13 +5,7 @@ import ttkbootstrap as ttkb
 from tkinter import ttk, messagebox
 from typing import Any, Callable
 
-from .theme import (
-    apply_caption_color,
-    apply_theme_primary,
-    current_theme_mode,
-    set_theme_mode,
-    theme,
-)
+from .theme import apply_theme_primary, current_theme_mode, set_theme_mode, theme
 
 from .practice_mode import PracticeMode
 from .exam_mode import ExamMode
@@ -82,8 +76,6 @@ class MainWindow(ttkb.Window):
         # ttk 控件取色于 ttkbootstrap 主题定义，须两处同步）
         apply_theme_primary(self)
         self._apply_ttk_surface_styles()
-        # 标题栏颜色跟随主题（Win11 DWM；Win10 降级为系统默认）
-        apply_caption_color(self)
 
     def _apply_ttk_surface_styles(self) -> None:
         """对齐 ttk 容器样式与当前主题（换肤后必须重跑，见 K2/K15）。"""
@@ -161,7 +153,6 @@ class MainWindow(ttkb.Window):
         apply_theme_primary(self)
         self._apply_ttk_surface_styles()
         self.configure(bg=theme.BG_PAGE)
-        apply_caption_color(self)
         self._rebuild_chrome()
         if self.sidebar is not None:
             self.sidebar.set_theme_icon(new_mode)

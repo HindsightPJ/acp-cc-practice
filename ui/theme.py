@@ -391,55 +391,6 @@ def apply_theme_primary(window: Any) -> None:
 apply_ink_blue_primary = apply_theme_primary
 
 
-def _hex_to_colorref(hex_color: str) -> int:
-    """#rrggbb → Windows COLORREF（0x00BBGGRR，BGR 字节序）。"""
-    h = hex_color.lstrip("#")
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    return (b << 16) | (g << 8) | r
-
-
-def apply_caption_color(window: Any) -> None:
-    """窗口标题栏颜色跟随当前主题。
-
-    优先 Win11 精确着色（DWMWA_CAPTION_COLOR 35 / TEXT_COLOR 36，标题栏
-    取 theme.BG_PAGE、文字取 theme.TEXT_PRIMARY）；不支持时（Win10 1809+）
-    降级 DWMWA_USE_IMMERSIVE_DARK_MODE(20)——深色主题配深色标题栏、浅色
-    主题用系统默认浅色；再不支持（Win10 1809 前/非 Windows）保持系统
-    默认并记 debug 日志。COLORREF 字节序为 0x00BBGGRR（BGR）。
-    本机实测（Win10 22H2, build 19045）：35/36 返回 E_INVALIDARG，20 可用。
-    """
-    if platform.system() != "Windows":
-        return
-    try:
-        import ctypes
-
-        hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
-        if not hwnd:
-            logger.debug("标题栏着色跳过：未取得顶层窗口句柄")
-            return
-        dwm = ctypes.windll.dwmapi
-
-        caption = ctypes.c_uint(_hex_to_colorref(theme.BG_PAGE))
-        text = ctypes.c_uint(_hex_to_colorref(theme.TEXT_PRIMARY))
-        rc_caption = dwm.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(caption), 4)
-        rc_text = dwm.DwmSetWindowAttribute(hwnd, 36, ctypes.byref(text), 4)
-        if rc_caption == 0 and rc_text == 0:
-            return
-
-        # Win10 降级：沉浸式深色标题栏（1=深 / 0=系统默认浅）
-        immersive = ctypes.c_uint(1 if current_theme_mode() == "dark" else 0)
-        rc_dark = dwm.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(immersive), 4)
-        if rc_dark != 0:
-            logger.debug(
-                "标题栏着色不受当前系统支持（rc=%d/%d/%d），保持系统默认",
-                rc_caption,
-                rc_text,
-                rc_dark,
-            )
-    except (OSError, AttributeError) as e:
-        logger.debug("标题栏着色不可用: %s", e)
-
-
 def font_ui(size: int = 11, bold: bool = False) -> tuple[str, int, str] | tuple[str, int]:
     """正文/UI 字体（雅黑）。极简风默认 regular，必要时显式 bold。"""
     name = _get_fonts()["ui"]
