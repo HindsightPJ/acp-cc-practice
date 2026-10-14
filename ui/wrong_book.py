@@ -127,7 +127,7 @@ class WrongBookPage(BaseModePage):
 
     # -------------------------------------------------------------- 详情
     def _show_detail(self, index) -> None:
-        """查看错题详情（P5 接入 QuestionDetailCard 对话框；P4 消息框兜底）。"""
+        """查看错题详情：BaseDialog + QuestionDetailCard（F 语言复用）。"""
         row = index.row() if hasattr(index, "row") else int(index)
         wrong_nums = self.app_state.get_wrong_questions()
         if not (0 <= row < len(wrong_nums)):
@@ -135,13 +135,21 @@ class WrongBookPage(BaseModePage):
         q = self._by_number.get(wrong_nums[row])
         if q is None:
             return
-        QMessageBox.information(
-            self,
-            f"错题详情 · 第 {q.number} 题",
-            f"{q.content}\n\n"
-            + "\n".join(f"{o.letter}. {o.text}" for o in q.options)
-            + f"\n\n正确答案: {q.answer}\n解析: {q.explanation or '暂无解析'}",
+
+        from .base_dialog import BaseDialog
+        from .question_detail_card import QuestionDetailCard
+
+        dialog = BaseDialog(self, f"错题详情 · 第 {q.number} 题", width=560, height=520)
+        v = QVBoxLayout(dialog)
+        v.setContentsMargins(28, 24, 28, 20)
+        card = QuestionDetailCard(on_option_click=None)
+        v.addWidget(card)
+        card.show_question(
+            q,
+            meta_lines=("错题本", f"{type_label(q.type)} · 题号 {q.number}"),
+            reveal_answer=True,
         )
+        dialog.exec()
 
     # -------------------------------------------------------------- 练习
     def start_practice(self) -> None:

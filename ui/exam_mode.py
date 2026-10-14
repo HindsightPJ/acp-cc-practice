@@ -322,14 +322,22 @@ class ExamMode(BaseModePage):
             QMessageBox.warning(self, "保存失败", "考试历史保存失败，请检查磁盘空间或文件权限。")
 
     def _show_exam_report(self, report: dict[str, Any]) -> None:
-        """报告展示（P5 接入 ExamReportDialog；P4 期间用消息框兜底展示核心数据）。"""
-        QMessageBox.information(
-            self,
-            "考试报告",
-            f"总题数: {report['total_questions']}\n正确: {report['correct']}\n"
-            f"错误: {report['wrong']}\n正确率: {report['accuracy']:.1f}%\n"
-            f"用时: {report['time_used']}",
-        )
+        """报告展示：ExamReportDialog（F 语言），含"加入错题本"回调。"""
+        from .exam_report_dialog import ExamReportDialog
+
+        ExamReportDialog(self, report, on_add_wrong=self._add_report_wrong).exec()
+
+    def _add_report_wrong(self, report: dict[str, Any]) -> int:
+        """把考试错题加入错题本，返回新增数量（去重后）。"""
+        added = 0
+        for q in report.get("wrong_questions") or []:
+            if not self.app_state.is_wrong_question(q.number):
+                self.app_state.add_wrong_question(q.number)
+                added += 1
+        if added and not self.app_state.save_safe():
+            QMessageBox.warning(self, "保存失败", "错题本保存失败，请检查磁盘空间或文件权限。")
+        self.state_changed.emit()
+        return added
 
     # -------------------------------------------------------------- 主窗口协议
     def on_letter(self, letter: str) -> None:

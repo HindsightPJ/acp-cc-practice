@@ -1,208 +1,172 @@
-"""考试成绩报告对话框。"""
+"""考试成绩报告对话框（QDialog 版，F 方案去卡片化）。
 
-import tkinter as tk
+F 语言呈现：4px 规则线分段 + 正确率大号数字（替代 tkinter 版 MasteryRing
+环形装饰，F 方案无装饰图形）+ 通过/未通过判定（ACCENT 蓝 / INK3 灰，
+F 方案单强调色无红绿）+ 错题清单（前 10 条）+ 加入错题本（防重复点击）。
+"""
+
 from datetime import datetime
 from typing import Any, Callable
 
-from .theme import (
-    theme,
-    font_ui,
-    font_ui_semibold,
-    create_primary_button,
-    create_normal_button,
-    create_card,
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
 )
+
 from .base_dialog import BaseDialog
-from .mastery_ring import MasteryRing
-from .rounded import RoundedButton
+
+# 通过线（沿袭 tkinter 版语义）
+_PASS_LINE = 60.0
+# 错题清单最多渲染条数（超出部分由标题说明，避免用户以为漏渲染）
+_MAX_WRONG_SHOWN = 10
 
 
 class ExamReportDialog(BaseDialog):
-    """考试成绩报告对话框。"""
+    """考试成绩报告对话框。
+
+    Args:
+        parent: 父窗口
+        report: QuizEngine.get_exam_report() 报告 dict
+        on_add_wrong: 加入错题本回调（参数 report，返回本次新增数量）
+    """
 
     def __init__(
         self,
-        parent: tk.Misc,
+        parent,
         report: dict[str, Any],
         on_add_wrong: Callable[[dict[str, Any]], int] | None = None,
     ) -> None:
-        """初始化对话框。
-
-        Args:
-            parent: 父窗口
-            report: 考试报告数据
-            on_add_wrong: 加入错题本回调，返回本次新增数量（用于防重复点击）
-        """
-        super().__init__(parent, title="考试成绩报告", size="600x550")
+        super().__init__(parent, title="考试成绩报告", width=520, height=520)
         self.report = report
         self.on_add_wrong = on_add_wrong
-        self._add_wrong_btn: RoundedButton | None = None
         self._wrong_added = False
+        self._build_ui()
 
-    def show(self) -> None:
-        """显示对话框。"""
-        self._create_dialog()
-        self._build_content()
+    def _build_ui(self) -> None:
+        v = QVBoxLayout(self)
+        v.setContentsMargins(28, 24, 28, 22)
+        v.setSpacing(14)
 
-    def _build_content(self) -> None:
-        assert self.dialog is not None
+        # ── 头部：4px 规则线压顶 + 大标题 + 时间 meta ──
+        head = QFrame()
+        head.setObjectName("expBox")
+        hv = QVBoxLayout(head)
+        hv.setContentsMargins(0, 14, 0, 0)
+        hv.setSpacing(5)
+        title = QLabel("考试成绩报告")
+        title.setProperty("statV", True)  # 复用大号数字类（40px F 语言标题）
+        hv.addWidget(title)
+        stamp = QLabel(f"完成于 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        stamp.setProperty("qMeta", True)
+        hv.addWidget(stamp)
+        v.addWidget(head)
 
-        header, h_inner = create_card(self.dialog, inner_padx=24, inner_pady=20)
-        header.pack(fill=tk.X, padx=20, pady=(20, 0))
+        # ── 分数区：正确率大数字 + 判定 ──
+        score_row = QFrame()
+        sh = QHBoxLayout(score_row)
+        sh.setContentsMargins(0, 0, 0, 0)
+        sh.setSpacing(16)
+        acc = float(self.report.get("accuracy", 0))
 
-        tk.Label(
-            h_inner,
-            text="考试成绩报告",
-            font=font_ui_semibold(18),
-            fg=theme.TEXT_PRIMARY,
-            bg=theme.BG_CARD,
-        ).pack(anchor=tk.W)
+        acc_box = QVBoxLayout()
+        acc_box.setSpacing(2)
+        acc_k = QLabel("正确率")
+        acc_k.setProperty("statK", True)
+        acc_v_row = QHBoxLayout()
+        acc_v_row.setSpacing(2)
+        acc_v = QLabel(f"{acc:.1f}")
+        acc_v.setProperty("statV", True)
+        acc_unit = QLabel("%")
+        acc_unit.setProperty("statUnit", True)
+        acc_v_row.addWidget(acc_v)
+        acc_v_row.addWidget(acc_unit, 0, Qt.AlignmentFlag.AlignBottom)
+        acc_v_row.addStretch(1)
+        acc_box.addWidget(acc_k)
+        acc_box.addLayout(acc_v_row)
+        sh.addLayout(acc_box, 1)
 
-        tk.Label(
-            h_inner,
-            text=f"完成于 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            font=font_ui(10),
-            fg=theme.TEXT_MUTED,
-            bg=theme.BG_CARD,
-        ).pack(anchor=tk.W, pady=(4, 0))
+        verdict_box = QVBoxLayout()
+        verdict_box.setSpacing(2)
+        verdict = QLabel("通过" if acc >= _PASS_LINE else "未通过")
+        verdict.setProperty("expResult", True)
+        verdict.setProperty("verdict", "ok" if acc >= _PASS_LINE else "wrong")
+        sub = QLabel(f"共 {self.report.get('total_questions', 0)} 题")
+        sub.setProperty("qMeta", True)
+        verdict_box.addWidget(verdict)
+        verdict_box.addWidget(sub)
+        sh.addLayout(verdict_box, 1)
+        v.addWidget(score_row)
 
-        accuracy = self.report["accuracy"]
-
-        score_card, score_inner = create_card(self.dialog, inner_padx=24, inner_pady=20)
-        score_card.pack(fill=tk.X, padx=20, pady=16)
-
-        acc_frame = tk.Frame(score_inner, bg=theme.BG_CARD)
-        acc_frame.pack(fill=tk.X, pady=(0, 16))
-
-        # 正确率 ScoreRing（复用就绪度环的分段渐变弧，浅底配色）
-        score_ring = MasteryRing(
-            acc_frame,
-            size=96,
-            thickness=8,
-            bg=theme.BG_CARD,
-            label="正确率",
-            center_fg=theme.TEXT_PRIMARY,
-            center_muted=theme.TEXT_MUTED,
+        # ── 统计行：正确 / 错误 / 用时 ──
+        stats_row = QFrame()
+        sth = QHBoxLayout(stats_row)
+        sth.setContentsMargins(0, 0, 0, 0)
+        sth.setSpacing(0)
+        stats_data = (
+            ("正确", str(self.report.get("correct", 0)), ""),
+            ("错误", str(self.report.get("wrong", 0)), ""),
+            ("用时", str(self.report.get("time_used", "—")), ""),
         )
-        score_ring.set_mastery(accuracy / 100.0)
-        score_ring.pack(side=tk.LEFT, padx=(0, 16))
+        for k_text, v_text, unit in stats_data:
+            block = QFrame()
+            block.setProperty("statBlock", True)
+            bv = QVBoxLayout(block)
+            bv.setContentsMargins(0, 8, 0, 8)
+            bv.setSpacing(2)
+            k_lbl = QLabel(k_text)
+            k_lbl.setProperty("statK", True)
+            v_lbl = QLabel(v_text)
+            v_lbl.setProperty("statV", True)
+            if unit:
+                v_lbl.setText(f"{v_text}{unit}")
+            bv.addWidget(k_lbl)
+            bv.addWidget(v_lbl)
+            sth.addWidget(block, 1)
+        v.addWidget(stats_row)
 
-        result_frame = tk.Frame(acc_frame, bg=theme.BG_CARD)
-        result_frame.pack(side=tk.LEFT, fill=tk.Y, expand=True)
+        # ── 错题清单（有错题才显示）──
+        wrong_questions = self.report.get("wrong_questions") or []
+        if wrong_questions:
+            total_wrong = len(wrong_questions)
+            title_text = f"错题（{total_wrong} 题）"
+            if total_wrong > _MAX_WRONG_SHOWN:
+                title_text += f"，仅显示前 {_MAX_WRONG_SHOWN} 条"
+            wrong_head = QLabel(title_text)
+            wrong_head.setProperty("qMeta", True)
+            v.addWidget(wrong_head)
 
-        verdict_text = "通过" if accuracy >= 60 else "未通过"
-        verdict_color = theme.GREEN if accuracy >= 60 else theme.RED
-        tk.Label(
-            result_frame,
-            text=verdict_text,
-            font=font_ui_semibold(16),
-            fg=verdict_color,
-            bg=theme.BG_CARD,
-        ).pack(anchor=tk.W)
-        tk.Label(
-            result_frame,
-            text=f"正确率 {accuracy:.1f}%",
-            font=font_ui(11),
-            fg=theme.TEXT_SECONDARY,
-            bg=theme.BG_CARD,
-        ).pack(anchor=tk.W, pady=(4, 0))
-
-        stats_grid = tk.Frame(score_inner, bg=theme.BG_CARD)
-        stats_grid.pack(fill=tk.X)
-
-        stats_data = [
-            ("总题数", f"{self.report['total_questions']}", theme.TEXT_SECONDARY),
-            ("正确", f"{self.report['correct']}", theme.GREEN),
-            ("错误", f"{self.report['wrong']}", theme.RED),
-            ("用时", self.report["time_used"], theme.ACCENT),
-        ]
-
-        for i, (label, value, color) in enumerate(stats_data):
-            stat_item = tk.Frame(stats_grid, bg=theme.BG_INPUT, padx=16, pady=10)
-            stat_item.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0 if i == 0 else 4, 4))
-
-            tk.Label(
-                stat_item, text=value, font=font_ui_semibold(14), fg=color, bg=theme.BG_INPUT
-            ).pack()
-
-            tk.Label(
-                stat_item, text=label, font=font_ui(9), fg=theme.TEXT_MUTED, bg=theme.BG_INPUT
-            ).pack(pady=(2, 0))
-
-        if self.report["wrong_questions"]:
-            wrong_card, w_inner = create_card(self.dialog, inner_padx=24, inner_pady=16)
-            wrong_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 16))
-
-            total_wrong = len(self.report["wrong_questions"])
-            title_text = f"错题 ({total_wrong} 题)"
-            if total_wrong > 10:
-                # P2: 列表只渲染前 10 条，标题必须说明，否则用户以为漏渲染
-                title_text += "，仅显示前 10 条"
-            tk.Label(
-                w_inner,
-                text=title_text,
-                font=font_ui_semibold(12),
-                fg=theme.RED,
-                bg=theme.BG_CARD,
-            ).pack(anchor=tk.W, pady=(0, 8))
-
-            wrong_list_frame = tk.Frame(w_inner, bg=theme.BG_CARD)
-            wrong_list_frame.pack(fill=tk.BOTH, expand=True)
-
-            scrollbar = tk.Scrollbar(wrong_list_frame)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-            wrong_text = tk.Text(
-                wrong_list_frame,
-                height=5,
-                wrap=tk.WORD,
-                font=font_ui(10),
-                bg=theme.BG_INPUT,
-                fg=theme.TEXT_SECONDARY,
-                relief=tk.FLAT,
-                padx=12,
-                pady=8,
-                yscrollcommand=scrollbar.set,
-                selectbackground=theme.BG_SELECT,
-                insertbackground=theme.TEXT_PRIMARY,
-            )
-            wrong_text.pack(fill=tk.BOTH, expand=True)
-            scrollbar.config(command=wrong_text.yview)
-
-            for q in self.report["wrong_questions"][:10]:
-                # P3: 未截断的短题干不再追加省略号
+            wrong_view = QPlainTextEdit()
+            wrong_view.setReadOnly(True)
+            for q in wrong_questions[:_MAX_WRONG_SHOWN]:
                 content_preview = q.content[:50] + ("..." if len(q.content) > 50 else "")
-                wrong_text.insert(tk.END, f"第 {q.number} 题: {content_preview}\n\n")
+                wrong_view.appendPlainText(f"第 {q.number} 题: {content_preview}")
+            v.addWidget(wrong_view, 1)
 
-            wrong_text.config(state=tk.DISABLED)
+            self._add_wrong_btn = QPushButton("加入错题本")
+            self._add_wrong_btn.setProperty("actBtn", True)
+            self._add_wrong_btn.clicked.connect(self._on_add_wrong_click)
+            v.addWidget(self._add_wrong_btn)
 
-            self._add_wrong_btn = create_primary_button(
-                w_inner,
-                text="加入错题本",
-                command=self._on_add_wrong_click,
-                bg_color=theme.RED,
-                active_bg=theme.RED_HOVER,
-                padx=16,
-                pady=5,
-            )
-            self._add_wrong_btn.pack(pady=(10, 0))
-
-        close_btn = create_normal_button(
-            self.dialog,
-            text="关闭",
-            command=self.close,
-            width=12,
-            padx=16,
-            pady=6,
-        )
-        close_btn.pack(pady=(0, 20))
+        # ── 关闭 ──
+        line = QFrame()
+        line.setObjectName("qline")
+        v.addWidget(line)
+        close_btn = QPushButton("关闭")
+        close_btn.setObjectName("goBtn")
+        close_btn.clicked.connect(self.accept)
+        v.addWidget(close_btn)
 
     def _on_add_wrong_click(self) -> None:
-        """处理加入错题本按钮点击（P2: 成功加入后禁用，防重复点击）。"""
+        """加入错题本（成功后禁用，防重复点击）。"""
         if self.on_add_wrong is None or self._wrong_added:
             return
         added = self.on_add_wrong(self.report)
         if added > 0:
             self._wrong_added = True
-            if self._add_wrong_btn is not None:
-                self._add_wrong_btn.configure(state=tk.DISABLED, text="已加入错题本")
+            self._add_wrong_btn.setEnabled(False)
+            self._add_wrong_btn.setText("已加入错题本")
