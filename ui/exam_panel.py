@@ -24,6 +24,7 @@ from .theme import (
 from .constants import MAX_OPTIONS
 from .option_row import OptionRow
 from .question_detail_card import get_question_type_style
+from .rounded import Chip
 from quiz_engine import QuizEngine
 from .exam_session import ExamSession
 
@@ -67,7 +68,7 @@ class ExamPanel(tk.Frame):
 
         self.exam_option_cards: list[OptionRow] = []
         self.nav_buttons: list[tk.Label] = []
-        self.timer_label: tk.Label | None = None
+        self.timer_label: Chip | None = None
         self.exam_progress_label: tk.Label | None = None
         # P1-6: 跟踪上一次的 current_index，支持增量更新题号导航按钮
         self._last_current_index: int = -1
@@ -107,17 +108,24 @@ class ExamPanel(tk.Frame):
         self.bind("<Configure>", self._on_configure)
 
     def _build_timer_bar(self) -> None:
-        """构建顶部计时器条（计时器标签 + 进度标签 + 题型标签）。"""
+        """构建顶部计时器条（倒计时 Pill + 进度标签 + 题型标签）。"""
         timer_bar, timer_inner = create_card(self, inner_padx=24, inner_pady=12)
         timer_bar.pack(fill=tk.X, pady=(0, 12))
 
         timer_left = tk.Frame(timer_inner, bg=theme.BG_CARD)
         timer_left.pack(side=tk.LEFT)
 
-        self.timer_label = tk.Label(
-            timer_left, text="60:00", font=font_mono(20), fg=theme.RED, bg=theme.BG_CARD
+        # 倒计时琥珀 Pill（等宽字体防抖动；≤5 分钟闪烁经 configure(fg) 变色）
+        self.timer_label = Chip(
+            timer_left,
+            text="60:00",
+            font=font_mono(14),
+            bg=theme.TIMER_BG,
+            fg=theme.TIMER_FG,
+            padx=14,
+            height=28,
         )
-        self.timer_label.pack(side=tk.LEFT, padx=(0, 8))
+        self.timer_label.pack(side=tk.LEFT, padx=(0, 10))
 
         timer_hint = tk.Label(
             timer_left, text="剩余时间", font=font_ui(10), fg=theme.TEXT_MUTED, bg=theme.BG_CARD
@@ -274,7 +282,7 @@ class ExamPanel(tk.Frame):
 
         tk.Label(
             nav_inner,
-            text="● 已答  ○ 未答  ★ 标记",
+            text="蓝底 已答 · 描边 当前 · ★ 标记",
             font=font_ui(9),
             fg=theme.TEXT_MUTED,
             bg=theme.BG_CARD,
@@ -310,7 +318,7 @@ class ExamPanel(tk.Frame):
         if self.timer_label is not None:
             self.timer_label.configure(text=time_str)
             if time_remaining <= 300:
-                color = theme.RED if time_remaining % 2 == 0 else "#b91c1c"
+                color = theme.RED if time_remaining % 2 == 0 else theme.RED_TEXT
                 self.timer_label.configure(fg=color)
 
     def build_nav_buttons(self, total: int) -> None:
@@ -356,16 +364,23 @@ class ExamPanel(tk.Frame):
         self._apply_nav_button_style(idx, self.nav_buttons[idx], current)
 
     def _apply_nav_button_style(self, i: int, btn: tk.Label, current: int) -> None:
-        """根据索引、当前位置和 session 状态应用按钮样式。"""
+        """根据索引、当前位置和 session 状态应用按钮样式（四态对齐设计稿）。"""
         if i == current:
+            # 当前题：浅蓝描边感（浅底蓝字）
+            bg = theme.BG_SELECT
+            fg = theme.ACCENT
+        elif self.exam_session.has_answer(i):
+            # 已答：云蓝实底白字
             bg = theme.ACCENT
             fg = theme.SELECTED_TEXT
-        elif self.exam_session.has_answer(i):
-            bg = theme.GREEN_BG
-            fg = theme.GREEN_TEXT
         else:
             bg = theme.BG_INPUT
             fg = theme.TEXT_SECONDARY
+
+        if self.exam_session.is_marked(i) and i != current:
+            # 标记（琥珀）优先于已答/未答，当前题保持描边态
+            bg = theme.YELLOW_BG
+            fg = theme.YELLOW_TEXT
 
         if self.exam_session.is_marked(i):
             text = f"★{i + 1}"

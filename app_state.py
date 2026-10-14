@@ -119,6 +119,23 @@ class AppState:
         """写入练习会话快照（随下次 save_safe 一并落盘）。"""
         self._progress["practice_progress"] = data
 
+    # ---------- UI 主题模式 ----------
+    # 合法值与 ui.constants.THEME_MODES 保持一致；此处内联字面量，
+    # 避免状态层反向依赖 UI 层（ui 包 import 即引入 tkinter）
+    _VALID_THEME_MODES = ("light", "dark")
+
+    def get_theme_mode(self) -> str:
+        """返回主题模式（"light"/"dark"），缺失或非法值 fail-safe 回 "light"。"""
+        mode = self._progress.get("theme_mode", "light")
+        if mode not in self._VALID_THEME_MODES:
+            logger.warning("progress.json 中 theme_mode 非法: %r，回退 light", mode)
+            return "light"
+        return str(mode)
+
+    def set_theme_mode(self, mode: str) -> None:
+        """写入主题模式（随下次 save_safe 一并落盘）。"""
+        self._progress["theme_mode"] = mode
+
     # ---------- 持久化 ----------
     def save(self) -> None:
         """立即保存进度到 data_manager。"""

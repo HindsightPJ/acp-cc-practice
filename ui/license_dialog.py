@@ -8,8 +8,16 @@ from typing import Callable
 
 from license import LicenseError, LicenseStatus
 from license.verifier import verify, LicenseVerifier
-from .theme import theme, font_ui, font_ui_semibold, font_mono
+from .theme import (
+    theme,
+    font_ui,
+    font_ui_semibold,
+    font_mono,
+    create_primary_button,
+    create_normal_button,
+)
 from .base_dialog import BaseDialog
+from .rounded import RoundedButton
 
 
 _LICENSE_ERROR_MESSAGES = {
@@ -75,7 +83,7 @@ class LicenseDialog(BaseDialog):
         self.verify_and_save = verify_and_save or _verify_and_save_license
         self._license_entry: tk.Text | None = None
         # P2-6: 保存验证按钮引用，异步验证期间禁用避免重复点击
-        self._verify_btn: tk.Button | None = None
+        self._verify_btn: RoundedButton | None = None
         # P2-6: 子线程与主线程之间的结果传递通道
         self._verify_queue: queue.Queue = queue.Queue()
         # P0-2: 缓存 show() 时采集的机器码，_on_verify 时复用，
@@ -152,28 +160,20 @@ class LicenseDialog(BaseDialog):
         btn_frame = tk.Frame(self.dialog, bg=theme.BG_PAGE)
         btn_frame.pack(fill="x", padx=15, pady=(0, 15))
         # P2-6: 保存验证按钮引用，异步验证期间禁用避免重复点击
-        self._verify_btn = tk.Button(
+        self._verify_btn = create_primary_button(
             btn_frame,
             text="验证",
             command=self._on_verify,
-            bg=theme.ACCENT,
-            fg="white",
-            relief="flat",
             padx=20,
-            cursor="hand2",
-            activebackground=theme.ACCENT_HOVER,
-            activeforeground="white",
+            pady=5,
         )
         self._verify_btn.pack(side="right")
-        tk.Button(
+        create_normal_button(
             btn_frame,
             text="取消",
             command=self.close,
-            relief="flat",
             padx=20,
-            bg=theme.BTN_NORMAL,
-            fg=theme.BTN_NORMAL_FG,
-            cursor="hand2",
+            pady=5,
         ).pack(side="right", padx=5)
 
     def _on_verify(self) -> None:

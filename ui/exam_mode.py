@@ -403,10 +403,25 @@ class ExamMode(BaseMode):
     # ------------------------------------------------------------------
 
     def submit_exam(self, force: bool = False) -> None:
-        if not force and not messagebox.askyesno(
-            "确认交卷", "确定要交卷吗？\n\n提交后将无法修改答案。", parent=self
-        ):
-            return
+        if not force:
+            # 交卷确认附未答/标记数（mockup 承诺），用户对损失有预期
+            unanswered = marked = 0
+            if self.engine is not None and self.exam_session is not None:
+                total = self.engine.queue_length()
+                unanswered = sum(1 for i in range(total) if not self.exam_session.has_answer(i))
+                marked = sum(1 for i in range(total) if self.exam_session.is_marked(i))
+            detail = ""
+            if unanswered or marked:
+                parts = []
+                if unanswered:
+                    parts.append(f"未答 {unanswered} 题")
+                if marked:
+                    parts.append(f"已标记 {marked} 题")
+                detail = "\n\n" + "、".join(parts) + "。"
+            if not messagebox.askyesno(
+                "确认交卷", f"确定要交卷吗？\n\n提交后将无法修改答案。{detail}", parent=self
+            ):
+                return
 
         self._cancel_all_after_jobs()
         self.timer_running = False

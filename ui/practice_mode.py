@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
-from .theme import theme, font_ui, create_normal_button
+from .theme import theme, font_ui, create_normal_button, create_switch
 
 from quiz_engine import QuizEngine
 from models import Question
@@ -43,20 +43,14 @@ class PracticeMode(BaseMode):
         toolbar = ModeToolbar(self)
 
         self.shuffle_var = tk.BooleanVar(value=False)
-        shuffle_check = tk.Checkbutton(
+        create_switch(toolbar.right, self.shuffle_var, self.start_new_session).pack(side=tk.LEFT)
+        tk.Label(
             toolbar.right,
             text="随机出题",
-            variable=self.shuffle_var,
-            command=self.start_new_session,
-            font=font_ui(10),
+            font=font_ui(11),
             fg=theme.TEXT_SECONDARY,
             bg=theme.BG_PAGE,
-            selectcolor=theme.BG_CARD,
-            activebackground=theme.BG_PAGE,
-            activeforeground=theme.ACCENT,
-            cursor="hand2",
-        )
-        shuffle_check.pack(side=tk.LEFT, padx=(0, 8))
+        ).pack(side=tk.LEFT, padx=(6, 16))
 
         restart_btn = create_normal_button(
             toolbar.right,

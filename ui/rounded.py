@@ -125,6 +125,19 @@ def draw_round_rect(
     return items
 
 
+def _surface_of(master: tk.Misc) -> str:
+    """取父容器的底色作为 Canvas 自身底色（圆角四角外的区域用它填充）。
+
+    Canvas 的 bg 与父容器一致时，圆角外的四角才真正"隐形"——否则露出
+    系统默认白（SystemButtonFace），深色界面下四角发白（2026-10-14 实测）。
+    ttk 容器无 bg 选项（取色于 style），兜底白色。
+    """
+    try:
+        return str(master.cget("bg"))
+    except (tk.TclError, AttributeError):
+        return "#ffffff"
+
+
 class RoundedCard(tk.Canvas):
     """圆角卡片容器：Canvas 画圆角底 + create_window 嵌内容 Frame。
 
@@ -293,7 +306,15 @@ class RoundedButton(tk.Canvas):
         width: int = 0,
         cursor: str = "hand2",
     ) -> None:
-        super().__init__(parent, highlightthickness=0, bd=0, width=60, height=height, cursor=cursor)
+        super().__init__(
+            parent,
+            bg=_surface_of(parent),
+            highlightthickness=0,
+            bd=0,
+            width=60,
+            height=height,
+            cursor=cursor,
+        )
         self._text = text
         self._command = command
         self._font = _as_font_obj(font, self)
@@ -483,7 +504,13 @@ class Switch(tk.Canvas):
         height: int = SWITCH_HEIGHT,
     ) -> None:
         super().__init__(
-            parent, highlightthickness=0, bd=0, width=width, height=height, cursor="hand2"
+            parent,
+            bg=_surface_of(parent),
+            highlightthickness=0,
+            bd=0,
+            width=width,
+            height=height,
+            cursor="hand2",
         )
         self._var = variable if variable is not None else tk.BooleanVar(value=False)
         self._command = command
@@ -608,7 +635,13 @@ class IconButton(tk.Canvas):
         icon_size: int = 16,
     ) -> None:
         super().__init__(
-            parent, highlightthickness=0, bd=0, width=size, height=size, cursor="hand2"
+            parent,
+            bg=_surface_of(parent),
+            highlightthickness=0,
+            bd=0,
+            width=size,
+            height=size,
+            cursor="hand2",
         )
         self._icon = icon
         self._command = command
@@ -697,7 +730,9 @@ class Chip(tk.Canvas):
         padx: int = 10,
         height: int = 20,
     ) -> None:
-        super().__init__(parent, highlightthickness=0, bd=0, width=40, height=height)
+        super().__init__(
+            parent, bg=_surface_of(parent), highlightthickness=0, bd=0, width=40, height=height
+        )
         self._text = text
         self._font = _as_font_obj(font, self)
         self._bg = bg
@@ -727,6 +762,17 @@ class Chip(tk.Canvas):
 
     def _on_configure(self, event: tk.Event) -> None:
         self._redraw()
+
+    def cget(self, key: str) -> Any:
+        """兼容 shim：text/fg/bg 读内部状态（如考试倒计时测试断言 cget）。"""
+        k = str(key)
+        if k == "text":
+            return self._text
+        if k in ("fg", "foreground"):
+            return self._fg
+        if k in ("bg", "background"):
+            return self._bg
+        return super().cget(key)
 
     def configure(self, cnfin: Any = None, **kwargs: Any) -> None:  # type: ignore[override]
         if cnfin is not None and isinstance(cnfin, dict):

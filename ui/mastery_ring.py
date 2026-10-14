@@ -43,11 +43,30 @@ class MasteryRing(tk.Canvas):
     """
 
     def __init__(
-        self, parent: tk.Misc, size: int = RING_SIZE, thickness: int = RING_THICKNESS
+        self,
+        parent: tk.Misc,
+        size: int = RING_SIZE,
+        thickness: int = RING_THICKNESS,
+        *,
+        bg: str | None = None,
+        label: str = "就绪度",
+        center_fg: str | None = None,
+        center_muted: str | None = None,
     ) -> None:
-        super().__init__(parent, width=size, height=size, bg=theme.INK, highlightthickness=0, bd=0)
+        super().__init__(
+            parent,
+            width=size,
+            height=size,
+            bg=bg if bg is not None else theme.INK,
+            highlightthickness=0,
+            bd=0,
+        )
         self._size = size
         self._thickness = thickness
+        self._label = label
+        # 中心文字色：默认面向深色侧栏；浅底复用（成绩报告）时传 Token 深色
+        self._center_fg = center_fg if center_fg is not None else theme.INK_TEXT
+        self._center_muted = center_muted if center_muted is not None else theme.INK_TEXT_MUTED
         self._mastery = 0.0  # 0.0 ~ 1.0
         self._draw()
 
@@ -122,10 +141,10 @@ class MasteryRing(tk.Canvas):
             cx,
             cy - 4,
             text=f"{pct}%",
-            fill=theme.INK_TEXT,
+            fill=self._center_fg,
             font=font_display(19, True),
             anchor="s",
         )
         self.create_text(
-            cx, cy + 8, text="就绪度", fill=theme.INK_TEXT_MUTED, font=font_ui(10), anchor="n"
+            cx, cy + 8, text=self._label, fill=self._center_muted, font=font_ui(10), anchor="n"
         )

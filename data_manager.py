@@ -34,6 +34,8 @@ def default_progress() -> dict[str, Any]:
         "favorites": [],
         # 练习会话快照（进度恢复用）：{queue, index, answers, shuffle}
         "practice_progress": {},
+        # UI 主题模式（"light" / "dark"，非法值由 AppState fail-safe 回浅色）
+        "theme_mode": "light",
     }
 
 
