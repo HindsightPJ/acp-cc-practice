@@ -32,6 +32,8 @@ def default_progress() -> dict[str, Any]:
         "practice_stats": {"correct": 0, "wrong": 0, "total": 0},
         "exam_history": [],
         "favorites": [],
+        # 练习会话快照（进度恢复用）：{queue, index, answers, shuffle}
+        "practice_progress": {},
     }
 
 
@@ -210,5 +212,6 @@ class DataManager:
         backup_path = f"{self.progress_file}.corrupt-{timestamp}"
         try:
             os.replace(self.progress_file, backup_path)
-        except OSError:
-            pass
+        except OSError as e:
+            # 备份失败不阻断主流程（随后返回默认进度），但必须留痕便于排查
+            logger.warning("损坏进度文件备份失败: %s | path=%s", e, self.progress_file)

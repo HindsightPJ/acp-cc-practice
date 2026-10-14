@@ -190,6 +190,78 @@ class QuizEngine:
 
         return result
 
+    def has_answers(self) -> bool:
+        """是否存在任何作答记录（TD-15: 显式接口，替代直接访问 answers_record）。"""
+        return bool(self.answers_record)
+
+    def get_snapshot(self) -> dict[str, Any]:
+        """导出可持久化快照（练习进度恢复用）。
+
+        队列按题号持久化——随机出题后索引只对本次队列有效，恢复时按
+        题号重建才能保证 index/answers 与题目对应。队列完成时 current_index
+        可能越界（next 触发 on_finish），钳到末题保证快照始终可通过
+        restore_snapshot 的越界校验。
+        """
+        queue_len = len(self.questions_queue)
+        index = self.current_index
+        return {
+            "queue": [q.number for q in self.questions_queue],
+            "index": index if index < queue_len else max(queue_len - 1, 0),
+            "answers": {
+                str(idx): record.get("selected", "") for idx, record in self.answers_record.items()
+            },
+        }
+
+    def restore_snapshot(self, state: dict[str, Any]) -> bool:
+        """从 get_snapshot 的快照恢复（练习进度恢复用）。
+
+        结构损坏 / 题库变化（题号缺失或数量不符）/ 索引越界均整体拒绝，
+        返回 False 且不产生任何状态修改；全部校验通过才重建队列并按
+        record_exam_answer 重新判分写入 answers_record。
+
+        Returns:
+            恢复成功返回 True
+        """
+        try:
+            queue_nums = state.get("queue")
+            if not isinstance(queue_nums, list) or not queue_nums:
+                return False
+            if not all(isinstance(n, int) and not isinstance(n, bool) for n in queue_nums):
+                return False
+            by_number = {q.number: q for q in self.all_questions}
+            queue = [by_number[n] for n in queue_nums if n in by_number]
+            # 数量不符说明题库已变化（升级/试用降级），放弃恢复保证一致性
+            if len(queue) != len(queue_nums):
+                return False
+
+            index = state.get("index")
+            answers = state.get("answers")
+            if (
+                not isinstance(index, int)
+                or isinstance(index, bool)
+                or not isinstance(answers, dict)
+            ):
+                return False
+            if not 0 <= index < len(queue):
+                return False
+
+            # 先完整解析答案表（任何非法条目整体拒绝），再落状态
+            parsed: list[tuple[int, str]] = []
+            for key, selected in answers.items():
+                idx = int(key)
+                if not (isinstance(selected, str) and 0 <= idx < len(queue)):
+                    return False
+                parsed.append((idx, selected))
+
+            self.set_questions_queue(queue)
+            self.set_current_index(index)
+            self.answers_record = {}
+            for idx, selected in parsed:
+                self.record_exam_answer(idx, selected)
+            return True
+        except (TypeError, ValueError):
+            return False
+
     def get_exam_elapsed_seconds(self) -> int | None:
         """获取考试已进行秒数（TD-15: 显式接口，替代 UI 直接读取 exam_start_time）。
 

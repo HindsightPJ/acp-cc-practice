@@ -269,3 +269,121 @@ def test_submit_without_selection_returns_none(session):
     """未选择答案时提交返回 None。"""
     result = session.submit_answer()
     assert result is None
+
+
+# ---------- 会话快照（进度恢复） ----------
+
+
+def test_export_restore_roundtrip(questions, app_state):
+    """快照导出→恢复后，队列/索引/答案/统计应完整还原。"""
+    engine = QuizEngine(questions)
+    engine.start_practice_mode(shuffle=False)
+    session = PracticeSession(engine, app_state)
+    session.reset_session(shuffle=False)
+
+    # 题 1 答对，切到题 2
+    session.get_question_type(session.engine.get_current_question())
+    session.handle_option_click("A", 4)
+    session.submit_answer()
+    session.next_question()
+
+    state = session.export_state()
+    assert state["queue"] == [1, 2, 3]
+    assert state["index"] == 1
+    assert state["answers"] == {"0": "A"}
+
+    # 模拟应用重启：全新 session 从快照恢复
+    new_engine = QuizEngine(questions)
+    new_engine.start_practice_mode(shuffle=False)
+    new_session = PracticeSession(new_engine, app_state)
+    assert new_session.restore_state(state) is True
+
+    assert new_session.engine.get_current_index() == 1
+    assert new_session.engine.get_current_question().number == 2
+    # 答案按 record_exam_answer 重新写入，统计从 answers_record 重算
+    assert new_session.engine.is_answered(0) is True
+    assert new_session.engine.get_stats() == {"correct": 1, "wrong": 0, "total": 1}
+
+    # 恢复后重新提交题 1：不重复计数（"已答"事实随快照保留）
+    new_session.engine.set_current_index(0)
+    new_session.get_question_type(new_session.engine.get_current_question())
+    new_session.handle_option_click("A", 4)
+    new_session.submit_answer()
+    assert app_state.get_practice_stats()["total"] == 1
+
+
+def test_export_clamps_index_after_finish(questions, app_state):
+    """队列完成时（index 越界触发 on_finish），快照索引应钳到末题。"""
+    engine = QuizEngine(questions)
+    engine.start_practice_mode(shuffle=False)
+    session = PracticeSession(engine, app_state)
+    session.reset_session(shuffle=False)
+
+    # 连续 next 越过末题（模拟完成后）
+    session.engine.set_current_index(len(questions))  # 越界
+
+    state = session.export_state()
+    assert state["index"] == len(questions) - 1
+
+    new_engine = QuizEngine(questions)
+    new_engine.start_practice_mode(shuffle=False)
+    assert PracticeSession(new_engine, app_state).restore_state(state) is True
+
+
+def test_restore_rejects_when_question_bank_changed(questions, app_state):
+    """题库变化（快照题号缺失）时应整体放弃恢复。"""
+    engine = QuizEngine(questions)
+    engine.start_practice_mode(shuffle=False)
+    session = PracticeSession(engine, app_state)
+    session.reset_session(shuffle=False)
+
+    state = session.export_state()
+    state["queue"] = [1, 2, 999]  # 999 不在题库
+
+    new_engine = QuizEngine(questions)
+    new_engine.start_practice_mode(shuffle=False)
+    new_session = PracticeSession(new_engine, app_state)
+    assert new_session.restore_state(state) is False
+    # 拒绝恢复不应部分修改 engine 状态
+    assert new_session.engine.queue_length() == len(questions)
+    assert new_session.engine.get_current_index() == 0
+
+
+def test_restore_rejects_corrupt_snapshot(questions, app_state):
+    """结构损坏/越界的快照应返回 False 且不修改 engine 状态。"""
+    engine = QuizEngine(questions)
+    engine.start_practice_mode(shuffle=False)
+    session = PracticeSession(engine, app_state)
+    session.reset_session(shuffle=False)
+
+    bad_states = [
+        {},
+        {"queue": []},
+        {"queue": [1, 2, 3], "index": "x", "answers": {}},
+        {"queue": [1, 2, 3], "index": 99, "answers": {}},
+        {"queue": [1, 2, 3], "index": 0, "answers": "not-a-dict"},
+        {"queue": "1,2,3", "index": 0, "answers": {}},
+        {"queue": [1, 2, 3], "index": -1, "answers": {}},
+    ]
+    for bad in bad_states:
+        assert session.restore_state(bad) is False, f"应拒绝: {bad}"
+        # 失败路径不得产生部分修改
+        assert session.engine.queue_length() == len(questions)
+        assert session.engine.get_current_index() == 0
+
+
+def test_shuffle_flag_roundtrip(questions, app_state):
+    """shuffle 状态应随快照导出并在恢复时还原。"""
+    engine = QuizEngine(questions)
+    engine.start_practice_mode(shuffle=False)
+    session = PracticeSession(engine, app_state)
+    session.reset_session(shuffle=True)
+
+    state = session.export_state()
+    assert state["shuffle"] is True
+
+    new_engine = QuizEngine(questions)
+    new_engine.start_practice_mode(shuffle=False)
+    new_session = PracticeSession(new_engine, app_state)
+    assert new_session.restore_state(state) is True
+    assert new_session._shuffle is True

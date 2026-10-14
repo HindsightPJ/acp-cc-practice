@@ -109,6 +109,16 @@ class AppState:
         # 仅保留最近 20 条，避免进度文件无限增长
         self._progress["exam_history"] = history[-20:]
 
+    # ---------- 练习会话快照（进度恢复） ----------
+    def get_practice_progress(self) -> dict[str, Any]:
+        """返回练习会话快照（无/格式异常时返回空 dict）。"""
+        data = self._progress.get("practice_progress")
+        return dict(data) if isinstance(data, dict) else {}
+
+    def set_practice_progress(self, data: dict[str, Any]) -> None:
+        """写入练习会话快照（随下次 save_safe 一并落盘）。"""
+        self._progress["practice_progress"] = data
+
     # ---------- 持久化 ----------
     def save(self) -> None:
         """立即保存进度到 data_manager。"""
