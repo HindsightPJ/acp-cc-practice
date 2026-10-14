@@ -175,6 +175,28 @@ class RoundedCard(tk.Canvas):
         """内容容器（调用方向其中 pack 子控件）。"""
         return self._inner
 
+    def set_style(
+        self,
+        *,
+        bg: str | None = None,
+        border: str | None = None,
+        border_width: float | None = None,
+    ) -> None:
+        """运行时换肤（OptionRow 状态切换用）：改填充/描边并重绘。
+
+        同步 shell/inner 底色；子控件（Label/Canvas）的 bg 由调用方
+        自行跟随更新（Tk 无级联换色）。
+        """
+        if bg is not None:
+            self._bg = bg
+            self._shell.configure(bg=bg)
+            self._inner.configure(bg=bg)
+        if border is not None:
+            self._border = border
+        if border_width is not None:
+            self._border_width = border_width
+        self._draw_bg()
+
     # ---------------------------------------------------------------- 绘制
     def _draw_bg(self) -> None:
         self.delete("bg")
@@ -204,17 +226,40 @@ class RoundedCard(tk.Canvas):
         self._sync_window_size()
 
     def _on_shell_configure(self, event: tk.Event) -> None:
-        # 取内容自然高度（reqheight），而非事件高度（可能被窗口项强制）
+        self.refit()
+
+    def refit(self) -> None:
+        """按内容自然高度重算自身高度（嵌套卡片联动的核心）。
+
+        - 内容变高且当前装不下 → 长高；
+        - 内容变矮且当前高度仍是我们设定的值（未被 pack 拉伸）→ 缩回；
+        - 被 pack(fill/expand) 拉伸时高度归管理器，本类不干预；
+        - 高度变化后向最近的祖先卡片冒泡 refit——嵌套卡片（选项行在
+          选项卡内）的外层高度不随行高自动重算，必须显式传播，
+          否则 pack 会把后排卡片挤瘪（2026-10-14 P2 实测根因）。
+        """
         natural = int(self._shell.winfo_reqheight()) + int(2 * self._radius)
         current = self.winfo_height()
+        changed = False
         if natural > current + 1:
-            # 内容装不下：长高
             self._set_height = natural
-            self.configure(height=natural)
-        elif natural < self._set_height - 1 and abs(current - self._set_height) <= 1:
-            # 内容变矮且未被 pack 拉伸：缩回自然高度
+            super().configure(height=natural)
+            changed = True
+        elif abs(natural - self._set_height) > 1 and abs(current - self._set_height) <= 1:
             self._set_height = natural
-            self.configure(height=natural)
+            super().configure(height=natural)
+            changed = True
+        if changed:
+            self._bubble_refit()
+
+    def _bubble_refit(self) -> None:
+        """沿 master 链向上找最近的祖先 RoundedCard 并触发其 refit。"""
+        w = self.master
+        while isinstance(w, tk.Widget):
+            if isinstance(w, RoundedCard):
+                w.refit()
+                return  # refit 内部会继续向上冒泡
+            w = w.master
 
 
 class RoundedButton(tk.Canvas):
@@ -540,6 +585,98 @@ class Switch(tk.Canvas):
     def destroy(self) -> None:
         self._cancel_anim()
         super().destroy()
+
+
+class IconButton(tk.Canvas):
+    """图标按钮（Canvas 绘制，主题切换等纯图标操作用）。
+
+    对齐 RoundedButton 的 API 子集：invoke() / configure(icon=/fg=/bg=) /
+    takefocus + Return/Space 键盘激活。
+    """
+
+    def __init__(
+        self,
+        parent: tk.Misc,
+        icon: str,
+        command: Callable[[], None] | None = None,
+        *,
+        size: int = 28,
+        bg: str = "#1c2637",
+        hover_bg: str | None = None,
+        fg: str = "#e8edf5",
+        radius: int = 8,
+        icon_size: int = 16,
+    ) -> None:
+        super().__init__(
+            parent, highlightthickness=0, bd=0, width=size, height=size, cursor="hand2"
+        )
+        self._icon = icon
+        self._command = command
+        self._bg = bg
+        self._hover_bg = hover_bg or bg
+        self._fg = fg
+        self._radius = float(radius)
+        self._size = size
+        self._icon_size = icon_size
+        self._hover = False
+        self._draw()
+
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+        self.bind("<Button-1>", self._on_click)
+        self.configure(takefocus=True)
+        self.bind("<Return>", self._on_return)
+        self.bind("<space>", self._on_return)
+
+    def _draw(self) -> None:
+        from .icons import draw_icon
+
+        self.delete("all")
+        draw_round_rect(
+            self,
+            0,
+            0,
+            self._size,
+            self._size,
+            self._radius,
+            fill=self._hover_bg if self._hover else self._bg,
+        )
+        draw_icon(self, self._icon, self._size / 2, self._size / 2, self._icon_size, self._fg)
+
+    def _on_enter(self, event: tk.Event) -> None:
+        self._hover = True
+        self._draw()
+
+    def _on_leave(self, event: tk.Event) -> None:
+        self._hover = False
+        self._draw()
+
+    def _on_click(self, event: tk.Event) -> None:
+        self.focus_set()
+        self.invoke()
+
+    def _on_return(self, event: tk.Event) -> str:
+        self.invoke()
+        return "break"
+
+    def invoke(self) -> None:
+        if self._command is not None:
+            self._command()
+
+    def configure(self, cnfin: Any = None, **kwargs: Any) -> None:  # type: ignore[override]
+        if cnfin is not None and isinstance(cnfin, dict):
+            kwargs = {**cnfin, **kwargs}
+        icon = kwargs.pop("icon", None)
+        fg = kwargs.pop("fg", None)
+        bg = kwargs.pop("bg", None)
+        if icon is not None:
+            self._icon = str(icon)
+        if fg is not None:
+            self._fg = fg
+        if bg is not None:
+            self._bg = bg
+        super().configure(**kwargs)
+        self._draw()
 
 
 class Chip(tk.Canvas):

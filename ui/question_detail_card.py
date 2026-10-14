@@ -12,7 +12,7 @@ PracticePanel、ReviewMode 三处复用，消除约 150 行重复样板代码。
 import tkinter as tk
 from typing import Callable
 
-from .theme import theme, font_ui, autofit_text_height, create_card
+from .theme import theme, autofit_text_height, create_card, font_ui, font_ui_semibold
 from .constants import MAX_OPTIONS, QUESTION_TYPE_MULTIPLE
 from .option_row import OptionRow
 from models import Question
@@ -95,7 +95,7 @@ class QuestionDetailCard(tk.Frame):
             q_inner,
             height=4,
             wrap=tk.WORD,
-            font=font_ui(12),
+            font=font_ui(13),
             bg=theme.BG_CARD,
             fg=theme.TEXT_PRIMARY,
             relief=tk.FLAT,
@@ -144,10 +144,16 @@ class QuestionDetailCard(tk.Frame):
         ans_top = tk.Frame(ans_inner, bg=theme.BG_CARD)
         ans_top.pack(fill=tk.X, pady=(0, 8))
 
+        # 结果横幅：左侧 4px 语义色条 + 文案（set_answer_label 驱动色条）
+        self._answer_bar = tk.Canvas(
+            ans_top, width=4, height=18, bg=theme.BG_CARD, highlightthickness=0, bd=0
+        )
+        self._answer_bar.pack(side=tk.LEFT, padx=(0, 8))
+
         self.answer_label = tk.Label(
             ans_top,
             text=self._answer_placeholder,
-            font=font_ui(11),
+            font=font_ui_semibold(12),
             fg=theme.TEXT_MUTED,
             bg=theme.BG_CARD,
         )
@@ -249,14 +255,18 @@ class QuestionDetailCard(tk.Frame):
             card.reset()
 
     def set_answer_label(self, text: str, fg: str = theme.GREEN) -> None:
-        """更新答案标签文本与颜色。"""
+        """更新答案标签文本与颜色（语义色同步驱动左侧色条）。"""
         if self.answer_label is not None:
             self.answer_label.configure(text=text, fg=fg)
+        if self._answer_bar is not None:
+            self._answer_bar.configure(bg=fg)
 
     def clear_answer_state(self) -> None:
         """重置答案标签为占位文本（muted 色），清空解析。"""
         if self.answer_label is not None:
             self.answer_label.configure(text=self._answer_placeholder, fg=theme.TEXT_MUTED)
+        if self._answer_bar is not None:
+            self._answer_bar.configure(bg=theme.BG_CARD)
         self._set_explanation("")
 
     def set_explanation(self, text: str) -> None:
