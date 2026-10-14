@@ -284,6 +284,71 @@ def test_load_progress_list_root_renames_corrupt_and_returns_default(tmp_path):
     assert list(user_data_dir.glob("progress.json.corrupt-*"))
 
 
+def test_load_progress_backup_rename_failure_logs_and_returns_default(
+    tmp_path, monkeypatch, caplog
+):
+    """损坏文件备份（os.replace）失败时不得静默：留 warning 日志，且仍返回默认进度。
+
+    回归 99b0190：_backup_corrupt_progress 原 except OSError: pass 静默吞掉，
+    现在必须 logger.warning 留痕（L1 禁令 #2），且主流程不崩、降级默认值。
+    """
+    user_data_dir = tmp_path / "data"
+    user_data_dir.mkdir()
+    (user_data_dir / "progress.json").write_text("{invalid json", encoding="utf-8")
+
+    def broken_replace(src, dst):
+        raise OSError("mock: rename failed")
+
+    monkeypatch.setattr(os, "replace", broken_replace)
+
+    with caplog.at_level("WARNING", logger="data_manager"):
+        dm = DataManager(base_dir=str(tmp_path))
+        progress = dm.load_progress()
+
+    assert isinstance(progress, dict)
+    assert progress["practice_stats"] == {"correct": 0, "wrong": 0, "total": 0}
+    assert any("损坏进度文件备份失败" in rec.message for rec in caplog.records)
+
+
+def test_load_progress_legacy_file_preserves_settings_and_adds_new_keys(tmp_path):
+    """旧版 progress.json（含 settings、缺新键）经真实装配链加载后兼容。
+
+    回归 536844e（default_progress 收敛、删 get_setting/set_setting）+
+    99b0190/6e8bede（新增 practice_progress/theme_mode 默认键）。
+
+    分层契约：DataManager.load_progress 原样返回旧数据（新键不在此层补）；
+    AppState._ensure_defaults（main_window 装配时以 load_progress() 传入）
+    负责补齐新键。老用户升级后 settings 数据不得丢失。
+    """
+    from app_state import AppState
+
+    user_data_dir = tmp_path / "data"
+    user_data_dir.mkdir()
+    legacy = {
+        "wrong_questions": [7],
+        "practice_stats": {"correct": 3, "wrong": 1, "total": 4},
+        "exam_history": [],
+        "favorites": [],
+        "settings": {"foo": "bar"},
+    }
+    (user_data_dir / "progress.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8"
+    )
+
+    dm = DataManager(base_dir=str(tmp_path))
+    raw = dm.load_progress()
+
+    # DataManager 层：旧键数据原样保留，新键不在此层补（原样透传）
+    assert raw["wrong_questions"] == [7]
+    assert raw["settings"] == {"foo": "bar"}
+
+    # AppState 层（真实装配方式，见 ui/main_window.py）：新键补齐，旧数据保留
+    app_state = AppState(dm, raw)
+    assert app_state._progress["settings"] == {"foo": "bar"}
+    assert app_state._progress["practice_progress"] == {}
+    assert app_state._progress["theme_mode"] == "light"
+
+
 def test_save_progress_permission_error_raises_and_cleans_tmp(tmp_path, monkeypatch):
     """保存时最终 os.replace 触发 PermissionError，应抛 DataSaveError 并清理 .tmp。"""
     user_data_dir = tmp_path / "data"
