@@ -2,7 +2,7 @@
 
 v1.1
 
-一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + Tkinter（ttkbootstrap 主题库），运行依赖仅 `python-docx` / `cryptography` / `ttkbootstrap` 三个，开箱即用。
+一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + Tkinter（ttkbootstrap 主题库），运行依赖仅 `cryptography` / `ttkbootstrap` 两个，开箱即用。
 
 ## 免责声明
 
@@ -47,48 +47,44 @@ acp-cc-practice/
 ├── main.py                  # 入口：检查授权 → 加载 trial/full → 启动 UI
 ├── quiz_engine.py           # 题库引擎：题目队列、作答、统计、报告
 ├── data_manager.py          # 题库加载（trial/full 两段式）+ 进度持久化
-├── models.py                # 数据模型：Question / Option / Progress 等类型定义
+├── models.py                # 数据模型：Question / Option 类型定义
 ├── app_state.py             # 全局状态：错题本、收藏、考试历史、进度持久化
-├── env_utils.py             # .env 加载工具（作者侧密钥读取）
-├── logging_utils.py         # 结构化日志：log_event / log_error / configure_app_logging
+├── logging_utils.py         # 结构化错误日志 + 轮转日志配置
 ├── pyproject.toml           # 项目元数据 + 依赖声明（单一来源）+ 工具配置
 ├── requirements.lock        # 锁定依赖版本（pip-compile 自动生成，可复现安装）
 ├── acp-cc-practice.spec     # PyInstaller 打包配置
-├── .github/workflows/ci.yml # CI：ruff + mypy + pytest 强制检查
+├── .github/workflows/       # CI（ruff + mypy + pytest）与 Release（构建并签名 EXE）
 ├── .gitignore
 ├── license/                 # 授权模块
 │   ├── __init__.py          # LicenseStatus / LicenseError 枚举
 │   ├── fingerprint.py       # 采集机器指纹
-│   ├── crypto_utils.py      # Ed25519 + AES-256-GCM 加解密原语
+│   ├── crypto_utils.py      # PBKDF2 派生（客户端与作者侧共用）
 │   ├── public_key.py        # 内置公钥（可公开）
 │   └── verifier.py          # 验证注册码 + license.dat 持久化
-├── author_tools/            # 作者侧工具（入库但不含密钥，密钥在 .env）
-│   ├── keygen.py            # 生成密钥
-│   ├── encrypt_questions.py # 加密题库 + 切 trial 20 题 + 生成 meta
-│   └── generate_license.py  # 输入机器码 → 签发注册码
 ├── data/                    # 数据目录
 │   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
 │   └── questions_meta.json  # 元数据（入库）
-├── tests/                   # 测试套件（316 项 = 非 GUI 251 + GUI 65）
-│   ├── unit/                # 单元测试
-│   └── integration/         # 集成测试
+├── tests/                   # 测试套件（261 项 = 非 GUI 196 + GUI 65）
+│   └── unit/                # 单元测试
 └── ui/
     ├── __init__.py
     ├── main_window.py       # 主窗口：侧栏 + 就绪度环 + 模式切换 + 授权状态栏
     ├── theme.py             # 设计 Token：色板 / 字体检测 / 按钮 / 卡片工厂
     ├── base_mode.py         # 模式基类（键盘选项分发模板方法）
+    ├── base_dialog.py       # 对话框基类（模态 / 居中 / 关闭）
+    ├── constants.py         # UI 层共享常量
     ├── practice_mode.py     # 练习模式（使用 PracticePanel 渲染）
     ├── practice_panel.py    # 可复用练习视图组件（PracticeMode / WrongBook 共用）
     ├── practice_session.py  # 练习会话逻辑（选项管理、提交判定、统计）
-    ├── exam_mode.py         # 考试模式控制器（datetime 防计时漂移）
+    ├── exam_mode.py         # 考试模式控制器（monotonic 时钟防计时漂移）
     ├── exam_panel.py        # 考试视图层（答题卡、倒计时、选项渲染）
     ├── exam_session.py      # 考试会话模型（作答状态、计分）
     ├── exam_report_dialog.py# 考试成绩报告对话框
     ├── review_mode.py       # 背题模式（收藏按钮状态同步）
     ├── wrong_book.py        # 错题本（空状态视图 + 专项练习）
     ├── option_row.py        # 统一选项行组件（Canvas 真圆字母块）
-    ├── question_detail_card.py # 题目详情卡片（四种模式共用）
+    ├── question_detail_card.py # 题目详情卡片（多种模式共用）
     ├── mode_toolbar.py      # 模式工具栏组件
     ├── header.py            # 顶部标题栏组件
     ├── sidebar.py           # 侧边栏组件（模式导航）
@@ -106,7 +102,7 @@ acp-cc-practice/
 
 ### 两种使用方式
 
-#### 方式 A：试用 + 授权模式（默认，推荐）
+#### 试用 + 授权模式（默认）
 
 仓库默认提供 20 题明文试用，其余 848 题加密。完整使用需作者授权：
 
@@ -122,15 +118,6 @@ acp-cc-practice/
 - 注册码绑定到申请时的机器，不可跨机器使用
 - 重装系统 / 换硬盘可能导致指纹变化，需重新申请
 - 题库更新时无需重新申请
-
-#### 方式 B：从源码自行加密题库（高级）
-
-如果你有合法的题库授权，并希望使用自己的密钥：
-
-1. 运行 `python author_tools/keygen.py` 生成密钥 → 写入 `.env`
-2. 把生成的公钥复制到 `license/public_key.py`
-3. 准备明文 `questions.json`，运行 `python author_tools/encrypt_questions.py` 生成加密题库
-4. 启动 `python main.py`，用 `python author_tools/generate_license.py` 为自己签发注册码
 
 ### 下载与运行（最终用户）
 
@@ -160,7 +147,6 @@ python main.py
 | `license.dat` | `data/` | ✗ 排除 | 用户本地注册码（机器绑定），首次授权后生成 |
 | `app.log` | `data/` | ✗ 排除 | 运行日志（WARNING 级别，排错用） |
 | `.env` | 项目根 | ✗ 排除 | 作者密钥，**本地保留，绝不入库** |
-| `issued_licenses.json` | `author_tools/` | ✗ 排除 | 作者侧签发记录（含机器码与备注） |
 
 **加载顺序**：
 1. 检查 `license.dat` → 验证注册码 → 解锁 `questions.enc`（868 题）
@@ -173,10 +159,9 @@ python main.py
 | 按键 | 练习模式 | 考试模式 | 背题模式 |
 |------|----------|----------|----------|
 | `A` ~ `F` | 选择选项 | 选择选项 | — |
-| `Enter` | 提交答案 | 提交答案 | — |
+| `Enter` | 提交答案 | —（交卷仅按钮） | — |
 | `→` / `Space` | 下一题 | 下一题 | 下一题 / 显示答案 |
 | `←` | 上一题 | 上一题 | 上一题 |
-| `Esc` | — | — | 退出 |
 
 ## 已知限制
 
@@ -210,25 +195,22 @@ acp-cc-practice/
 ├── license/
 │   ├── __init__.py
 │   ├── fingerprint.py            # 机器指纹
-│   ├── crypto_utils.py           # Ed25519 + AES-256-GCM 加解密
+│   ├── crypto_utils.py           # PBKDF2 派生
 │   ├── public_key.py
 │   └── verifier.py
-├── author_tools/
-│   ├── keygen.py
-│   ├── encrypt_questions.py
-│   └── generate_license.py
 ├── data/
 │   ├── questions.enc             # 加密题库
 │   ├── questions_trial.json      # 20 题试用
 │   └── questions_meta.json       # 元数据
 ├── tests/
-│   ├── unit/                     # 单元测试
-│   └── integration/              # 集成测试
+│   └── unit/                     # 单元测试
 └── ui/
     ├── __init__.py
     ├── main_window.py
     ├── theme.py
     ├── base_mode.py
+    ├── base_dialog.py
+    ├── constants.py
     ├── practice_mode.py
     ├── practice_panel.py
     ├── practice_session.py
@@ -244,8 +226,7 @@ acp-cc-practice/
     ├── header.py
     ├── sidebar.py
     ├── mastery_ring.py
-    ├── license_dialog.py
-    └── base_dialog.py
+    └── license_dialog.py
 ```
 
 **发布产物**：
@@ -254,7 +235,7 @@ acp-cc-practice/
 
 二者作为 GitHub Release 二进制附件发布，不纳入源码仓库。
 
-**不入库的文件**：`.env`、`data/progress.json`、`data/license.dat`、`data/app.log`、`data/questions.json`、`author_tools/issued_licenses.json`、`build/`、`dist/`、`__pycache__/`、`.pytest_cache/`、`.ai_context/`（AI 工作区）、`docs/`（本地文档）
+**不入库的文件**：用户运行数据（进度 / 注册码 / 日志）与作者侧本地文件均只留在本机，完整清单见 [.gitignore](.gitignore)。
 
 ## License
 

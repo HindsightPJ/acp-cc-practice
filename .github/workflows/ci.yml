@@ -54,7 +54,7 @@ jobs:
         run: pytest tests/ -q --tb=short -o addopts="" -m "not gui"
 
       - name: Coverage
-        run: pytest tests/ -q --tb=short -o addopts="" -m "not gui" --cov=quiz_engine --cov=data_manager --cov=env_utils --cov=license --cov=author_tools --cov-fail-under=70
+        run: pytest tests/ -q --tb=short -o addopts="" -m "not gui" --cov=quiz_engine --cov=data_manager --cov=license --cov-fail-under=70
 
       - name: Stop Xvfb
         if: always()
