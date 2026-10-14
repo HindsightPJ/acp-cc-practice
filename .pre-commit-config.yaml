@@ -1,0 +1,32 @@
+# .pre-commit-config.yaml —— 由 global-rules skill 的 init_project.py 生成（判据见 machine checks 的 Python 本地门禁一节）
+# 用 local hooks 复用项目 venv 里的工具，避免第三方 mirror 的 rev 版本漂移。
+# 依赖需作为 dev 依赖精确锁进 pyproject/requirements.lock：pre-commit、ruff、mypy、bandit。
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: python -m ruff check .
+        language: system
+        pass_filenames: false
+      - id: ruff-format
+        name: ruff format --check
+        entry: python -m ruff format --check .
+        language: system
+        pass_filenames: false
+      - id: check-secrets
+        name: 硬编码密钥扫描
+        entry: python scripts/check_secrets.py .
+        language: system
+        pass_filenames: false
+      - id: check-deps-lock
+        name: 依赖精确锁定校验
+        entry: python scripts/check_deps_lock.py .
+        language: system
+        pass_filenames: false
+      - id: bandit
+        name: bandit 安全扫描
+        entry: python -m bandit -c pyproject.toml -r .
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
