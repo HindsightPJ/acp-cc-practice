@@ -49,6 +49,10 @@ from app_state import AppState
 from data_manager import DataManager
 from license import LicenseStatus
 from models import Question
+from .exam_mode import ExamMode
+from .practice_mode import PracticeMode
+from .review_mode import ReviewMode
+from .wrong_book import WrongBookPage
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +107,12 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._install_shortcuts()
 
+        # 页面状态变化 → 刷新 board-nav 计数与 modeline（信号驱动，免轮询）
+        for i in range(self.stack.count()):
+            page = self.stack.widget(i)
+            if hasattr(page, "state_changed"):
+                page.state_changed.connect(self._refresh_current_state)
+
         # 时钟：父控件为 self，窗口销毁随 QObject 树释放（L1 资源红线）
         self._clock_timer = QTimer(self)
         self._clock_timer.setInterval(30_000)
@@ -136,8 +146,11 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         v.addWidget(self.stack, 1)
-        for _key, no, name, _tag in NAV_DEFS:
-            self.stack.addWidget(self._build_placeholder(no, name))
+        # 模式页顺序必须与 NAV_DEFS 严格一致（idClicked 按索引路由）
+        self.stack.addWidget(PracticeMode(self.questions, self.app_state))
+        self.stack.addWidget(ExamMode(self.questions, self.app_state))
+        self.stack.addWidget(ReviewMode(self.questions, self.app_state))
+        self.stack.addWidget(WrongBookPage(self.questions, self.app_state))
 
         self.modeline = QLabel()
         self.modeline.setObjectName("modeline")
@@ -207,33 +220,28 @@ class MainWindow(QMainWindow):
         self._nav_group.idClicked.connect(self._on_nav_clicked)
         return nav
 
-    def _build_placeholder(self, no: str, name: str) -> QFrame:
-        """P4 前的占位页：模式名居中（QSS 复用 subTitle 类，无散写颜色）。"""
-        page = QFrame()
-        v = QVBoxLayout(page)
-        v.addStretch(1)
-        lbl = QLabel(f"{no} · {name}")
-        lbl.setObjectName("subTitle")
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        v.addWidget(lbl)
-        hint = QLabel("该模式将在迁移 P4 阶段接入")
-        hint.setObjectName("qMeta")
-        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        v.addWidget(hint)
-        v.addStretch(1)
-        return page
-
     # -------------------------------------------------------------- 导航
     def _on_nav_clicked(self, index: int) -> None:
         if 0 <= index < len(self._mode_keys):
             self.show_mode(self._mode_keys[index])
 
+    def _refresh_current_state(self) -> None:
+        """模式页 state_changed 槽：刷新当前页的导航计数与 modeline。"""
+        key = self._mode_keys[self.stack.currentIndex()]
+        self._refresh_nav_counts()
+        self._update_modeline(key)
+
     def show_mode(self, key: str) -> None:
-        """切换模式页：导航反白 + tag + modeline 同步更新。"""
+        """切换模式页：切前 flush 旧页防抖进度 + 导航反白 + tag + modeline。"""
         if key not in self._nav_buttons:
             logger.warning("未知模式 %r，忽略", key)
             return
         index = self._mode_keys.index(key)
+        if self.stack.currentIndex() != index:
+            old_page = self.stack.currentWidget()
+            flush = getattr(old_page, "flush_pending_save", None)
+            if callable(flush):
+                flush()
         self.stack.setCurrentIndex(index)
         for k, (btn, lbl_no, lbl_nm, lbl_cnt) in self._nav_buttons.items():
             active = k == key
@@ -319,7 +327,11 @@ class MainWindow(QMainWindow):
 
     # -------------------------------------------------------------- 退出
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt 命名
-        # 退出前兜底落盘（日常写盘由各模式页的防抖保存承担，P4 接入）
+        # 先 flush 当前页未落盘的防抖进度（快照同步进 app_state），再兜底落盘
+        page = self.stack.currentWidget()
+        flush = getattr(page, "flush_pending_save", None)
+        if callable(flush):
+            flush()
         if not self.app_state.save_safe():
             logger.error("退出时保存进度失败")
         super().closeEvent(event)

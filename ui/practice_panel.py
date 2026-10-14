@@ -1,195 +1,200 @@
-"""PracticePanel - 可复用的练习视图组件。
+"""练习视图组件（F 方案网格体，PracticeMode 与 WrongBook 错题练习共用）。
 
-P2: 将 PracticeMode 与 WrongBook 错题练习中重复的练习视图抽离为统一组件，
-降低视图层重复代码，同时保持两种使用场景的差异化配置能力。
+布局（mockup proposal_F_transit.html）：
+- grid-body 三列：qcol 题区（QuestionDetailCard）+ acol 答题卡（AnswerSheet
+  dep 行，点击跳题）+ scol 统计列（窗口 <900px 时隐藏）
+- 底部 actionsBar：重新开始 / 上一题 / 提交答案 / 下一题(go 蓝底)
 
-P3: 题干+选项+答案/解析三段卡片复用 QuestionDetailCard，进一步消除样板代码。
-操作栏通过 insert_action_bar 回调插入到选项卡和答案/解析卡之间，保持原视觉布局。
+业务全部委托 PracticeSession（引擎与判题），本类只做渲染与回调转发：
+提交完成 → on_submit；切题 → on_navigate；队列完成 → on_finish。
+调用方（宿主模式页）负责快照同步与防抖保存。
 """
 
-import tkinter as tk
-from tkinter import messagebox
-from typing import Callable
+from PySide6.QtGui import QResizeEvent
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
-from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button
-from .constants import QUESTION_TYPE_SINGLE
-from .option_row import OptionRow
+from app_state import AppState
+from .answer_sheet import AnswerSheet, StatColumn
 from .practice_session import PracticeSession
-from .question_detail_card import QuestionDetailCard, get_question_type_style
+from .question_detail_card import QuestionDetailCard, type_label
+
+# scol 统计列在窗口宽度低于该值时隐藏（TASK_PLAN §6.4 默认决策）
+SCOL_MIN_WIDTH = 900
+# actionsBar 按钮比例（mockup：上一题 1 / 提交 1 / 下一题 go 1.4，重启 0.7）
+_STRETCH_RESTART, _STRETCH_NAV, _STRETCH_SUBMIT, _STRETCH_GO = 7, 10, 10, 14
 
 
-class PracticePanel(tk.Frame):
-    """可复用的练习视图组件。
+def _make_action_button(text: str, kbd: str = "", go: bool = False) -> QPushButton:
+    """构造动作条按钮：文本 + 等宽键位提示（QSS actBtn/goBtn 语义类）。"""
+    btn = QPushButton()
+    if go:
+        btn.setObjectName("goBtn")
+    else:
+        btn.setProperty("actBtn", True)
+    h = QHBoxLayout(btn)
+    h.setContentsMargins(0, 0, 0, 0)
+    h.setSpacing(8)
+    h.addStretch(1)
+    lbl = QLabel(text)
+    # 按钮自身 :hover/:pressed 只刷按钮背景，文字色由 goBtn/actBtn QSS 兜底
+    lbl.setStyleSheet("background: transparent;")
+    h.addWidget(lbl)
+    if kbd:
+        k = QLabel(kbd)
+        k.setProperty("kbdHint", True)
+        h.addWidget(k)
+    h.addStretch(1)
+    return btn
 
-    内部托管 PracticeSession，负责渲染题干、选项、操作栏、结果与解析。
-    使用方只需提供会话对象并调用 load_current_question / submit_answer 等接口。
 
-    Args:
-        parent: 父容器
-        session: 练习会话逻辑对象
-        on_finish: 题目队列完成后的回调（可选）
-        on_submit: 提交完成后的回调（可选）——panel 提交动作完成后触发，
-            用于宿主（PracticeMode）做焦点回收与防抖保存；不要传会再次
-            调用 panel.submit_answer 的函数（会无限递归）
-        on_navigate: 切题成功后的回调（可选），用于宿主持久化练习位置
-        show_progress_bar: 是否显示顶部进度条（默认 True）
-        show_prev_button: 是否显示「上一题」按钮（默认 True）
-    """
+class PracticePanel(QFrame):
+    """可复用的练习视图（题区 + 答题卡 + 统计列 + 动作条）。"""
 
     def __init__(
         self,
-        parent: tk.Misc,
         session: PracticeSession,
-        on_finish: Callable[[], None] | None = None,
-        on_submit: Callable[[], None] | None = None,
-        on_navigate: Callable[[], None] | None = None,
-        show_progress_bar: bool = True,
+        app_state: AppState,
+        on_finish=None,  # Callable[[], None] | None
+        on_submit=None,  # Callable[[], None] | None  提交完成后回调（宿主防抖保存）
+        on_navigate=None,  # Callable[[], None] | None  切题后回调（宿主防抖保存）
+        on_restart=None,  # Callable[[], None] | None  重新开始按钮回调
         show_prev_button: bool = True,
+        parent: QWidget | None = None,
     ) -> None:
-        super().__init__(parent, bg=theme.BG_PAGE)
+        super().__init__(parent)
         self.session = session
-        self.on_finish = on_finish
-        self.on_submit = on_submit
-        self.on_navigate = on_navigate
-        self.show_progress_bar = show_progress_bar
+        self.app_state = app_state
+        self._on_finish = on_finish
+        self._on_submit = on_submit
+        self._on_navigate = on_navigate
         self.show_prev_button = show_prev_button
 
-        self.option_cards: list[OptionRow] = []
-        # P1-5: 缓存容器宽度，避免切题时调用 update_idletasks 阻塞主线程
-        self._cached_width: int = 0
-        self.bind("<Configure>", self._on_configure)
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
 
-        self._build_ui()
+        # ── grid-body 三列 ──
+        body = QFrame()
+        h = QHBoxLayout(body)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(0)
 
-    def _build_ui(self) -> None:
-        """构建练习视图 UI。"""
-        # 顶部工具栏
-        toolbar = tk.Frame(self, bg=theme.BG_PAGE)
-        toolbar.pack(fill=tk.X, pady=(0, 12))
-
-        self.progress_label = tk.Label(
-            toolbar,
-            text="第 0 / 0 题",
-            font=font_ui(11),
-            fg=theme.TEXT_SECONDARY,
-            bg=theme.BG_PAGE,
-        )
-        self.progress_label.pack(side=tk.LEFT)
-
-        # 题型紧跟进度文字（用户反馈：单选/多选应显示在「第 x 题 / 共 x 题」后面）
-        self.type_label: tk.Label | None = tk.Label(
-            toolbar,
-            text="",
-            font=font_ui_semibold(11),
-            bg=theme.BG_PAGE,
-        )
-        self.type_label.pack(side=tk.LEFT, padx=(14, 0))
-
-        # 进度条
-        if self.show_progress_bar:
-            progress_bg = tk.Frame(self, bg=theme.BORDER, height=3)
-            progress_bg.pack(fill=tk.X, pady=(0, 16))
-            progress_bg.pack_propagate(False)
-            self.progress_bar_fill: tk.Frame | None = tk.Frame(
-                progress_bg, bg=theme.ACCENT, width=0, height=3
-            )
-            self.progress_bar_fill.place(x=0, y=0, relheight=1.0)
-            self.progress_value: tk.DoubleVar | None = tk.DoubleVar(value=0)
-        else:
-            self.progress_bar_fill = None
-            self.progress_value = None
-
-        # 题干+选项+操作栏+答案/解析：复用 QuestionDetailCard
-        # 操作栏通过 insert_action_bar 回调插入到选项卡和答案/解析卡之间，保持原视觉布局
+        # qcol 题区列（QSS border-right）
+        qcol = QFrame()
+        qcol.setObjectName("qcol")
+        qv = QVBoxLayout(qcol)
+        qv.setContentsMargins(30, 22, 30, 22)
         self.detail_card = QuestionDetailCard(
-            self,
             on_option_click=self.handle_option_click,
             answer_placeholder="提交答案后查看解析",
-            option_pady=4,
-            insert_action_bar=self._build_action_bar,
         )
-        self.detail_card.pack(fill=tk.BOTH, expand=True)
+        qv.addWidget(self.detail_card)
+        h.addWidget(qcol, 165)
 
-        # P1: option_cards 被 handle_option_click / _on_configure 读取，保留引用；
-        # 其余 QuestionDetailCard 内部组件（question_text / answer_label / explanation_text）
-        # 已通过 self.detail_card.XXX 直接访问，无需保留旧别名。
-        self.option_cards = self.detail_card.option_cards
+        # acol 答题卡列（dep 行，点击跳题）
+        self.sheet = AnswerSheet()
+        self.sheet.row_clicked.connect(self.jump_to_index)
+        h.addWidget(self.sheet, 100)
 
-    def _build_action_bar(self, container: tk.Frame) -> None:
-        """构建操作栏（提交/上一题/下一题 + 统计）。
+        # scol 统计列（<900px 隐藏）
+        self.stats_col = StatColumn()
+        h.addWidget(self.stats_col)
+        self.stats_col.setFixedWidth(190)
 
-        由 QuestionDetailCard 在选项卡和答案/解析卡之间 pack，保持
-        PracticePanel 原"题干 → 选项 → 操作栏 → 答案/解析"的视觉布局。
-        """
-        action_bar = tk.Frame(container, bg=theme.BG_PAGE)
-        action_bar.pack(fill=tk.X, pady=(0, 12))
+        v.addWidget(body, 1)
 
-        btn_left = tk.Frame(action_bar, bg=theme.BG_PAGE)
-        btn_left.pack(side=tk.LEFT)
+        # ── actionsBar ──
+        bar = QFrame()
+        bar.setObjectName("actionsBar")
+        bh = QHBoxLayout(bar)
+        bh.setContentsMargins(0, 0, 0, 0)
+        bh.setSpacing(0)
 
-        self.submit_btn = create_primary_button(
-            btn_left,
-            text="提交答案 (Enter)",
-            command=self.submit_answer,
-            width=14,
-        )
-        self.submit_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.restart_btn = _make_action_button("重新开始", "")
+        if on_restart is not None:
+            self.restart_btn.clicked.connect(on_restart)
+        else:
+            self.restart_btn.setEnabled(False)
+        bh.addWidget(self.restart_btn, _STRETCH_RESTART)
 
         if self.show_prev_button:
-            prev_btn = create_normal_button(
-                btn_left,
-                text="上一题 (←)",
-                command=self.prev_question,
-            )
-            prev_btn.pack(side=tk.LEFT, padx=(0, 4))
+            self.prev_btn = _make_action_button("← 上一题", "←")
+            self.prev_btn.clicked.connect(self.prev_question)
+            bh.addWidget(self.prev_btn, _STRETCH_NAV)
 
-        next_btn = create_normal_button(
-            btn_left,
-            text="下一题 (→)",
-            command=self.next_question,
-        )
-        next_btn.pack(side=tk.LEFT)
+        self.submit_btn = _make_action_button("提交答案", "ENTER")
+        self.submit_btn.clicked.connect(self.submit_answer)
+        bh.addWidget(self.submit_btn, _STRETCH_SUBMIT)
 
-        stats_right = tk.Frame(action_bar, bg=theme.BG_PAGE)
-        stats_right.pack(side=tk.RIGHT)
+        self.next_btn = _make_action_button("下一题 →", "→", go=True)
+        self.next_btn.clicked.connect(self.next_question)
+        bh.addWidget(self.next_btn, _STRETCH_GO)
 
-        self.stats_label = tk.Label(
-            stats_right,
-            text="正确 0  |  错误 0  |  正确率 0%",
-            font=font_ui_semibold(11),
-            fg=theme.ACCENT,
-            bg=theme.BG_PAGE,
-        )
-        self.stats_label.pack()
+        v.addWidget(bar)
 
-    # ------------------------------------------------------------------
-    # 公共接口
-    # ------------------------------------------------------------------
-
+    # -------------------------------------------------------------- 渲染
     def load_current_question(self) -> None:
-        """加载当前题目并更新视图。"""
+        """加载当前题目并更新视图；队列耗尽时触发 on_finish。"""
         question = self.session.load_current_question()
         if not question:
-            if self.on_finish:
-                self.on_finish()
+            if self._on_finish is not None:
+                self._on_finish()
             else:
-                messagebox.showinfo("提示", "已完成所有题目！", parent=self)
+                QMessageBox.information(self, "提示", "已完成所有题目！")
             return
 
-        # P3: 题干 + 选项 + 清空答案/解析状态由 QuestionDetailCard 统一渲染
-        self.detail_card.show_question(question)
-        # 把题型同步进 session：多选题需切换式选择，不同步会被当成单选（P1 修复）
+        current = self.session.engine.get_current_index()
+        total = self.session.engine.queue_length()
+        self.detail_card.show_question(
+            question,
+            meta_lines=(type_label(question.type), f"QUEUE {current + 1:02d}/{total:02d}"),
+        )
+        # 把题型同步进 session：多选题需切换式选择，不同步会被当成单选
         self.session.get_question_type(question)
-
-        if self.type_label is not None:
-            type_text, type_fg = get_question_type_style(question.type)
-            self.type_label.configure(text=type_text, fg=type_fg)
-
         self.session.reset_selection()
-        self.submit_btn.configure(state=tk.NORMAL, bg=theme.BTN_PRIMARY, text="提交答案 (Enter)")
+        self.submit_btn.setEnabled(True)
 
-        self._update_progress()
+        self._update_sheet()
+        self._update_stats_col()
 
+    def _update_sheet(self) -> None:
+        """答题卡全量同步：done（答对）/ miss（答错）/ now（当前）。"""
+        engine = self.session.engine
+        current = engine.get_current_index()
+        correct = engine.get_correct_question_numbers()  # 题号集合（非队列索引）
+        total = engine.queue_length()
+        for i in range(total):
+            if i == current:
+                state = "now"
+            elif engine.is_answered(i):
+                q = engine.get_question_at(i)
+                state = "done" if q is not None and q.number in correct else "miss"
+            else:
+                state = ""
+            self.sheet.update_row(i, state)
+
+    def _update_stats_col(self) -> None:
+        """统计列：正确率 / 已答 / 错题本（真实数据，无装饰性指标）。"""
+        stats = self.session.get_stats()
+        accuracy = (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
+        total = self.session.engine.queue_length()
+        self.stats_col.set_stats(
+            [
+                ("正确率", f"{accuracy:.0f}", "%"),
+                ("已答", f"{stats['total']}/{total}", ""),
+                ("错题本", str(self.app_state.wrong_count()), "题"),
+            ]
+        )
+
+    # -------------------------------------------------------------- 交互
     def handle_option_click(self, letter: str) -> None:
         """处理选项点击。"""
         question = self.session.engine.get_current_question()
@@ -199,18 +204,17 @@ class PracticePanel(tk.Frame):
         options_count = len(question.options)
         self.session.handle_option_click(letter, options_count)
 
-        card_idx = ord(letter) - ord("A")
-        if self.session.current_question_type == QUESTION_TYPE_SINGLE:
-            for i, card in enumerate(self.option_cards):
-                if i < options_count:
-                    card.set_selected(i == card_idx)
+        if self.session.current_question_type == "single":
+            for i, card in enumerate(self.detail_card.option_cards):
+                card.set_selected(i == ord(letter) - ord("A"))
         else:
-            self.option_cards[card_idx].set_selected(self.session.is_option_selected(letter))
+            idx = ord(letter) - ord("A")
+            self.detail_card.option_cards[idx].set_selected(self.session.is_option_selected(letter))
 
     def submit_answer(self) -> None:
         """提交答案并更新视图。"""
         if not self.session.selected_answers:
-            messagebox.showwarning("提示", "请先选择一个答案！", parent=self)
+            QMessageBox.warning(self, "提示", "请先选择一个答案！")
             return
 
         question = self.session.engine.get_current_question()
@@ -221,116 +225,77 @@ class PracticePanel(tk.Frame):
         if result is None:
             return
 
-        # P3: 答案标签、解析、选项高亮由 QuestionDetailCard 统一渲染
         if result["is_correct"]:
-            self.detail_card.set_answer_label("回答正确", fg=theme.GREEN)
+            self.detail_card.set_verdict("回答正确", ok=True)
         else:
-            self.detail_card.set_answer_label(
-                f"回答错误，正确答案: {result['correct_answer']}", fg=theme.RED
+            self.detail_card.set_verdict(
+                f"回答错误，正确答案: {result['correct_answer']}", ok=False
             )
 
         explanation = question.explanation or "暂无解析"
         if len(explanation) < 5:
             explanation = "暂无详细解析"
         self.detail_card.set_explanation(explanation)
-
         self.detail_card.set_option_result(question.answer, "".join(self.session.selected_answers))
 
-        self.submit_btn.configure(state=tk.DISABLED, bg=theme.BTN_DISABLED, text="已提交")
-        # P2-UX: 提交后将焦点移回面板，确保方向键导航立即生效
-        self.focus_set()
-        if self.on_submit is not None:
-            self.on_submit()
-        self._update_stats()
+        self.submit_btn.setEnabled(False)
+        if self._on_submit is not None:
+            self._on_submit()
+        self._update_sheet()
+        self._update_stats_col()
 
     def next_question(self) -> None:
-        """下一题。"""
+        """下一题；队列末尾提示完成。"""
         if self.session.has_next():
             self.session.next_question()
             self.load_current_question()
-            if self.on_navigate is not None:
-                self.on_navigate()
+            if self._on_navigate is not None:
+                self._on_navigate()
         else:
-            messagebox.showinfo("提示", "已经是最后一题了！", parent=self)
+            QMessageBox.information(self, "提示", "已经是最后一题了！")
 
     def prev_question(self) -> None:
         """上一题。"""
         if self.session.has_prev():
             self.session.prev_question()
             self.load_current_question()
-            if self.on_navigate is not None:
-                self.on_navigate()
+            if self._on_navigate is not None:
+                self._on_navigate()
         else:
-            messagebox.showinfo("提示", "已经是第一题了！", parent=self)
+            QMessageBox.information(self, "提示", "已经是第一题了！")
+
+    def jump_to_index(self, index: int) -> None:
+        """答题卡点击跳题（AnswerSheet row_clicked）。"""
+        engine = self.session.engine
+        if 0 <= index < engine.queue_length() and index != engine.get_current_index():
+            engine.set_current_index(index)
+            self.load_current_question()
+            if self._on_navigate is not None:
+                self._on_navigate()
 
     def reset_session(self, shuffle: bool = False) -> None:
-        """重置练习会话。"""
+        """重置练习会话并重渲染。"""
         self.session.reset_session(shuffle=shuffle)
+        self.sheet.build_rows(self.session.engine.queue_length())
         self.load_current_question()
 
-    # ------------------------------------------------------------------
-    # 内部更新
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------- 自适应
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802 - Qt 命名
+        """窗口 <900px 隐藏统计列（F 方案窄窗折叠策略）。"""
+        self.stats_col.setVisible(self.width() >= SCOL_MIN_WIDTH)
+        super().resizeEvent(event)
 
-    def _update_progress(self) -> None:
-        """更新进度条与进度标签。"""
-        progress = self.session.get_progress()
-        self.progress_label.configure(
-            text=f"第 {progress['current']} 题 / 共 {progress['total']} 题"
-        )
+    # -------------------------------------------------------------- 主窗口协议
+    def nav_count(self) -> str:
+        """board-nav 右侧计数（mockup cnt 形态 12/50）。"""
+        engine = self.session.engine
+        return f"{engine.get_current_index() + 1}/{engine.queue_length()}"
 
-        if self.progress_value is not None and self.progress_bar_fill is not None:
-            self.progress_value.set(progress["percentage"])
-            # P1-5: 用缓存宽度避免 update_idletasks 阻塞切题；首次未布局时 fallback
-            container_width = self._cached_width
-            if container_width <= 0:
-                self.update_idletasks()
-                container_width = self.winfo_width()
-            if container_width > 0:
-                bar_width = int(container_width * (progress["percentage"] / 100))
-                self.progress_bar_fill.configure(width=max(bar_width, 0))
-
-        self._update_stats()
-
-    def _on_configure(self, event: tk.Event) -> None:
-        """窗口 resize 时更新缓存宽度、进度条宽度、选项文本换行宽度。"""
-        self._cached_width = event.width
-        # resize 时立即用新宽度重绘进度条（无需等下次切题）
-        if self.progress_bar_fill is not None and self.progress_value is not None:
-            percentage = self.progress_value.get()
-            bar_width = int(self._cached_width * (percentage / 100))
-            self.progress_bar_fill.configure(width=max(bar_width, 0))
-
-        # P2-UX: 窗口缩放时同步更新选项文本换行宽度，避免内容被截断
-        new_wrap = max(200, event.width - 100)
-        for card in self.option_cards:
-            card.update_wraplength(new_wrap)
-
-    def _update_stats(self) -> None:
-        """更新统计标签。"""
+    def modeline_text(self) -> str:
+        """modeline 文案：练习进度 + 本次正确率。"""
         stats = self.session.get_stats()
         accuracy = (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
-        self.stats_label.configure(
-            text=f"正确 {stats['correct']}  |  错误 {stats['wrong']}  |  正确率 {accuracy:.0f}%"
+        return (
+            f"PRACTICE · 第 {self.session.engine.get_current_index() + 1}"
+            f"/{self.session.engine.queue_length()} 题 · 本次正确率 {accuracy:.0f}%"
         )
-
-    # ------------------------------------------------------------------
-    # 键盘支持
-    # ------------------------------------------------------------------
-
-    def handle_key_press(self, event: tk.Event) -> str | None:
-        """处理键盘事件。
-
-        Returns:
-            若已处理并应阻止进一步传播，返回 "break"；否则返回 None。
-        """
-        # 由使用方提供 _handle_option_key_press 或自行处理；
-        # 这里仅处理方向键导航，因为选项键需要与宿主共享基类方法。
-        if event.keysym == "Right":
-            self.next_question()
-            return "break"
-        # P1-UX: show_prev_button 只控制按钮可见性，不影响键盘上一题
-        if event.keysym == "Left":
-            self.prev_question()
-            return "break"
-        return None

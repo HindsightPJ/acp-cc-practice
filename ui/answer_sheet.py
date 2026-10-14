@@ -1,0 +1,175 @@
+"""F 方案网格体右列组件：答题卡（发车时刻表）+ 统计列。
+
+AnswerSheet：一行一题的 dep 行列表（QSS depRow 语义类，state now/done/miss），
+点击行发出 row_clicked 信号供宿主跳题。
+StatColumn：statBlock 块列（k 标签 + 大号 v 数字 + 单位），展示真实统计。
+
+视觉全部由 theme.py QSS 驱动（QSS 单一取色源），本模块零散写颜色。
+"""
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+
+
+class _DepRow(QFrame):
+    """单行发车记录：队列题号 + 状态字 + 右侧符号。"""
+
+    # 状态文案映射：(状态字, 符号)；缺省 = 待答
+    _TEXT = {"done": ("已答", "✓"), "now": ("进行中", "→"), "miss": ("答错", "✗")}
+
+    clicked = Signal(int)  # 发出自身队列索引
+
+    def __init__(self, queue_no: int, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.queue_no = queue_no
+        self.setProperty("depRow", True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        h = QHBoxLayout(self)
+        h.setContentsMargins(20, 9, 20, 9)
+        h.setSpacing(10)
+
+        self.lbl_no = QLabel(str(queue_no))
+        self.lbl_no.setProperty("depN", True)
+        self.lbl_st = QLabel("待答")
+        self.lbl_st.setProperty("depSt", True)
+        self.lbl_sym = QLabel("·")
+        self.lbl_sym.setProperty("depSt", True)
+
+        h.addWidget(self.lbl_no)
+        h.addWidget(self.lbl_st)
+        h.addStretch(1)
+        h.addWidget(self.lbl_sym)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt 命名
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.queue_no - 1)
+        super().mousePressEvent(event)
+
+    def set_state(self, state: str) -> None:
+        """state ∈ ""(待答)/done/now/miss；切换 QSS 属性 + 文案。"""
+        text, sym = self._TEXT.get(state, ("待答", "·"))
+        if state:
+            self.setProperty("state", state)
+        else:
+            self.setProperty("state", None)
+        self.lbl_st.setText(text)
+        self.lbl_sym.setText(sym)
+
+
+class AnswerSheet(QFrame):
+    """答题卡 = 发车时刻表（qcol 右邻列）。
+
+    set_rows(full_rebuild) + update_row(index, state) 两档更新：
+    题目总数不变时用增量更新避免整列重建。
+    """
+
+    row_clicked = Signal(int)  # 队列索引（0-based）
+
+    def __init__(self, title: str = "答题卡 · PROGRESS", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("acol")
+
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
+
+        head = QLabel(title)
+        head.setObjectName("acolHead")
+        v.addWidget(head)
+
+        # dep 行容器放滚动区：题库 50~200 题不撑爆右列
+        self._rows_host = QWidget()
+        self._rows_host.setObjectName("acolRows")
+        self._rows_layout = QVBoxLayout(self._rows_host)
+        self._rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._rows_layout.setSpacing(0)
+        self._rows_layout.addStretch(1)  # 常驻尾弹簧：行少时顶部对齐
+
+        scroll = QScrollArea()
+        scroll.setWidget(self._rows_host)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        v.addWidget(scroll, 1)
+
+        self._rows: list[_DepRow] = []
+
+    # ------------------------------------------------------------ 数据
+    def build_rows(self, total: int) -> None:
+        """按队列总题数重建全部 dep 行（开考/重置时调用）。"""
+        for row in self._rows:
+            self._rows_layout.removeWidget(row)
+            row.deleteLater()
+        self._rows.clear()
+        for i in range(total):
+            row = _DepRow(i + 1, self._rows_host)
+            row.clicked.connect(self.row_clicked)
+            # 插到尾弹簧之前，保持顶部对齐
+            self._rows_layout.insertWidget(self._rows_layout.count() - 1, row)
+            self._rows.append(row)
+
+    def update_row(self, index: int, state: str) -> None:
+        """增量更新单行状态（state ∈ ""/done/now/miss）。"""
+        if 0 <= index < len(self._rows):
+            self._rows[index].set_state(state)
+
+    def set_rows(self, states: list[str], current: int = -1) -> None:
+        """全量刷新状态（切页回来时同步用）。"""
+        for i, row in enumerate(self._rows):
+            if i == current:
+                row.set_state("now")
+            else:
+                row.set_state(states[i] if i < len(states) else "")
+
+
+class StatColumn(QFrame):
+    """统计列（最右列，<900px 由宿主隐藏）：k 标签 + 大号数字 + 单位。"""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("scol")
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(20, 16, 20, 16)
+        self._layout.setSpacing(0)
+        self._layout.addStretch(1)
+        self._blocks: list[tuple[QLabel, QLabel, QLabel]] = []
+
+    def set_stats(self, items: list[tuple[str, str, str]]) -> None:
+        """全量刷新统计块：(标签, 数值, 单位) 列表；数量以首次为准。"""
+        # 块数量不足时补建（QSS statBlock 驱动样式；单位走 statUnit 16px 类）
+        while len(self._blocks) < len(items):
+            block = QFrame()
+            block.setProperty("statBlock", True)
+            bv = QVBoxLayout(block)
+            bv.setContentsMargins(0, 8, 0, 14)
+            bv.setSpacing(2)
+            k = QLabel()
+            k.setProperty("statK", True)
+            vrow = QHBoxLayout()
+            vrow.setSpacing(2)
+            v = QLabel()
+            v.setProperty("statV", True)
+            unit = QLabel()
+            unit.setProperty("statUnit", True)
+            vrow.addWidget(v)
+            vrow.addWidget(unit, 0, Qt.AlignmentFlag.AlignBottom)
+            vrow.addStretch(1)
+            bv.addWidget(k)
+            bv.addLayout(vrow)
+            self._layout.insertWidget(self._layout.count() - 1, block)
+            self._blocks.append((k, v, unit))
+
+        for i, (k_text, v_text, unit_text) in enumerate(items):
+            k_lbl, v_lbl, unit_lbl = self._blocks[i]
+            k_lbl.setText(k_text)
+            v_lbl.setText(v_text)
+            unit_lbl.setText(unit_text)
+            unit_lbl.setVisible(bool(unit_text))

@@ -9,7 +9,9 @@ from typing import Any
 from quiz_engine import QuizEngine
 from app_state import AppState
 from models import Question
-from .constants import QUESTION_TYPE_SINGLE
+
+# 与 models.Question.type 字段值保持一致（原 ui/constants.py，就近内联）
+QUESTION_TYPE_SINGLE = "single"
 
 
 class PracticeSession:

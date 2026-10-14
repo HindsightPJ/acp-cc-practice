@@ -334,6 +334,41 @@ QToolTip { background: %(INK)s; color: %(BG)s; border: none; padding: 4px 8px; f
 /* ── 基础按钮兜底（未挂语义类的按钮不再出现原生凸起样式）── */
 QPushButton { background: transparent; border: none; color: %(INK)s; }
 QPushButton:disabled { color: %(INK3)s; }
+
+/* ── P4：解析块（qcol 底部，4px 规则线压顶）── */
+QFrame#expBox { border-top: 4px solid %(INK)s; }
+QLabel#expResult { font-family: "%(SANS)s"; font-weight: 600; font-size: 15px; color: %(INK3)s; }
+QLabel#expResult[verdict="ok"] { color: %(ACCENT)s; }
+QLabel#expResult[verdict="wrong"] { color: %(INK3)s; }
+QLabel#expText { font-size: 13px; color: %(INK2)s; }
+
+/* ── P4：QCheckBox（练习随机出题等，方角指示器贴 F 语言）── */
+QCheckBox { color: %(INK2)s; font-size: 12px; spacing: 8px; background: transparent; }
+QCheckBox::indicator { width: 13px; height: 13px; border: 1px solid %(LINE)s; background: %(PANEL)s; }
+QCheckBox::indicator:hover { border-color: %(INK3)s; }
+QCheckBox::indicator:checked { background: %(ACCENT)s; border-color: %(ACCENT)s; }
+
+/* ── P4：QComboBox（考试设置，无箭头图片资源用 border 三角）── */
+QComboBox { background: %(PANEL)s; color: %(INK)s; border: 1px solid %(LINE)s; padding: 6px 10px; min-width: 72px; }
+QComboBox:hover { border-color: %(INK3)s; }
+QComboBox:focus { border-color: %(ACCENT)s; }
+QComboBox::drop-down { border: none; width: 24px; }
+QComboBox::down-arrow { image: none; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid %(INK2)s; margin-right: 10px; }
+QComboBox QAbstractItemView { background: %(PANEL)s; color: %(INK)s; border: 1px solid %(LINE)s; selection-background-color: %(ACCENT)s; selection-color: %(ON_ACCENT)s; outline: 0; }
+
+/* ── P4：QTableWidget（考试历史表，方角细线网格）── */
+QTableWidget { background: %(PANEL)s; color: %(INK)s; border: none; gridline-color: %(LINE_SOFT)s; selection-background-color: %(ACCENT_TINT)s; selection-color: %(INK)s; }
+QHeaderView::section { background: %(BG)s; color: %(INK2)s; border: none; border-bottom: 1px solid %(INK)s; border-right: 1px solid %(LINE_SOFT)s; padding: 7px 10px; font-size: 11px; }
+
+/* ── P4：考试题号网格（四态：未答/已答/标记/当前；均为按钮自身状态，安全）── */
+QPushButton[examNav="true"] {
+    background: transparent; border: 1px solid %(LINE_SOFT)s; color: %(INK3)s;
+    font-family: "%(MONO)s"; font-size: 11px; padding: 4px 0; min-height: 22px;
+}
+QPushButton[examNav="true"]:hover { border-color: %(INK3)s; color: %(INK2)s; }
+QPushButton[examNav="true"][state="answered"] { background: %(ACCENT)s; color: %(ON_ACCENT)s; border-color: %(ACCENT)s; }
+QPushButton[examNav="true"][state="marked"] { background: %(ACCENT_DEEP)s; color: %(ON_ACCENT)s; border-color: %(ACCENT_DEEP)s; }
+QPushButton[examNav="true"][state="current"] { background: %(INK)s; color: %(BG)s; border-color: %(INK)s; }
 """
 
 

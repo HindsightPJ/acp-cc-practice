@@ -6,7 +6,9 @@ P3: 将 ExamMode 中分散的选项选择、答案记录逻辑集中到这里，
 
 from quiz_engine import QuizEngine
 from models import Question
-from .constants import QUESTION_TYPE_MULTIPLE
+
+# 与 models.Question.type 字段值保持一致（原 ui/constants.py，就近内联）
+QUESTION_TYPE_MULTIPLE = "multiple"
 
 
 class ExamSession:

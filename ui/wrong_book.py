@@ -1,524 +1,263 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-from .theme import (
-    theme,
-    font_ui,
-    font_ui_semibold,
-    create_primary_button,
-    create_normal_button,
-    create_card,
-    center_window,
+"""错题本页：列表视图 ⇄ 错题专项练习视图。
+
+tkinter 版重写（原实现为 Toplevel 子窗口练习，PySide6 版收敛为主窗口
+页内双视图切换，符合 F 方案"主窗口单舞台"语言）：
+- 列表视图：QTableWidget 错题清单（双击 = 详情，P5 接入卡片对话框）
+- 练习视图：复用 PracticePanel（错题队列表决于当下错题本快照）
+
+完成流程沿袭 tkinter 版：队列答完后提示统计，询问是否移除本次答对的
+错题（移除即"已掌握"），保存后回列表。
+"""
+
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
 )
 
-from quiz_engine import QuizEngine
-from models import Question
-from data_manager import DataManager
 from app_state import AppState
-from .base_mode import BaseMode
-from .practice_session import PracticeSession
+from models import Question
+from quiz_engine import QuizEngine
+from .base_mode import BaseModePage
 from .practice_panel import PracticePanel
-from .question_detail_card import QuestionDetailCard
-from .mode_toolbar import ModeToolbar
+from .practice_session import PracticeSession
+from .question_detail_card import type_label
+
+_LIST_COLUMNS = ("题号", "题型", "题干摘要")
 
 
-class WrongBook(BaseMode):
+class WrongBookPage(BaseModePage):
+    """错题本页。"""
+
+    _save_failure_message = "错题本保存失败，请检查磁盘空间或文件权限。"
+
     def __init__(
         self,
-        parent: tk.Misc,
         questions: list[Question],
-        data_manager: DataManager | None,
-        progress: AppState,
+        app_state: AppState,
+        parent=None,
     ) -> None:
-        super().__init__(parent, questions, data_manager, progress)
-
-        self.wrong_questions = self._get_wrong_questions_list()
-        # P1-8: 题号→题目索引，O(1) 查找替代线性扫描
-        self._wrong_by_number: dict[int, Question] = {q.number: q for q in self.wrong_questions}
+        super().__init__(app_state, parent)
+        self.all_questions = questions
+        self._by_number = {q.number: q for q in questions}
         self.practice_engine: QuizEngine | None = None
-        self._practice_window: tk.Toplevel | None = None
-        self._practice_session: PracticeSession | None = None
-        self._practice_panel: PracticePanel | None = None
-        # P1-8: 详情对话框懒加载 + 复用（withdraw/deiconify 替代 destroy/create）
-        self._detail_dialog: tk.Toplevel | None = None
-        self._detail_card: QuestionDetailCard | None = None
-        self._detail_header_label: tk.Label | None = None
-        self._current_detail_q_num: int | None = None
-        # P2-PERF: 题号→Treeview item id，支持增量删除避免全量重建
-        self._tree_item_by_number: dict[int, str] = {}
-
-        self._setup_mode_ui()
-
-    def destroy(self) -> None:
-        """切 tab 销毁 WrongBook 时，主动关闭所有子窗口，
-        避免幽灵窗口持有 engine 引用造成状态分裂。"""
-        # P1-8: 清理懒加载的详情对话框
-        if self._detail_dialog is not None:
-            try:
-                self._detail_dialog.grab_release()
-                self._detail_dialog.destroy()
-            except tk.TclError:
-                pass
-            self._detail_dialog = None
-            self._detail_card = None
-            self._detail_header_label = None
-            self._current_detail_q_num = None
-
-        if self._practice_window is not None:
-            try:
-                self._practice_window.grab_release()
-                self._practice_window.destroy()
-            except tk.TclError:
-                pass
-            self._practice_window = None
-        super().destroy()
-
-    def _get_wrong_questions_list(self) -> list[Question]:
-        wrong_nums = set(self.app_state.get_wrong_questions())
-        return [q for q in self.questions if q.number in wrong_nums]
-
-    def _setup_mode_ui(self) -> None:
-        self.configure(style="TFrame")
-
-        toolbar = ModeToolbar(self)
-
-        self.count_label = tk.Label(
-            toolbar.left,
-            text=f"共 {len(self.wrong_questions)} 道错题",
-            font=font_ui(11),
-            fg=theme.RED,
-            bg=theme.BG_PAGE,
-        )
-        self.count_label.pack(side=tk.LEFT)
-
-        practice_btn = create_primary_button(
-            toolbar.right,
-            text="练习错题",
-            command=self.start_practice_wrong,
-            padx=16,
-            pady=5,
-        )
-        practice_btn.pack(side=tk.LEFT, padx=(0, 8))
-
-        clear_btn = create_normal_button(
-            toolbar.right,
-            text="清空",
-            command=self.clear_all_wrong,
-            pady=4,
-        )
-        clear_btn.pack(side=tk.LEFT)
-
-        list_card = tk.Frame(
-            self, bg=theme.BG_CARD, highlightbackground=theme.BORDER, highlightthickness=1
-        )
-        list_card.pack(fill=tk.BOTH, expand=True)
-
-        self.list_inner = tk.Frame(list_card, bg=theme.BG_CARD)
-        self.list_inner.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
-
-        style = ttk.Style()
-        style.configure(
-            "Clean.Treeview",
-            background=theme.BG_CARD,
-            foreground=theme.TEXT_PRIMARY,
-            fieldbackground=theme.BG_CARD,
-            font=font_ui(10),
-            rowheight=34,
-            borderwidth=0,
-        )
-        style.configure(
-            "Clean.Treeview.Heading",
-            background=theme.BG_INPUT,
-            foreground=theme.TEXT_SECONDARY,
-            font=font_ui_semibold(10),
-            borderwidth=0,
-            relief=tk.FLAT,
-        )
-        style.map(
-            "Clean.Treeview",
-            background=[("selected", theme.BG_SELECT)],
-            foreground=[("selected", theme.TEXT_PRIMARY)],
-        )
-
-        columns = ("number", "content", "answer")
-        self.tree = ttk.Treeview(
-            self.list_inner, columns=columns, show="headings", height=15, style="Clean.Treeview"
-        )
-
-        self.tree.heading("number", text="题号")
-        self.tree.heading("content", text="题目内容")
-        self.tree.heading("answer", text="正确答案")
-
-        self.tree.column("number", width=70, anchor="center")
-        self.tree.column("content", width=600)
-        self.tree.column("answer", width=80, anchor="center")
-
-        scrollbar = ttk.Scrollbar(self.list_inner, orient=tk.VERTICAL, command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # 空状态视图（与 list_inner 同级，错题为空时替代 Treeview）
-        self.empty_state = tk.Frame(list_card, bg=theme.BG_CARD)
-        tk.Label(
-            self.empty_state,
-            text="还没有错题",
-            font=font_ui_semibold(16),
-            fg=theme.TEXT_PRIMARY,
-            bg=theme.BG_CARD,
-        ).pack(pady=(0, 6))
-        tk.Label(
-            self.empty_state,
-            text="继续练习，做错的题会自动收集到这里",
-            font=font_ui(11),
-            fg=theme.TEXT_MUTED,
-            bg=theme.BG_CARD,
-        ).pack()
-
-        self._populate_tree()
-
-        self.tree.bind("<Double-1>", self.view_question_detail)
-
-    def _populate_tree(self) -> None:
-        """全量重建 Treeview（初始化/清空时使用）。"""
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        self._tree_item_by_number.clear()
-
-        for q in self.wrong_questions:
-            content = q.content
-            if len(content) > 60:
-                content = content[:60] + "..."
-            item_id = self.tree.insert("", tk.END, values=(q.number, content, q.answer or "?"))
-            self._tree_item_by_number[q.number] = item_id
-
-        self._update_empty_state()
-
-    def _remove_tree_items(self, q_nums: set[int]) -> None:
-        """增量删除指定题号对应的 Treeview 行（避免全量重建）。
-
-        若 Treeview 尚未初始化（如测试中直接构造对象），回退到全量重建。
-        """
-        if not hasattr(self, "_tree_item_by_number") or not self._tree_item_by_number:
-            self._populate_tree()
-            return
-
-        for q_num in q_nums:
-            item_id = self._tree_item_by_number.pop(q_num, None)
-            if item_id is not None:
-                try:
-                    self.tree.delete(item_id)
-                except tk.TclError:
-                    pass
-
-    def _sync_tree_after_change(self) -> None:
-        """状态变更后同步 Treeview、索引和计数标签。"""
-        self.wrong_questions = self._get_wrong_questions_list()
-        self._wrong_by_number = {q.number: q for q in self.wrong_questions}
-        self.count_label.configure(text=f"共 {len(self.wrong_questions)} 道错题")
-
-    def _update_empty_state(self) -> None:
-        """错题为空时显示空状态视图，否则显示题目列表。"""
-        if not hasattr(self, "list_inner"):
-            return
-        if not self.wrong_questions:
-            self.list_inner.pack_forget()
-            self.empty_state.pack(fill=tk.BOTH, expand=True)
-        else:
-            self.empty_state.pack_forget()
-            self.list_inner.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
-
-    def view_question_detail(self, event: tk.Event) -> None:
-        selection = self.tree.selection()
-        if not selection:
-            return
-
-        item = self.tree.item(selection[0])
-        # P2-5: Treeview values 跨平台类型不一致（Windows str, macOS/Linux int），
-        # 显式转换为 int，避免 _wrong_by_number.get(q_num) 类型不匹配返回 None
-        try:
-            q_num = int(item["values"][0])
-        except (ValueError, IndexError, TypeError):
-            return
-
-        # P1-8: O(1) dict 查找替代线性扫描
-        question = self._wrong_by_number.get(q_num)
-        if not question:
-            return
-
-        self._current_detail_q_num = q_num
-        self._ensure_detail_dialog()  # 懒加载创建（仅首次）
-
-        # _ensure_detail_dialog 保证以下三个属性已初始化
-        if (
-            self._detail_dialog is None
-            or self._detail_card is None
-            or self._detail_header_label is None
-        ):
-            return
-
-        # 复用已有对话框：更新标题 + 内容 + 显示
-        self._detail_dialog.title(f"第{q_num}题")
-        self._detail_header_label.configure(text=f"第 {q_num} 题")
-        self._detail_card.show_question(question, reveal_answer=True)
-
-        self._detail_dialog.deiconify()
-        self._detail_dialog.grab_set()
-        # 提到最前，确保不被父窗口遮挡
-        self._detail_dialog.lift()
-
-    def _ensure_detail_dialog(self) -> None:
-        """懒加载创建详情对话框（仅创建一次，后续 withdraw/deiconify 复用）。
-
-        P1-8: 避免每次双击都新建 Toplevel + QuestionDetailCard 的创建开销。
-        """
-        if self._detail_dialog is not None:
-            return
-
-        detail_window = tk.Toplevel(self)
-        detail_window.title("题目详情")
-        detail_window.geometry("600x500")
-        detail_window.configure(bg=theme.BG_PAGE)
-        detail_window.transient(self.winfo_toplevel())
-        detail_window.protocol("WM_DELETE_WINDOW", self._close_detail_dialog)
-
-        center_window(detail_window)
-
-        header, h_inner = create_card(detail_window, inner_padx=20, inner_pady=14)
-        header.pack(fill=tk.X, padx=20, pady=(20, 0))
-
-        self._detail_header_label = tk.Label(
-            h_inner,
-            text="",
-            font=font_ui_semibold(14),
-            fg=theme.TEXT_PRIMARY,
-            bg=theme.BG_CARD,
-        )
-        self._detail_header_label.pack(anchor=tk.W)
-
-        self._detail_card = QuestionDetailCard(
-            detail_window,
-            on_option_click=None,
-            option_wraplength=480,
-            answer_placeholder="正确答案:",
-            inner_padx=20,
-            question_inner_pady=14,
-            option_inner_pady=14,
-            option_pady=2,
-        )
-        self._detail_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=12)
-
-        btn_frame = tk.Frame(detail_window, bg=theme.BG_PAGE)
-        btn_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
-
-        master_btn = create_primary_button(
-            btn_frame,
-            text="标记为已掌握",
-            command=self._mark_as_mastered,
-            bg_color=theme.GREEN,
-            active_bg=theme.GREEN_HOVER,
-        )
-        master_btn.pack(side=tk.LEFT)
-
-        close_btn = create_normal_button(
-            btn_frame,
-            text="关闭",
-            command=self._close_detail_dialog,
-        )
-        close_btn.pack(side=tk.RIGHT)
-
-        self._detail_dialog = detail_window
-        detail_window.withdraw()  # 初始隐藏，等 show_question 后再 deiconify
-
-    def _close_detail_dialog(self) -> None:
-        """隐藏详情对话框（复用实例，不销毁）。"""
-        if self._detail_dialog is None:
-            return
-        try:
-            self._detail_dialog.grab_release()
-            self._detail_dialog.withdraw()
-        except tk.TclError:
-            pass
-
-    def _mark_as_mastered(self) -> None:
-        """标记当前详情对话框显示的题目为已掌握，从错题本移除。"""
-        if self._current_detail_q_num is None:
-            return
-        q_num = self._current_detail_q_num
-        if self.app_state.is_wrong_question(q_num):
-            self.app_state.remove_wrong_question(q_num)
-            # P2-4: 统一用 save_safe 提示保存失败
-            save_ok = self.app_state.save_safe()
-
-            # P2-PERF: 增量删除该题，避免全量重建 Treeview
-            self._remove_tree_items({q_num})
-            self._sync_tree_after_change()
-            self._update_empty_state()
-
-            self._close_detail_dialog()
-            if save_ok:
-                messagebox.showinfo("成功", "该题已从错题本移除！", parent=self)
-            else:
-                messagebox.showwarning(
-                    "保存失败",
-                    "错题本保存失败，请检查磁盘空间或文件权限。",
-                    parent=self,
-                )
-
-    def start_practice_wrong(self) -> None:
-        if not self.wrong_questions:
-            messagebox.showinfo("提示", "错题本是空的，继续加油！", parent=self)
-            return
-
-        self.practice_engine = QuizEngine(self.wrong_questions)
-
-        # 使用 PracticeSession 管理练习逻辑
-        self._practice_session = PracticeSession(self.practice_engine, self.app_state)
-        self._practice_session.reset_session(shuffle=True)
-
-        practice_window = tk.Toplevel(self)
-        practice_window.title("错题专项练习")
-        practice_window.geometry("850x700")
-        practice_window.minsize(700, 500)
-        practice_window.configure(bg=theme.BG_PAGE)
-        practice_window.transient(self.winfo_toplevel())
-        practice_window.grab_set()
-        # P2-UX: 关闭练习窗口前确认，避免误操作丢失当前练习进度
-        practice_window.protocol("WM_DELETE_WINDOW", self._on_practice_window_close)
-
-        self._practice_window = practice_window
-        self._practice_panel = PracticePanel(
-            practice_window,
-            session=self._practice_session,
-            on_finish=self._show_practice_result,
-            on_submit=practice_window.focus_set,
-            show_progress_bar=False,
-            show_prev_button=False,
-        )
-        self._practice_panel.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-
-        self._bind_practice_keyboard(practice_window)
-        self._practice_panel.load_current_question()
-
-    def _bind_practice_keyboard(self, window: tk.Toplevel) -> None:
-        """绑定错题练习窗口的键盘事件。"""
-        window.focus_set()
-        window.bind("<Key>", self._on_practice_key_press)
-        window.bind("<Button-1>", self._on_practice_global_click)
-
-    def _on_practice_global_click(self, event: tk.Event) -> None:
-        """全局点击设置焦点到练习窗口。"""
-        if self._practice_window is not None and self._practice_window.winfo_exists():
-            self._practice_window.focus_set()
-
-    def _on_practice_key_press(self, event: tk.Event) -> str | None:
-        """错题练习键盘事件处理 - 复用 PracticePanel 的键盘处理。"""
-        # P2-12: 入口同时校验 _practice_session，避免 lambda 内访问
-        # self._practice_session.is_answered 时因 session 为 None 抛 AttributeError
-        session = self._practice_session
-        if not self._practice_panel or not self.practice_engine or not session:
-            return None
-
-        result = self._handle_option_key_press(
-            event,
-            on_select=self._practice_panel.handle_option_click,
-            on_submit=self._practice_panel.submit_answer,
-            is_answered_check=lambda: session.is_answered,
-            engine=self.practice_engine,
-        )
-
-        if result == "break":
-            return "break"
-
-        # 方向键导航交给面板
-        return self._practice_panel.handle_key_press(event)
-
-    def _show_practice_result(self) -> None:
-        if not self._practice_session:
-            return
-
-        stats = self._practice_session.get_stats()
-        total = stats["total"]
-        correct = stats["correct"]
-        accuracy = (correct / total * 100) if total > 0 else 0
-
-        msg = f"练习完成！\n\n总题数: {total} 题\n正确: {correct} 题\n错误: {stats['wrong']} 题\n正确率: {accuracy:.1f}%"
-
-        # P1-4: 无论正确率多少，都只询问移除"本次答对"的错题，
-        # 从不自动清空全部错题，避免一次性丢失还需复习的题目。
-        # _practice_window 理论上非空，但类型为 Toplevel | None，fallback 到 self 满足 mypy
-        practice_parent = self._practice_window if self._practice_window is not None else self
-        if messagebox.askyesno(
-            "练习完成",
-            msg + "\n\n是否将本次答对的错题从错题本中移除？（答错的仍会保留）",
-            parent=practice_parent,
-        ):
-            # P2-13: correct_nums 转 set，避免 O(N*M) 的线性查找
-            correct_nums = set(self._practice_session.get_correct_question_numbers())
-            self.app_state.set_wrong_questions(
-                [
-                    q_num
-                    for q_num in self.app_state.get_wrong_questions()
-                    if q_num not in correct_nums
-                ]
+        self.practice_session: PracticeSession | None = None
+        self.panel: PracticePanel | None = None
+
+        self._build_ui()
+
+    # -------------------------------------------------------------- UI
+    def _build_ui(self) -> None:
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
+        self.stack = QStackedWidget()
+        v.addWidget(self.stack)
+        self.stack.addWidget(self._build_list_view())
+
+    def _build_list_view(self) -> QFrame:
+        """列表视图：头部行（计数 + 动作）+ 错题表。"""
+        page = QFrame()
+        v = QVBoxLayout(page)
+        v.setContentsMargins(30, 26, 30, 22)
+        v.setSpacing(16)
+
+        head = QFrame()
+        h = QHBoxLayout(head)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(10)
+
+        title_box = QVBoxLayout()
+        title_box.setSpacing(5)
+        self.count_label = QLabel("错题本")
+        self.count_label.setObjectName("qBig")
+        sub = QLabel("WRONGBOOK · 双击条目查看详情")
+        sub.setObjectName("qMeta")
+        title_box.addWidget(self.count_label)
+        title_box.addWidget(sub)
+        h.addLayout(title_box)
+        h.addStretch(1)
+
+        clear_btn = QPushButton("清空错题本")
+        clear_btn.setProperty("actBtn", True)
+        clear_btn.clicked.connect(self._clear_wrong_book)
+        h.addWidget(clear_btn)
+
+        practice_btn = QPushButton("开始错题练习 →")
+        practice_btn.setObjectName("goBtn")
+        practice_btn.clicked.connect(self.start_practice)
+        h.addWidget(practice_btn)
+        v.addWidget(head)
+
+        self.table = QTableWidget(0, len(_LIST_COLUMNS))
+        self.table.setHorizontalHeaderLabels(_LIST_COLUMNS)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.doubleClicked.connect(self._show_detail)
+        v.addWidget(self.table, 1)
+
+        self._refresh_table()
+        return page
+
+    def _refresh_table(self) -> None:
+        """刷新错题清单（app_state 为唯一数据源）。"""
+        wrong_nums = self.app_state.get_wrong_questions()
+        self.count_label.setText(f"错题本 · {len(wrong_nums)} 题")
+        self.table.setRowCount(len(wrong_nums))
+        for r, num in enumerate(wrong_nums):
+            q = self._by_number.get(num)
+            content = q.content if q is not None else "（题目缺失）"
+            values = (
+                str(num),
+                type_label(q.type) if q is not None else "—",
+                content if len(content) <= 60 else content[:60] + "…",
             )
+            for c, text in enumerate(values):
+                self.table.setItem(r, c, QTableWidgetItem(text))
 
-            # P2-4: 统一用 save_safe 提示保存失败
-            if not self.app_state.save_safe():
-                messagebox.showwarning(
-                    "保存失败",
-                    "错题本保存失败，请检查磁盘空间或文件权限。",
-                    parent=self,
-                )
-            # P2-PERF: 增量删除答对的题目，避免全量重建 Treeview
-            self._remove_tree_items(correct_nums)
-            self._sync_tree_after_change()
-            self._update_empty_state()
+    # -------------------------------------------------------------- 详情
+    def _show_detail(self, index) -> None:
+        """查看错题详情（P5 接入 QuestionDetailCard 对话框；P4 消息框兜底）。"""
+        row = index.row() if hasattr(index, "row") else int(index)
+        wrong_nums = self.app_state.get_wrong_questions()
+        if not (0 <= row < len(wrong_nums)):
+            return
+        q = self._by_number.get(wrong_nums[row])
+        if q is None:
+            return
+        QMessageBox.information(
+            self,
+            f"错题详情 · 第 {q.number} 题",
+            f"{q.content}\n\n"
+            + "\n".join(f"{o.letter}. {o.text}" for o in q.options)
+            + f"\n\n正确答案: {q.answer}\n解析: {q.explanation or '暂无解析'}",
+        )
 
-        self._close_practice_window()
-
-    def _on_practice_window_close(self) -> None:
-        """用户点击窗口关闭按钮时的确认处理。"""
-        if self._practice_window is None or not self._practice_window.winfo_exists():
-            self._close_practice_window()
+    # -------------------------------------------------------------- 练习
+    def start_practice(self) -> None:
+        """开始错题练习：错题本为空时提示；否则建快照队列切入练习视图。"""
+        wrong_nums = self.app_state.get_wrong_questions()
+        if not wrong_nums:
+            QMessageBox.information(self, "提示", "错题本是空的，先去练习模式刷题吧！")
+            return
+        wrong_questions = [self._by_number[n] for n in wrong_nums if n in self._by_number]
+        if not wrong_questions:
+            QMessageBox.information(self, "提示", "错题数据异常，无法开始练习。")
             return
 
-        if messagebox.askyesno(
-            "确认关闭",
-            "关闭后将结束本次错题练习，是否继续？",
-            parent=self._practice_window,
-        ):
-            self._close_practice_window()
+        # 销毁旧 panel（防重复开练习泄漏）
+        if self.panel is not None:
+            self.panel.deleteLater()
+            self.panel = None
 
-    def _close_practice_window(self) -> None:
-        """关闭错题练习子窗口。"""
-        if self._practice_window is not None:
-            try:
-                self._practice_window.grab_release()
-                self._practice_window.destroy()
-            except tk.TclError:
-                pass
-            self._practice_window = None
-            self._practice_panel = None
-        self._practice_session = None
+        self.practice_engine = QuizEngine(wrong_questions)
+        self.practice_session = PracticeSession(self.practice_engine, self.app_state)
+        self.panel = PracticePanel(
+            self.practice_session,
+            self.app_state,
+            on_finish=self._on_practice_finished,
+            on_submit=self._on_answer_submitted,
+            on_navigate=None,
+            on_restart=self.start_practice,
+        )
+        self.stack.addWidget(self.panel)
+        self.stack.setCurrentWidget(self.panel)
+        self.panel.reset_session(shuffle=False)
 
-    def clear_all_wrong(self) -> None:
-        if not self.wrong_questions:
-            messagebox.showinfo("提示", "错题本已经是空的了！", parent=self)
+    def _on_answer_submitted(self) -> None:
+        """错题练习提交后：判题已由 PracticePanel 内部处理，这里做防抖保存。"""
+        self._save_progress_delayed()
+        self.state_changed.emit()
+
+    def _on_practice_finished(self) -> None:
+        """错题队列完成：统计 + 询问移除答对题 + 回列表。"""
+        _ = self.app_state.get_practice_stats()  # 占位读取，实际用 engine 统计
+        if self.practice_engine is None:
             return
-
-        if messagebox.askyesno("确认", "确定要清空所有错题吗？此操作不可恢复！", parent=self):
-            self.app_state.set_wrong_questions([])
-            # P2-4: 统一用 save_safe 提示保存失败
+        report = self.practice_engine.get_stats()
+        answer = QMessageBox.question(
+            self,
+            "练习完成",
+            f"本次错题练习完成！\n\n"
+            f"共答 {report['total']} 题，答对 {report['correct']} 题。\n\n"
+            f"是否将本次答对的题目从错题本中移除？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            for num in self.practice_engine.get_correct_question_numbers():
+                self.app_state.remove_wrong_question(num)
             if not self.app_state.save_safe():
-                messagebox.showwarning(
-                    "保存失败",
-                    "错题本保存失败，请检查磁盘空间或文件权限。",
-                    parent=self,
-                )
+                QMessageBox.warning(self, "保存失败", self._save_failure_message)
 
-            self.wrong_questions = []
-            self._wrong_by_number = {}
-            self._tree_item_by_number.clear()
-            self._populate_tree()
-            self.count_label.configure(text="共 0 道错题")
+        self._back_to_list()
+        self.state_changed.emit()
+
+    def _back_to_list(self) -> None:
+        """回列表视图并刷新。"""
+        if self.panel is not None:
+            self.panel.deleteLater()
+            self.panel = None
+            self.practice_session = None
+        self.stack.setCurrentIndex(0)
+        self._refresh_table()
+
+    def _clear_wrong_book(self) -> None:
+        """清空错题本（确认后清空 + 立即保存）。"""
+        if not self.app_state.wrong_count():
+            QMessageBox.information(self, "提示", "错题本已经是空的。")
+            return
+        answer = QMessageBox.question(
+            self,
+            "清空错题本",
+            "确定要清空所有错题记录吗？此操作不可撤销。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.app_state.set_wrong_questions([])
+        if not self.app_state.save_safe():
+            QMessageBox.warning(self, "保存失败", self._save_failure_message)
+        self._refresh_table()
+        self.state_changed.emit()
+
+    # -------------------------------------------------------------- 主窗口协议
+    def on_letter(self, letter: str) -> None:
+        """练习视图中 A-D → 选项点击；列表视图无语义。"""
+        if self.stack.currentIndex() == 1 and self.panel is not None and self.practice_session:
+            if not self.practice_session.is_answered:
+                self.panel.handle_option_click(letter)
+
+    def on_submit(self) -> None:
+        if self.stack.currentIndex() == 1 and self.panel is not None:
+            self.panel.submit_answer()
+
+    def on_prev(self) -> None:
+        if self.stack.currentIndex() == 1 and self.panel is not None:
+            self.panel.prev_question()
+
+    def on_next(self) -> None:
+        if self.stack.currentIndex() == 1 and self.panel is not None:
+            self.panel.next_question()
+
+    def nav_count(self) -> str:
+        return str(self.app_state.wrong_count())
+
+    def modeline_text(self) -> str:
+        if self.stack.currentIndex() == 1 and self.practice_engine is not None:
+            return (
+                f"WRONGBOOK · 错题练习 第 {self.practice_engine.get_current_index() + 1}"
+                f"/{self.practice_engine.queue_length()} 题"
+            )
+        return f"WRONGBOOK · 错题 {self.app_state.wrong_count()} 题"
