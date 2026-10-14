@@ -65,6 +65,7 @@ icons/README.md
 
 # 工程化文件（本地保留，不推送到仓库）
 requirements-dev.txt
+desktop_python.md
 .env.example
 
 # AI 工作区与本地文档（本地保留，不入库）
