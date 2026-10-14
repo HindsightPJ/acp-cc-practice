@@ -110,7 +110,7 @@ class MainWindow(QMainWindow):
         # 页面状态变化 → 刷新 board-nav 计数与 modeline（信号驱动，免轮询）
         for i in range(self.stack.count()):
             page = self.stack.widget(i)
-            if hasattr(page, "state_changed"):
+            if page is not None and hasattr(page, "state_changed"):
                 page.state_changed.connect(self._refresh_current_state)
 
         # 时钟：父控件为 self，窗口销毁随 QObject 树释放（L1 资源红线）
@@ -200,7 +200,7 @@ class MainWindow(QMainWindow):
         """打开注册码对话框；授权流程完成后刷新按钮状态。"""
         from .license_dialog import LicenseDialog
 
-        if LicenseDialog.create(self, self.license_dir):
+        if LicenseDialog.open_for(self, self.license_dir):
             self.license_status = LicenseStatus.AUTHORIZED
             self._sync_license_btn()
 
@@ -322,9 +322,12 @@ class MainWindow(QMainWindow):
         for seq, method, args in routes:
             shortcut = QShortcut(QKeySequence(seq), self)
             shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
-            shortcut.activated.connect(
-                lambda m=method, a=args: self._route(m, *a)  # type: ignore[misc] - 闭包捕获实参
-            )
+
+            def _emit_route(m=method, a=args) -> None:
+                # 默认参数冻结捕获值，规避循环变量迟到绑定（B023）
+                self._route(m, *a)
+
+            shortcut.activated.connect(_emit_route)
         theme_sc = QShortcut(QKeySequence("Ctrl+T"), self)
         theme_sc.setContext(Qt.ShortcutContext.WindowShortcut)
         theme_sc.activated.connect(self.toggle_theme)

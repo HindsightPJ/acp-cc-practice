@@ -106,7 +106,7 @@ class TitleBar(QFrame):
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt 命名
         if event.button() == Qt.MouseButton.LeftButton:
             # 系统级拖拽（原生手感，跨多显示器跟随）；按钮区已被子控件消费
-            self.window().startSystemMove()
+            self.window().startSystemMove()  # type: ignore[attr-defined]  # PySide6 stub 缺口
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 - Qt 命名
@@ -139,7 +139,7 @@ class _ResizeFilter(QObject):
         return False
 
     def _edges_at(self, event: QEvent) -> int:
-        pos = event.position().toPoint()  # pyright: ignore[reportAttributeAccessIssue] - 调用前已确认 Mouse* 类型
+        pos = event.position().toPoint()  # type: ignore[attr-defined]  # PySide6 stub 缺口
         rect = self._window.rect()
         edges = 0
         if pos.x() <= _EDGE:
@@ -162,10 +162,8 @@ class _ResizeFilter(QObject):
 
     def _try_start_resize(self, event: QEvent) -> bool:
         mouse = event
-        if (
-            mouse.type() != QEvent.Type.MouseButtonPress
-            or mouse.button() != Qt.MouseButton.LeftButton
-        ):  # pyright: ignore[reportAttributeAccessIssue]
+        is_press = mouse.type() == QEvent.Type.MouseButtonPress
+        if not is_press or mouse.button() != Qt.MouseButton.LeftButton:  # type: ignore[attr-defined]  # PySide6 stub 缺口
             return False
         window = self._window
         if window.isMaximized() or window.isFullScreen():
@@ -173,7 +171,7 @@ class _ResizeFilter(QObject):
         edges = self._edges_at(event)
         if not edges:
             return False
-        window.startSystemResize(Qt.Edges(edges))
+        window.startSystemResize(Qt.Edges(edges))  # type: ignore[attr-defined]  # PySide6 stub 缺口
         return True
 
 

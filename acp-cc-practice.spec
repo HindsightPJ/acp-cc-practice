@@ -56,11 +56,6 @@ a = Analysis(
         (os.path.join(SPECPATH, 'icons', 'icon.ico'), 'icons'),
     ],
     hiddenimports=[
-        # ttkbootstrap 动态加载的主题/样式模块，显式声明避免打包遗漏
-        'ttkbootstrap',
-        'ttkbootstrap.style',
-        'ttkbootstrap.publisher',
-        'ttkbootstrap.themes.standard',
         'cryptography.fernet',
         'cryptography.hazmat.primitives.ciphers.aead',
         'cryptography.hazmat.primitives.kdf.pbkdf2',
@@ -71,7 +66,15 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # P7: 裁剪 PySide6 无关组件（Essentials 之外的 Qt 模块与 tkinter 栈）
+    excludes=[
+        'tkinter', '_tkinter',
+        'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'PySide6.QtWebChannel',
+        'PySide6.QtPdf', 'PySide6.QtPdfWidgets',
+        'PySide6.QtMultimedia', 'PySide6.QtMultimediaWidgets',
+        'PySide6.QtSql', 'PySide6.QtTest',
+        'PySide6.QtNetworkAuth',
+    ],
     noarchive=False,
     optimize=0,
 )

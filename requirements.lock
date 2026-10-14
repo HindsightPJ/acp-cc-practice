@@ -10,7 +10,9 @@ cffi==2.0.0
     # via cryptography
 colorama==0.4.6
     # via pytest
-cryptography==49.0.0
+coverage==7.16.2
+    # via pytest-cov
+cryptography==50.0.0
     # via acp-cc-practice (pyproject.toml)
 iniconfig==2.3.0
     # via pytest
@@ -26,13 +28,15 @@ pathspec==1.1.1
     # via mypy
 pluggy==1.6.0
     # via pytest
-pycparser==3.0
-    # via cffi
 pygments==2.20.0
     # via pytest
 pyside6-essentials==6.12.0
     # via acp-cc-practice (pyproject.toml)
+pycparser==3.0
+    # via cffi
 pytest==9.1.1
+    # via acp-cc-practice (pyproject.toml)
+pytest-cov==7.1.0
     # via acp-cc-practice (pyproject.toml)
 pytest-qt==4.5.0
     # via acp-cc-practice (pyproject.toml)
@@ -43,7 +47,3 @@ shiboken6==6.12.0
 typing-extensions==4.15.0
     # via
     #   mypy
-ttkbootstrap==1.10.1
-    # via acp-cc-practice (pyproject.toml)
-pillow==12.3.0
-    # via ttkbootstrap

@@ -5,11 +5,11 @@ version = "1.1.0"  # P2-5: 与 acp-cc-practice.spec 的 FileVersion/ProductVersi
 description = "ACP CC 题库练习软件"
 requires-python = ">=3.10"
 dependencies = [
-    "cryptography>=41.0.0,<50",
+    # 50.0.0 起：PYSEC-2026-3552（pip-audit P7 门禁），49.x 及以下不收
+    "cryptography>=50.0.0,<51",
     # 仅 Essentials 核心（QtCore/QtGui/QtWidgets）：本应用不用 WebEngine/Pdf/Addons，
     # PySide6 元包 6.12 起连带拉 ~700MB 无关组件；shiboken6 由 Essentials 自动带入
     "PySide6-Essentials>=6.12.0,<7.0",
-    "ttkbootstrap>=1.10.1,<2.0",  # P7 移除（迁移过渡期保留锁文件一致性）
 ]
 
 [project.optional-dependencies]

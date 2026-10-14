@@ -187,7 +187,7 @@ class LicenseDialog(BaseDialog):
 
     # -------------------------------------------------------------- 工厂
     @staticmethod
-    def create(
+    def open_for(
         parent,
         license_dir: str,
         verify_and_save: Callable[[str, str, str | None], tuple[bool, str, bool]] | None = None,
@@ -195,6 +195,7 @@ class LicenseDialog(BaseDialog):
         """采集机器码并模态显示对话框；返回授权流程是否成功完成。
 
         机器码读取失败（非 Windows 等）时报错并返回 False。
+        命名避讳 QWidget.create（Qt 原生窗口创建方法，撞名会触发 mypy override 冲突）。
         """
         from license.fingerprint import get_machine_code_or_none
 
