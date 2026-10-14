@@ -1,26 +1,72 @@
+"""主窗口：F 方案「时刻表」框架（标题栏 / 站牌头 / board-nav / 模式页 / modeline）。
+
+结构（自上而下，间距 0 的垂直网格，desktop_python.md §6 QSS 单一取色源）：
+- TitleBar（44px Frameless 站牌条，见 titlebar.py）
+- QFrame#head 站牌头：brand + 副题 + 时钟（QTimer 30s 刷新，随控件销毁）
+- QFrame#boardNav：4 个导航行（黑底反白激活态，子标签经 navActive 属性驱动，
+  原因见 theme.py QSS 注释——祖先伪类不可靠）
+- QStackedWidget 模式页：practice/exam/review/wrong，各页自带网格体与动作条
+- QLabel#modeline 底部状态行
+
+快捷键（WindowShortcut）：A–D 选项、Return/Enter 提交、← → 翻题，经 _route
+鸭子类型转发到当前页的 on_letter/on_submit/on_prev/on_next；Ctrl+T 切主题。
+
+线程红线（desktop_python.md §二）：后台任务只经信号触 UI，本类不直接跑后台。
+"""
+
+from __future__ import annotations
+
+import logging
 import os
 import sys
-import tkinter as tk
-import ttkbootstrap as ttkb
-from tkinter import ttk, messagebox
-from typing import Any, Callable
+from typing import Any
 
-from .theme import apply_theme_primary, current_theme_mode, set_theme_mode, theme
+from PySide6.QtCore import QDate, Qt, QTime, QTimer
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
+from PySide6.QtWidgets import (
+    QApplication,
+    QButtonGroup,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+)
 
-from .practice_mode import PracticeMode
-from .exam_mode import ExamMode
-from .review_mode import ReviewMode
-from .wrong_book import WrongBook
-from .sidebar import Sidebar
-from .license_dialog import LicenseDialog
-from .header import Header
+from .theme import (
+    THEME_DARK,
+    THEME_LIGHT,
+    apply_qss,
+    current_theme_mode,
+    repolish,
+    set_theme_mode,
+)
+from .titlebar import TitleBar, setup_frameless
+
 from app_state import AppState
 from data_manager import DataManager
 from license import LicenseStatus
 from models import Question
 
+logger = logging.getLogger(__name__)
 
-class MainWindow(ttkb.Window):
+# 导航定义：(key, 编号, 名称, 标题栏 tag)
+NAV_DEFS: tuple[tuple[str, str, str, str], ...] = (
+    ("practice", "01", "练习模式", "PRACTICE"),
+    ("exam", "02", "考试模式", "EXAM"),
+    ("review", "03", "背题模式", "REVIEW"),
+    ("wrong", "04", "错题本", "WRONGBOOK"),
+)
+
+_BRAND = "ACP·云算题库"
+_SUB = "阿里云专业认证\n每日练习"
+
+
+class MainWindow(QMainWindow):
+    """时刻表框架主窗口。模式页经 show_mode 切换，业务页在 P4 起接入。"""
+
     def __init__(
         self,
         questions: list[Question],
@@ -29,276 +75,251 @@ class MainWindow(ttkb.Window):
         meta: dict[str, Any] | None = None,
         license_dir: str | None = None,
     ) -> None:
-        # [VERSION_LOCKED] ttkbootstrap 1.10.1：Window(themename=...) 在创建时应用 journal 主题
-        super().__init__(themename="journal")
-
-        self.title("ACP 云计算练习")
-        self.geometry("1200x760")
-        self.minsize(1000, 640)
-
-        # TD-22: 统一设置 Tk 窗口图标
-        # 开发模式从项目根目录读取；PyInstaller 打包后从 sys._MEIPASS 临时目录读取
-        icon_base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(__file__)))
-        icon_path = os.path.join(icon_base, "icons", "icon.ico")
-        if os.path.exists(icon_path):
-            try:
-                self.iconbitmap(icon_path)
-            except tk.TclError:
-                pass
+        super().__init__()
+        setup_frameless(self)  # 必须在 show() 之前
+        self.setWindowTitle("ACP 云计算练习")
+        self.resize(1200, 760)
+        self.setMinimumSize(980, 640)
+        self._set_app_icon()
 
         self.questions: list[Question] = questions
         self.data_manager = data_manager
-        # TD-30: 用 AppState 封装进度，UI 不再直接操作原始 dict
+        # TD-30：AppState 封装进度，UI 不直接操作原始 dict
         self.app_state = AppState(data_manager, data_manager.load_progress())
         self.license_status = license_status
         self.meta = meta or {}
-        # license.dat 持久化目录：打包后必须写到 exe 同级 data/（非 _MEIPASS 临时目录）
-        # 若未传入，fallback 到 data_manager.data_dir（开发模式可用）
+        # license.dat 持久化目录：打包后必须写到 exe 同级 data/（非 _MEIPASS）
         self.license_dir = license_dir or data_manager.data_dir
 
-        self.current_frame: tk.Widget | None = None
-        self._active_nav = "practice"
-        self.sidebar: Sidebar | None = None
-
-        self.configure_ui()
-        self.create_widgets()
-        self.show_practice_mode()
-        self._refresh_mastery()
-
-    def configure_ui(self) -> None:
-        # 主题模式：启动时从持久化状态恢复（非法值 fail-safe 回浅色），
-        # 必须在创建任何控件之前完成——控件创建时读 Token
+        # 主题：控件创建前定模式，QSS 应用到整个应用（控件零缓存颜色）
         set_theme_mode(self.app_state.get_theme_mode())
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            apply_qss(app)
 
-        self.configure(bg=theme.BG_PAGE)
+        self._nav_buttons: dict[str, tuple[QPushButton, QLabel, QLabel, QLabel]] = {}
+        self._mode_keys: list[str] = [d[0] for d in NAV_DEFS]
 
-        # ttk 控件层主色按当前主题覆写（theme.py 是 tk.* 控件的取色源，
-        # ttk 控件取色于 ttkbootstrap 主题定义，须两处同步）
-        apply_theme_primary(self)
-        self._apply_ttk_surface_styles()
+        self._build_ui()
+        self._install_shortcuts()
 
-    def _apply_ttk_surface_styles(self) -> None:
-        """对齐 ttk 容器样式与当前主题（换肤后必须重跑，见 K2/K15）。"""
-        style = ttk.Style()
-        style.configure("TFrame", background=theme.BG_PAGE)
-        style.configure("TSeparator", background=theme.BORDER)
+        # 时钟：父控件为 self，窗口销毁随 QObject 树释放（L1 资源红线）
+        self._clock_timer = QTimer(self)
+        self._clock_timer.setInterval(30_000)
+        self._clock_timer.timeout.connect(self._update_clock)
+        self._clock_timer.start()
+        self._update_clock()
 
-    # -------------------------------------------------------------- 布局
-    def create_widgets(self) -> None:
-        # 整体：浮动侧栏（页面留白包裹）+ 右内容区
-        body = tk.Frame(self, bg=theme.BG_PAGE)
-        body.pack(fill=tk.BOTH, expand=True)
+        self.show_mode("practice")
 
-        nav_defs: list[tuple[str, str, Callable[[], None] | None]] = [
-            ("practice", "练习", self.show_practice_mode),
-            ("exam", "考试", self.show_exam_mode),
-            ("review", "背题", self.show_review_mode),
-            ("wrong", "错题本", self.show_wrong_book),
-        ]
-        self.sidebar = Sidebar(
-            body,
-            nav_defs,
-            on_theme_toggle=self.toggle_theme,
-            # 未授权时侧栏显示「输入注册码」（错题计数下方）
-            on_activate_click=(
-                self._show_license_dialog
-                if self.license_status != LicenseStatus.AUTHORIZED
-                else None
-            ),
-        )
-        self.sidebar.pack(side=tk.LEFT, fill=tk.Y, padx=(16, 0), pady=16)
-        self.sidebar.set_theme_icon(current_theme_mode())
+    # -------------------------------------------------------------- 装配
+    def _set_app_icon(self) -> None:
+        """开发模式读项目根 icons/；PyInstaller 打包后读 _MEIPASS 临时目录。"""
+        base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(__file__)))
+        icon_path = os.path.join(base, "icons", "icon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
-        content_wrapper = tk.Frame(body, bg=theme.BG_PAGE)
-        content_wrapper.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    def _build_ui(self) -> None:
+        root = QFrame()
+        root.setObjectName("windowRoot")
+        self.setCentralWidget(root)
+        v = QVBoxLayout(root)
+        v.setContentsMargins(1, 1, 1, 1)  # 让 windowRoot 的 1px 分界线可见
+        v.setSpacing(0)
 
-        # 顶部细 header（模式名 + 授权状态 + 全局统计）
+        self.titlebar = TitleBar(tag=NAV_DEFS[0][3])
+        v.addWidget(self.titlebar)
+
+        v.addWidget(self._build_head())
+        v.addWidget(self._build_nav())
+
+        self.stack = QStackedWidget()
+        v.addWidget(self.stack, 1)
+        for _key, no, name, _tag in NAV_DEFS:
+            self.stack.addWidget(self._build_placeholder(no, name))
+
+        self.modeline = QLabel()
+        self.modeline.setObjectName("modeline")
+        v.addWidget(self.modeline)
+
+    def _build_head(self) -> QFrame:
+        head = QFrame()
+        head.setObjectName("head")
+        h = QHBoxLayout(head)
+        h.setContentsMargins(34, 20, 34, 14)
+        h.setSpacing(22)
+
+        brand = QLabel(_BRAND)
+        brand.setObjectName("brand")
+        h.addWidget(brand)
+
+        sub = QLabel(_SUB)
+        sub.setObjectName("subTitle")
+        h.addWidget(sub)
+        h.addStretch(1)
+
+        clock_box = QVBoxLayout()
+        clock_box.setSpacing(4)
+        self._clock_time = QLabel()
+        self._clock_time.setObjectName("clockTime")
+        self._clock_date = QLabel()
+        self._clock_date.setObjectName("clockDate")
+        clock_box.addWidget(self._clock_time, 0, Qt.AlignmentFlag.AlignRight)
+        clock_box.addWidget(self._clock_date, 0, Qt.AlignmentFlag.AlignRight)
+        h.addLayout(clock_box)
+        return head
+
+    def _build_nav(self) -> QFrame:
+        nav = QFrame()
+        nav.setObjectName("boardNav")
+        h = QHBoxLayout(nav)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(0)
+
+        self._nav_group = QButtonGroup(self)
+        self._nav_group.setExclusive(True)
+        for index, (key, no, name, _tag) in enumerate(NAV_DEFS):
+            btn = QPushButton()
+            btn.setProperty("navRow", True)
+            btn.setCheckable(True)
+            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            inner = QHBoxLayout(btn)
+            inner.setContentsMargins(0, 0, 0, 0)
+            inner.setSpacing(10)
+            lbl_no = QLabel(no)
+            lbl_no.setProperty("navNo", True)
+            lbl_nm = QLabel(name)
+            lbl_nm.setProperty("navNm", True)
+            lbl_cnt = QLabel("—")
+            lbl_cnt.setProperty("navCnt", True)
+            inner.addWidget(lbl_no)
+            inner.addWidget(lbl_nm)
+            inner.addStretch(1)
+            inner.addWidget(lbl_cnt)
+            btn.setMinimumHeight(44)
+
+            self._nav_group.addButton(btn, index)
+            self._nav_buttons[key] = (btn, lbl_no, lbl_nm, lbl_cnt)
+            h.addWidget(btn, 1)
+
+        self._nav_group.idClicked.connect(self._on_nav_clicked)
+        return nav
+
+    def _build_placeholder(self, no: str, name: str) -> QFrame:
+        """P4 前的占位页：模式名居中（QSS 复用 subTitle 类，无散写颜色）。"""
+        page = QFrame()
+        v = QVBoxLayout(page)
+        v.addStretch(1)
+        lbl = QLabel(f"{no} · {name}")
+        lbl.setObjectName("subTitle")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        v.addWidget(lbl)
+        hint = QLabel("该模式将在迁移 P4 阶段接入")
+        hint.setObjectName("qMeta")
+        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        v.addWidget(hint)
+        v.addStretch(1)
+        return page
+
+    # -------------------------------------------------------------- 导航
+    def _on_nav_clicked(self, index: int) -> None:
+        if 0 <= index < len(self._mode_keys):
+            self.show_mode(self._mode_keys[index])
+
+    def show_mode(self, key: str) -> None:
+        """切换模式页：导航反白 + tag + modeline 同步更新。"""
+        if key not in self._nav_buttons:
+            logger.warning("未知模式 %r，忽略", key)
+            return
+        index = self._mode_keys.index(key)
+        self.stack.setCurrentIndex(index)
+        for k, (btn, lbl_no, lbl_nm, lbl_cnt) in self._nav_buttons.items():
+            active = k == key
+            btn.setChecked(active)
+            for lbl in (lbl_no, lbl_nm, lbl_cnt):
+                lbl.setProperty("navActive", active)
+                repolish(lbl)
+        tag = NAV_DEFS[index][3]
+        self.titlebar.set_tag(tag)
+        self._refresh_nav_counts()
+        self._update_modeline(key)
+
+    def _refresh_nav_counts(self) -> None:
+        """刷新各行右侧计数：页面可提供 nav_count()，缺省 '—'；错题行实时。"""
+        for index, (key, _no, _nm, _tag) in enumerate(NAV_DEFS):
+            if key == "wrong":
+                text = str(self.app_state.wrong_count())
+            else:
+                page = self.stack.widget(index)
+                provider = getattr(page, "nav_count", None)
+                text = provider() if callable(provider) else "—"
+            _btn, _no_lbl, _nm_lbl, lbl_cnt = self._nav_buttons[key]
+            lbl_cnt.setText(text)
+
+    def _update_modeline(self, key: str) -> None:
+        page = self.stack.widget(self._mode_keys.index(key))
+        provider = getattr(page, "modeline_text", None)
+        if callable(provider):
+            self.modeline.setText(provider())
+            return
         total = self.meta.get("total", len(self.questions))
-        self.header = Header(
-            content_wrapper,
-            license_status=self.license_status,
-            total_count=total,
-            trial_count=len(self.questions),
-            mode_title="练习",
+        lic = "已授权" if self.license_status == LicenseStatus.AUTHORIZED else "试用模式"
+        self.modeline.setText(
+            f"MODEL {key.upper()} · 题库 {total} · 错题 {self.app_state.wrong_count()} · {lic}"
         )
-        self.header.pack(fill=tk.X, side=tk.TOP, padx=(16, 16), pady=(16, 0))
-        # 保持对内部标签的引用，兼容现有测试与外部访问
-        self.mode_title = self.header.mode_title
-        self.license_status_label = self.header.license_status_label
-        self._stats_label = self.header.stats_label
 
-        self.content_area = tk.Frame(content_wrapper, bg=theme.BG_PAGE)
-        self.content_area.pack(fill=tk.BOTH, expand=True, padx=16, pady=12)
+    # -------------------------------------------------------------- 时钟
+    def _update_clock(self) -> None:
+        self._clock_time.setText(QTime.currentTime().toString("hh:mm"))
+        # 日期占位符属 QDate（QTime.toString 不解析 yyyy 等日期 token）
+        self._clock_date.setText(f"SESSION · {QDate.currentDate().toString('yyyy.MM.dd')}")
 
-    def _show_license_dialog(self) -> None:
-        """弹出注册码输入对话框（逻辑已拆分到 LicenseDialog）。"""
-        dialog = LicenseDialog(self, self.license_dir)
-        dialog.show()
+    # -------------------------------------------------------------- 快捷键
+    def _install_shortcuts(self) -> None:
+        routes: tuple[tuple[str, str, tuple[Any, ...]], ...] = (
+            ("A", "on_letter", ("A",)),
+            ("B", "on_letter", ("B",)),
+            ("C", "on_letter", ("C",)),
+            ("D", "on_letter", ("D",)),
+            ("Return", "on_submit", ()),
+            ("Enter", "on_submit", ()),
+            ("Left", "on_prev", ()),
+            ("Right", "on_next", ()),
+        )
+        for seq, method, args in routes:
+            shortcut = QShortcut(QKeySequence(seq), self)
+            shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+            shortcut.activated.connect(
+                lambda m=method, a=args: self._route(m, *a)  # type: ignore[misc] - 闭包捕获实参
+            )
+        theme_sc = QShortcut(QKeySequence("Ctrl+T"), self)
+        theme_sc.setContext(Qt.ShortcutContext.WindowShortcut)
+        theme_sc.activated.connect(self.toggle_theme)
 
-    # -------------------------------------------------------------- 双主题
+    def _route(self, method: str, *args: Any) -> None:
+        """把快捷键转发给当前模式页（页面未实现则忽略）。"""
+        page = self.stack.currentWidget()
+        handler = getattr(page, method, None)
+        if callable(handler):
+            handler(*args)
+
+    # -------------------------------------------------------------- 主题
     def toggle_theme(self) -> None:
-        """浅色 / 深色切换（侧栏底部月亮/太阳按钮）。
-
-        考试进行中切换会丢内存态考试会话，先确认（对标切 tab 守卫）；
-        切换 = 换 Token + 重应用 ttk 主色 + 重建界面 chrome + 持久化。
-        """
-        if self._is_exam_in_progress():
-            if not messagebox.askyesno(
-                "确认切换",
-                "考试正在进行中，切换主题将放弃本次考试。\n\n确定要切换吗？",
-                parent=self,
-            ):
-                return
-        new_mode = set_theme_mode("dark" if current_theme_mode() == "light" else "light")
-        apply_theme_primary(self)
-        self._apply_ttk_surface_styles()
-        self.configure(bg=theme.BG_PAGE)
-        self._rebuild_chrome()
-        if self.sidebar is not None:
-            self.sidebar.set_theme_icon(new_mode)
-        # 持久化（K14：走既有原子写入链路，不新建写盘路径）
+        """浅色/深色切换：换 Token + 重应用 QSS + 持久化（fail-safe 落盘）。"""
+        new_mode = THEME_DARK if current_theme_mode() == THEME_LIGHT else THEME_LIGHT
+        set_theme_mode(new_mode)
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            apply_qss(app, new_mode)
         self.app_state.set_theme_mode(new_mode)
         if not self.app_state.save_safe():
-            messagebox.showwarning(
-                "保存失败", "主题偏好保存失败，重启后将回到浅色模式。", parent=self
-            )
+            logger.warning("主题模式持久化失败（下次启动回退上次保存值）")
 
-    def _rebuild_chrome(self) -> None:
-        """销毁并重建侧栏 / 页头 / 内容区，回到切换前的模式。
-
-        练习进度经 app_state 快照自动恢复；考试会话由调用方先行确认放弃。
-        重建后必须重新赋值公开属性（sidebar/header/content_area/current_frame），
-        测试与外部代码持有这些引用。
-        """
-        current_mode = self._active_nav
-        if self.current_frame is not None:
-            self.current_frame.destroy()
-            self.current_frame = None
-        for child in self.winfo_children():
-            child.destroy()
-        self.create_widgets()
-        self._switch_mode_factory(current_mode)()
-
-    def _switch_mode_factory(self, tab_id: str) -> Callable[[], None]:
-        factories: dict[str, Callable[[], None]] = {
-            "practice": self.show_practice_mode,
-            "exam": self.show_exam_mode,
-            "review": self.show_review_mode,
-            "wrong": self.show_wrong_book,
-        }
-        return factories.get(tab_id, self.show_practice_mode)
-
-    # -------------------------------------------------------------- 交互
-    def _update_nav_highlight(self) -> None:
-        if self.sidebar is None:
-            return
-        self.sidebar.set_active_nav(self._active_nav)
-
-    def _update_stats_display(self, wrong_count: int | None = None) -> None:
-        practice_stats = self.app_state.get_practice_stats()
-        correct = practice_stats.get("correct", 0)
-        total_practiced = practice_stats.get("total", 0)
-        accuracy = (correct / total_practiced * 100) if total_practiced > 0 else 0
-        # P1-2: 调用方已计算 wrong_count 时直接复用，避免重复读取
-        if wrong_count is None:
-            wrong_count = self.app_state.wrong_count()
-        self.header.update_stats(total_practiced, accuracy, wrong_count)
-
-    def _refresh_mastery(self) -> None:
-        """就绪度 = 练习覆盖率 × 正确率。
-
-        覆盖率 = 已练习题数 / 题库总数；
-        正确率 = 练习正确数 / 练习总数。
-        两个值都在 [0, 1]，乘积也在 [0, 1]。
-        """
-        total_pool = len(self.questions) if self.questions else 0
-        practice_stats = self.app_state.get_practice_stats()
-        total_practiced = practice_stats.get("total", 0)
-        correct = practice_stats.get("correct", 0)
-
-        coverage = (total_practiced / total_pool) if total_pool > 0 else 0
-        accuracy = (correct / total_practiced) if total_practiced > 0 else 0
-        # 覆盖率超过 1.0 时（重复刷题）按 100% 计
-        coverage = min(coverage, 1.0)
-        mastery = coverage * accuracy
-
-        wrong_count = self.app_state.wrong_count()
-        if self.sidebar is not None:
-            self.sidebar.set_mastery(mastery)
-            self.sidebar.set_readiness_stats(coverage, accuracy)
-            self.sidebar.set_wrong_indicator(
-                text=f"错题本 {wrong_count} 题" if wrong_count else "错题本为空",
-                fg=theme.RED if wrong_count > 0 else theme.INK_TEXT_MUTED,
-            )
-
-        # P1-2: 传入已计算的 wrong_count，避免 _update_stats_display 重复读取
-        self._update_stats_display(wrong_count)
-
-    # -------------------------------------------------------------- 模式切换
-    def clear_content(self) -> None:
-        if self.current_frame:
-            self.current_frame.destroy()
-            self.current_frame = None
-
-    def _is_exam_in_progress(self) -> bool:
-        """检查当前是否在考试中（用于切 tab 前确认，避免丢失考试状态）。"""
-        if not isinstance(self.current_frame, ExamMode):
-            return False
-        # P0-3: timer_running 为 True 表示考试进行中（开始按钮已禁用、计时器在跑）
-        return bool(self.current_frame.timer_running)
-
-    def _switch_to(self, tab_id: str, title: str, factory: Callable[[], tk.Widget]) -> None:
-        # P0-3: 考试进行中切 tab 会丢失 answers/marked/时间，先确认
-        if self._is_exam_in_progress():
-            if not messagebox.askyesno(
-                "确认切换",
-                "考试正在进行中，切换模式将放弃本次考试。\n\n确定要切换吗？",
-                parent=self,
-            ):
-                # 用户取消：恢复 sidebar 高亮到当前 tab（_handle_nav_click 已切到新 tab）
-                if self.sidebar is not None:
-                    self.sidebar.set_active_nav(self._active_nav)
-                return
-        self.clear_content()
-        self._active_nav = tab_id
-        # P2: 标题在考试确认通过后才切换——取消路径不会再出现
-        # "顶部标题已换成目标模式、内容仍是考试"的状态不一致
-        self.header.set_mode_title(title)
-        self._update_nav_highlight()
-        new_frame = factory()
-        self.current_frame = new_frame
-        new_frame.pack(fill=tk.BOTH, expand=True)
-        # 切 tab 后刷新就绪度环（进度可能因上次练习更新）
-        self._refresh_mastery()
-
-    def show_practice_mode(self) -> None:
-        self._switch_to(
-            "practice",
-            "练习",
-            lambda: PracticeMode(
-                self.content_area, self.questions, self.data_manager, self.app_state
-            ),
-        )
-
-    def show_exam_mode(self) -> None:
-        self._switch_to(
-            "exam",
-            "考试",
-            lambda: ExamMode(self.content_area, self.questions, self.data_manager, self.app_state),
-        )
-
-    def show_review_mode(self) -> None:
-        self._switch_to(
-            "review",
-            "背题",
-            lambda: ReviewMode(
-                self.content_area, self.questions, self.data_manager, self.app_state
-            ),
-        )
-
-    def show_wrong_book(self) -> None:
-        self._switch_to(
-            "wrong",
-            "错题本",
-            lambda: WrongBook(self.content_area, self.questions, self.data_manager, self.app_state),
-        )
+    # -------------------------------------------------------------- 退出
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt 命名
+        # 退出前兜底落盘（日常写盘由各模式页的防抖保存承担，P4 接入）
+        if not self.app_state.save_safe():
+            logger.error("退出时保存进度失败")
+        super().closeEvent(event)

@@ -1,14 +1,26 @@
-import sys
-import os
-import logging
-import tkinter as tk
-import ttkbootstrap as ttkb
-import threading
-import queue
-from dataclasses import dataclass
-from tkinter import messagebox
+"""应用装配：QApplication + Frameless splash + 后台加载题库/授权 → MainWindow。
 
+装配顺序（desktop_python.md §三）：
+1. 解析目录 + 日志
+2. QApplication（Qt 一切控件的前提）
+3. 读进度取主题模式 → 应用全局 QSS（splash 与主窗口同主题，无闪变）
+4. Frameless splash（同 F 方案站牌语言，QSS 类复用，无散写颜色）
+5. 后台线程跑 license 验证 + 题库解密（0.5~6s），结果经 queue 回主线程
+6. QTimer 轮询 queue：成功 → MainWindow；失败 → QMessageBox.critical 后退出
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import queue
+import sys
+import threading
+from dataclasses import dataclass
 from typing import Any, cast
+
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QVBoxLayout, QWidget
 
 from data_manager import DataManager, DataLoadError
 from license import LicenseStatus
@@ -16,6 +28,8 @@ from license.verifier import LicenseVerifier
 from logging_utils import configure_app_logging, log_error
 from models import Question
 from ui.main_window import MainWindow
+from ui.theme import apply_qss, center_window
+from app_state import AppState
 
 
 def _resolve_base_dir() -> str:
@@ -45,18 +59,6 @@ def _setup_logging(user_data_dir: str) -> None:
     configure_app_logging(log_file, level=logging.WARNING)
 
 
-def _show_fatal_error(title: str, message: str) -> None:
-    """显示错误对话框后退出程序（TD-04 修复：消除 main() 中 4 处重复模式）。
-
-    在 main() 的多处错误路径上使用，集中创建 tk.Tk + messagebox + sys.exit(1)。
-    调用方自行决定是否在调用前记录日志（logger.error / logger.exception）。
-    """
-    root = tk.Tk()
-    root.withdraw()
-    messagebox.showerror(title, message)
-    sys.exit(1)
-
-
 @dataclass
 class LoadSuccess:
     """后台线程加载成功的结果。"""
@@ -75,34 +77,6 @@ class LoadFailure:
     mode: str = "unknown"
 
 
-def _reset_ttkbootstrap_style() -> None:
-    """重置 ttkbootstrap 进程级 Style 单例，使其绑定下一个新建的 root。
-
-    splash 销毁后单例仍指向已销毁解释器；不重置的话，MainWindow 应用
-    journal 主题时会在死解释器上触发 ttk::ThemeChanged 后台报错（stderr
-    噪音）。同时清理 Publisher 残留订阅：ttkbootstrap 1.10.1 注册的控件
-    主题回调不随控件销毁注销。
-    """
-    ttkb.style.Style.instance = None
-    ttkb.publisher.Publisher.clear_subscribers()
-
-
-def _show_splash(root: tk.Tk) -> None:
-    """在 root 上显示加载中界面（含窗口居中）。"""
-    from ui.theme import center_window, font_ui_semibold, theme
-
-    root.configure(bg=theme.BG_PAGE)
-    label = tk.Label(
-        root,
-        text="正在加载题库...",
-        font=font_ui_semibold(13),
-        fg=theme.TEXT_PRIMARY,
-        bg=theme.BG_PAGE,
-    )
-    label.pack(expand=True)
-    center_window(root)
-
-
 def _load_app_data_async(
     data_manager: DataManager,
     verifier: LicenseVerifier,
@@ -110,8 +84,8 @@ def _load_app_data_async(
 ) -> None:
     """后台线程：执行 license 验证 + 题库加载，结果放入 queue。
 
-    P0-1: 将 PowerShell 子进程（0.2~5s）+ PBKDF2 60 万次迭代（0.3~1s）
-    + Fernet 解密（50~300ms）从主线程移到后台线程，UI 立即显示 splash。
+    PowerShell 子进程（0.2~5s）+ PBKDF2 60 万次迭代（0.3~1s）+ Fernet 解密
+    （50~300ms）全部在后台线程执行，UI 立即显示 splash。
     """
     try:
         status, key, license_failed = verifier.check_local_license()
@@ -132,6 +106,27 @@ def _load_app_data_async(
         result_queue.put(LoadFailure(f"加载失败: {e}", "unknown"))
 
 
+def _build_splash(app: QApplication, theme_mode: str) -> QWidget:
+    """Frameless 站牌语言 splash：brand + 加载文案，全部走 QSS 语义类。"""
+    apply_qss(app, theme_mode)
+    splash = QWidget()
+    splash.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+    splash.setFixedSize(320, 160)
+    v = QVBoxLayout(splash)
+    v.addStretch(1)
+    brand = QLabel("ACP·云算题库")
+    brand.setObjectName("brand")
+    brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    v.addWidget(brand)
+    hint = QLabel("正在加载题库 ...")
+    hint.setObjectName("subTitle")
+    hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    v.addWidget(hint)
+    v.addStretch(1)
+    center_window(splash)
+    return splash
+
+
 def main() -> None:
     base_dir = _resolve_base_dir()
     user_data_dir = _resolve_user_data_dir()
@@ -141,15 +136,20 @@ def main() -> None:
     data_manager = DataManager(base_dir, user_data_dir=user_data_dir)
     verifier = LicenseVerifier(data_dir=user_data_dir)
 
-    # P0-1: 先显示 splash 窗口，避免 PowerShell + PBKDF2 阻塞 UI 0.5~6 秒
-    # [VERSION_LOCKED] ttkbootstrap 1.10.1：splash 与主窗口统一 journal 主题
-    splash = ttkb.Window(themename="journal")
-    splash.title("ACP 云计算练习")
-    splash.geometry("320x160")
+    app = QApplication(sys.argv)
 
-    _show_splash(splash)
+    # 主题模式提前读取（与 MainWindow 内 AppState 同源），splash 不闪变
+    try:
+        theme_mode = AppState(data_manager, data_manager.load_progress()).get_theme_mode()
+    except Exception as e:  # noqa: BLE001 - 主题读取失败不阻断启动，回退浅色
+        logger.warning("启动时读取主题模式失败，回退 light: %s", e)
+        theme_mode = "light"
 
-    # 启动后台线程加载 license + 题库
+    splash = _build_splash(app, theme_mode)
+    splash.show()
+    app.processEvents()
+
+    # 后台线程加载 license + 题库
     result_queue: "queue.Queue[LoadSuccess | LoadFailure]" = queue.Queue()
     thread = threading.Thread(
         target=_load_app_data_async,
@@ -164,63 +164,55 @@ def main() -> None:
         try:
             result = result_queue.get_nowait()
         except queue.Empty:
-            splash.after(100, check_loading)
-            return
-
-        # 销毁 splash（必须先 withdraw 再 destroy，避免闪烁）
-        splash.withdraw()
+            return  # 定时器持续运行（L1：定时器随 splash 销毁释放）
 
         if isinstance(result, LoadFailure):
             log_error(logger, "题库数据加载失败", mode=result.mode)
-            splash.destroy()
-            _show_fatal_error("错误", f"题库数据加载失败:\n\n{result.message}")
-            return
-
-        splash.destroy()
+            splash.close()
+            QMessageBox.critical(None, "错误", f"题库数据加载失败:\n\n{result.message}")
+            sys.exit(1)
 
         if not result.questions:
-            _show_fatal_error("错误", "未能解析出任何题目！")
-            return
+            splash.close()
+            QMessageBox.critical(None, "错误", "未能解析出任何题目！")
+            sys.exit(1)
 
+        splash.close()
         try:
-            # splash（第一个 root）已销毁：重置 Style 单例后 MainWindow 的
-            # journal 主题才能正确应用到新解释器
-            _reset_ttkbootstrap_style()
-            app = MainWindow(
+            window = MainWindow(
                 result.questions,
                 data_manager,
                 license_status=result.status,
                 meta=result.meta,
                 license_dir=user_data_dir,
             )
+            window.show()
             # license.dat 有文件但验证失败时告警用户
             if result.license_failed:
-                app.after(
+                QTimer.singleShot(
                     300,
-                    lambda: messagebox.showwarning(
+                    lambda: QMessageBox.warning(
+                        window,
                         "授权提示",
                         "本地注册码验证失败，已降级试用模式。\n请重新输入注册码。",
-                        parent=app,
                     ),
                 )
-            app.mainloop()
-        except (tk.TclError, OSError, ValueError, KeyError, RuntimeError) as e:
-            # P3-1: 收窄异常捕获——
-            # tk.TclError: Tk/Tcl 内部错误（display 不可用、字体加载失败等）
-            # OSError: 文件读写失败（progress.json / license.dat）
-            # ValueError/KeyError: 配置或数据格式错误
-            # RuntimeError: 其他运行时错误
-            # 其他异常应上抛，便于开发者定位
+        except Exception as e:  # noqa: BLE001 - 启动失败必须留痕并向用户呈现（L1 静默失败红线）
             log_error(
                 logger,
                 "程序启动失败",
                 exc=e,
                 status=result.status.value if result.status else None,
             )
-            _show_fatal_error("启动错误", f"程序启动失败:\n\n{str(e)}")
+            QMessageBox.critical(None, "启动错误", f"程序启动失败:\n\n{e}")
+            sys.exit(1)
 
-    splash.after(100, check_loading)
-    splash.mainloop()
+    poll_timer = QTimer(splash)
+    poll_timer.setInterval(100)
+    poll_timer.timeout.connect(check_loading)
+    poll_timer.start()
+
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
