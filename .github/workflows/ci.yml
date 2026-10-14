@@ -48,6 +48,14 @@ jobs:
         env:
           MYPYPATH: "."
 
+      # 本地 pre-commit 之外的第二道安检：防钩子未激活时密钥/依赖锁漏过公开仓库
+      # （两个脚本纯标准库，CI 无需额外依赖；3.10 兼容——无 tomllib）
+      - name: Check secrets
+        run: python scripts/check_secrets.py .
+
+      - name: Check deps lock
+        run: python scripts/check_deps_lock.py .
+
       # CI 中显式覆盖 pyproject.toml 的 addopts，避免 -m 'not gui' 与命令行 -m "not gui" 冲突
       # 导致 GUI 测试未被正确 deselect（此前只 deselect 了 12 个而非 65 个）
       - name: Pytest (non-GUI)
