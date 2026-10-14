@@ -76,13 +76,14 @@ class PracticePanel(tk.Frame):
         )
         self.progress_label.pack(side=tk.LEFT)
 
+        # 题型紧跟进度文字（用户反馈：单选/多选应显示在「第 x 题 / 共 x 题」后面）
         self.type_label: tk.Label | None = tk.Label(
             toolbar,
             text="",
             font=font_ui_semibold(11),
             bg=theme.BG_PAGE,
         )
-        self.type_label.pack(side=tk.RIGHT)
+        self.type_label.pack(side=tk.LEFT, padx=(14, 0))
 
         # 进度条
         if self.show_progress_bar:

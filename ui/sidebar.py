@@ -13,8 +13,15 @@ from typing import Callable
 from .constants import NAV_ITEM_HEIGHT, SIDEBAR_WIDTH
 from .icons import draw_icon
 from .mastery_ring import MasteryRing
-from .rounded import Chip, IconButton, RoundedCard, draw_round_rect
-from .theme import create_chip, font_display, font_ui, font_ui_semibold, theme
+from .rounded import Chip, IconButton, RoundedButton, RoundedCard, draw_round_rect
+from .theme import (
+    create_chip,
+    create_primary_button,
+    font_display,
+    font_ui,
+    font_ui_semibold,
+    theme,
+)
 
 # 导航图标名（与 icons.py 注册表对应）
 _NAV_ICONS = {
@@ -114,6 +121,8 @@ class Sidebar(RoundedCard):
         parent: 父容器
         nav_defs: [(tab_id, tab_text, command), ...] 导航定义
         on_theme_toggle: 主题切换回调（MainWindow.toggle_theme）；None 时按钮为空操作
+        on_activate_click: 「输入注册码」回调（未授权时由 MainWindow 传入）；
+            None 表示已授权/不可用，不渲染按钮
     """
 
     def __init__(
@@ -121,6 +130,7 @@ class Sidebar(RoundedCard):
         parent: tk.Misc,
         nav_defs: list[tuple[str, str, Callable[[], None] | None]],
         on_theme_toggle: Callable[[], None] | None = None,
+        on_activate_click: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(parent, radius=14, bg=theme.INK, surface=theme.BG_PAGE, padx=14, pady=18)
         self.configure(width=SIDEBAR_WIDTH)
@@ -130,9 +140,11 @@ class Sidebar(RoundedCard):
         self.mastery_ring: MasteryRing | None = None
         self.wrong_indicator: Chip | None = None
         self.theme_btn: IconButton | None = None
+        self.activate_btn: RoundedButton | None = None
         self.coverage_label: tk.Label | None = None
         self.accuracy_label: tk.Label | None = None
         self._on_theme_toggle = on_theme_toggle
+        self._on_activate_click = on_activate_click
         self._build()
 
     # ------------------------------------------------------------------ 构建
@@ -199,6 +211,17 @@ class Sidebar(RoundedCard):
         )
         self.wrong_indicator.pack(anchor="center", pady=(12, 0))
 
+        # 输入注册码（未授权时显示，位于错题计数下方——用户反馈迁移）
+        if self._on_activate_click is not None:
+            self.activate_btn = create_primary_button(
+                self.inner,
+                text="输入注册码",
+                command=self._handle_activate_click,
+                padx=16,
+                pady=5,
+            )
+            self.activate_btn.pack(anchor="center", pady=(12, 0))
+
         # 主题切换按钮
         self.theme_btn = IconButton(
             self.inner,
@@ -244,6 +267,10 @@ class Sidebar(RoundedCard):
     def _handle_theme_toggle(self) -> None:
         if self._on_theme_toggle is not None:
             self._on_theme_toggle()
+
+    def _handle_activate_click(self) -> None:
+        if self._on_activate_click is not None:
+            self._on_activate_click()
 
     def set_theme_icon(self, mode: str) -> None:
         """同步主题切换按钮图标（深色下显示 sun，浅色下显示 moon）。"""

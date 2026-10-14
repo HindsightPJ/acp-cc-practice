@@ -5,9 +5,8 @@
 """
 
 import tkinter as tk
-from typing import Callable
 
-from .theme import create_primary_button, font_display, font_ui, theme
+from .theme import font_display, font_ui, theme
 
 from license import LicenseStatus
 
@@ -15,8 +14,8 @@ from license import LicenseStatus
 class Header(tk.Frame):
     """主窗口顶部 Header。
 
-    负责展示当前模式名称、授权/题库状态、全局练习统计，
-    以及试用版下的「输入注册码」按钮。
+    负责展示当前模式名称、授权/题库状态、全局练习统计。
+    「输入注册码」入口已移至侧栏（错题计数下方），见 Sidebar。
     """
 
     def __init__(
@@ -25,7 +24,6 @@ class Header(tk.Frame):
         license_status: LicenseStatus | None = None,
         total_count: int = 0,
         trial_count: int = 0,
-        on_activate_click: Callable[[], None] | None = None,
         mode_title: str = "练习",
     ) -> None:
         """初始化 Header。
@@ -35,7 +33,6 @@ class Header(tk.Frame):
             license_status: LicenseStatus 枚举值或 None
             total_count: 题库总题数
             trial_count: 试用版可练习题数
-            on_activate_click: 「输入注册码」按钮点击回调
             mode_title: 初始模式标题
         """
         super().__init__(parent, bg=theme.BG_CARD, height=48)
@@ -43,8 +40,6 @@ class Header(tk.Frame):
         self.license_status = license_status
         self.total_count = total_count
         self.trial_count = trial_count
-        self.on_activate_click = on_activate_click
-        self.activate_btn: tk.Canvas | None = None
 
         self._build()
         self.set_mode_title(mode_title)
@@ -68,23 +63,7 @@ class Header(tk.Frame):
         )
         self.stats_label.pack(side=tk.RIGHT, pady=10)
 
-        if self.license_status != LicenseStatus.AUTHORIZED:
-            self.activate_btn = create_primary_button(
-                inner,
-                text="输入注册码",
-                command=self._on_activate_click,
-                padx=12,
-                pady=3,
-            )
-            self.activate_btn.pack(side=tk.RIGHT, padx=(8, 0), pady=8)
-        else:
-            self.activate_btn = None
-
         self._refresh_license_text()
-
-    def _on_activate_click(self) -> None:
-        if self.on_activate_click:
-            self.on_activate_click()
 
     def _refresh_license_text(self) -> None:
         if self.license_status == LicenseStatus.AUTHORIZED:

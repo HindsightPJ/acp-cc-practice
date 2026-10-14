@@ -211,24 +211,36 @@ def test_header_can_instantiate_and_update(clean_root):
     header.destroy()
 
 
-def test_header_activate_click_callback(clean_root):
-    """Header 的「输入注册码」按钮点击触发外部回调。"""
-    from ui.header import Header
+def test_sidebar_activate_click_callback(clean_root):
+    """Sidebar 的「输入注册码」按钮点击触发外部回调（未授权时显示）。"""
+    from ui.sidebar import Sidebar
 
     calls = []
-    header = Header(
+    nav_defs = [("practice", "练习", None)]
+    sidebar = Sidebar(
         clean_root,
-        total_count=100,
-        trial_count=20,
+        nav_defs,
         on_activate_click=lambda: calls.append("activate"),
     )
-    header.pack()
+    sidebar.pack()
 
-    assert header.activate_btn is not None
-    header.activate_btn.invoke()
+    assert sidebar.activate_btn is not None
+    sidebar.activate_btn.invoke()
     assert calls == ["activate"]
 
-    header.destroy()
+    sidebar.destroy()
+
+
+def test_sidebar_activate_button_hidden_when_authorized(clean_root):
+    """已授权（回调为 None）时侧栏不渲染「输入注册码」按钮。"""
+    from ui.sidebar import Sidebar
+
+    sidebar = Sidebar(clean_root, [("practice", "练习", None)], on_activate_click=None)
+    sidebar.pack()
+
+    assert sidebar.activate_btn is None
+
+    sidebar.destroy()
 
 
 def test_mastery_ring_boundary_values(clean_root):
