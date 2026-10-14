@@ -16,6 +16,7 @@ from .theme import (
     font_ui,
     font_ui_semibold,
     font_mono,
+    autofit_text_height,
     create_primary_button,
     create_normal_button,
     create_card,
@@ -23,6 +24,7 @@ from .theme import (
 from .constants import MAX_OPTIONS
 from .option_row import OptionRow
 from .question_detail_card import get_question_type_style
+from .rounded import Chip
 from quiz_engine import QuizEngine
 from .exam_session import ExamSession
 
@@ -64,9 +66,9 @@ class ExamPanel(tk.Frame):
         self._on_jump = on_jump
         self._on_select_option = on_select_option
 
-        self.exam_option_cards: list[dict] = []
+        self.exam_option_cards: list[OptionRow] = []
         self.nav_buttons: list[tk.Label] = []
-        self.timer_label: tk.Label | None = None
+        self.timer_label: Chip | None = None
         self.exam_progress_label: tk.Label | None = None
         # P1-6: 跟踪上一次的 current_index，支持增量更新题号导航按钮
         self._last_current_index: int = -1
@@ -106,17 +108,24 @@ class ExamPanel(tk.Frame):
         self.bind("<Configure>", self._on_configure)
 
     def _build_timer_bar(self) -> None:
-        """构建顶部计时器条（计时器标签 + 进度标签 + 题型标签）。"""
+        """构建顶部计时器条（倒计时 Pill + 进度标签 + 题型标签）。"""
         timer_bar, timer_inner = create_card(self, inner_padx=24, inner_pady=12)
         timer_bar.pack(fill=tk.X, pady=(0, 12))
 
         timer_left = tk.Frame(timer_inner, bg=theme.BG_CARD)
         timer_left.pack(side=tk.LEFT)
 
-        self.timer_label = tk.Label(
-            timer_left, text="60:00", font=font_mono(20), fg=theme.RED, bg=theme.BG_CARD
+        # 倒计时琥珀 Pill（等宽字体防抖动；≤5 分钟闪烁经 configure(fg) 变色）
+        self.timer_label = Chip(
+            timer_left,
+            text="60:00",
+            font=font_mono(14),
+            bg=theme.TIMER_BG,
+            fg=theme.TIMER_FG,
+            padx=14,
+            height=28,
         )
-        self.timer_label.pack(side=tk.LEFT, padx=(0, 8))
+        self.timer_label.pack(side=tk.LEFT, padx=(0, 10))
 
         timer_hint = tk.Label(
             timer_left, text="剩余时间", font=font_ui(10), fg=theme.TEXT_MUTED, bg=theme.BG_CARD
@@ -158,26 +167,23 @@ class ExamPanel(tk.Frame):
         )
         self.exam_question_text.pack(fill=tk.X)
         self.exam_question_text.config(state=tk.DISABLED)
+        # P3: 题干自适应高度，绑定自身 <Configure> 兜底（宽度真实到位时重算）
+        q_text = self.exam_question_text
+        self.exam_question_text.bind("<Configure>", lambda _e: autofit_text_height(q_text))
 
         # 选项卡
         options_card, opt_inner = create_card(left_panel, inner_pady=14)
         options_card.pack(fill=tk.X, pady=(0, 12))
 
         for idx in range(MAX_OPTIONS):
-            letter = chr(ord("A") + idx)
             row = OptionRow(
                 opt_inner,
-                letter=letter,
+                letter=chr(ord("A") + idx),
                 on_click=lambda sel: self._on_select_option(sel),
                 wraplength=550,
             )
             row.pack(fill=tk.X, pady=3)
-            self.exam_option_cards.append(
-                {
-                    "row": row,
-                    "letter": letter,
-                }
-            )
+            self.exam_option_cards.append(row)
 
     def _build_action_bar(self, left_panel: tk.Frame) -> None:
         """构建操作栏（上一题/下一题 + 跳转 + 标记 + 交卷）。"""
@@ -251,7 +257,7 @@ class ExamPanel(tk.Frame):
             text="交卷",
             command=self._on_submit,
             bg_color=theme.RED,
-            active_bg="#dc2626",
+            active_bg=theme.RED_HOVER,
             padx=20,
         )
         submit_exam_btn.pack(side=tk.RIGHT)
@@ -276,7 +282,7 @@ class ExamPanel(tk.Frame):
 
         tk.Label(
             nav_inner,
-            text="● 已答  ○ 未答  ★ 标记",
+            text="蓝底 已答 · 描边 当前 · ★ 标记",
             font=font_ui(9),
             fg=theme.TEXT_MUTED,
             bg=theme.BG_CARD,
@@ -297,8 +303,8 @@ class ExamPanel(tk.Frame):
     def _on_configure(self, event: tk.Event) -> None:
         """窗口 resize 时同步更新选项文本换行宽度，避免内容被截断。"""
         new_wrap = max(200, event.width - 140)
-        for item in self.exam_option_cards:
-            item["row"].update_wraplength(new_wrap)
+        for row in self.exam_option_cards:
+            row.update_wraplength(new_wrap)
 
     # ------------------------------------------------------------------
     # 公共接口
@@ -312,7 +318,7 @@ class ExamPanel(tk.Frame):
         if self.timer_label is not None:
             self.timer_label.configure(text=time_str)
             if time_remaining <= 300:
-                color = theme.RED if time_remaining % 2 == 0 else "#b91c1c"
+                color = theme.RED if time_remaining % 2 == 0 else theme.RED_TEXT
                 self.timer_label.configure(fg=color)
 
     def build_nav_buttons(self, total: int) -> None:
@@ -350,14 +356,6 @@ class ExamPanel(tk.Frame):
         if self.nav_canvas is not None:
             self.nav_canvas.config(scrollregion=self.nav_canvas.bbox(tk.ALL))
 
-    def update_nav_buttons(self) -> None:
-        """根据 engine 与 session 状态刷新题号导航（全量，用于初始化/reset）。"""
-        current = self.engine.get_current_index()
-        for i, btn in enumerate(self.nav_buttons):
-            self._apply_nav_button_style(i, btn, current)
-        # P1-6: 全量刷新后同步 _last_current_index
-        self._last_current_index = current
-
     def _update_single_nav_button(self, idx: int) -> None:
         """增量更新单个题号按钮的样式（P1-6: 避免全量遍历）。"""
         if not (0 <= idx < len(self.nav_buttons)):
@@ -366,16 +364,23 @@ class ExamPanel(tk.Frame):
         self._apply_nav_button_style(idx, self.nav_buttons[idx], current)
 
     def _apply_nav_button_style(self, i: int, btn: tk.Label, current: int) -> None:
-        """根据索引、当前位置和 session 状态应用按钮样式。"""
+        """根据索引、当前位置和 session 状态应用按钮样式（四态对齐设计稿）。"""
         if i == current:
+            # 当前题：浅蓝描边感（浅底蓝字）
+            bg = theme.BG_SELECT
+            fg = theme.ACCENT
+        elif self.exam_session.has_answer(i):
+            # 已答：云蓝实底白字
             bg = theme.ACCENT
             fg = theme.SELECTED_TEXT
-        elif self.exam_session.has_answer(i):
-            bg = theme.GREEN_BG
-            fg = theme.GREEN_TEXT
         else:
             bg = theme.BG_INPUT
             fg = theme.TEXT_SECONDARY
+
+        if self.exam_session.is_marked(i) and i != current:
+            # 标记（琥珀）优先于已答/未答，当前题保持描边态
+            bg = theme.YELLOW_BG
+            fg = theme.YELLOW_TEXT
 
         if self.exam_session.is_marked(i):
             text = f"★{i + 1}"
@@ -396,6 +401,8 @@ class ExamPanel(tk.Frame):
             tk.END, f"{self.engine.get_current_index() + 1}. {question.content}"
         )
         self.exam_question_text.config(state=tk.DISABLED)
+        # P3: 长题干自适应高度，不再被固定 4 行裁切
+        autofit_text_height(self.exam_question_text)
 
         # 题型标签
         if self.exam_type_label is not None:
@@ -404,21 +411,19 @@ class ExamPanel(tk.Frame):
 
         # 选项
         options_count = len(question.options)
-        for i, item in enumerate(self.exam_option_cards):
+        for i, row in enumerate(self.exam_option_cards):
             if i < options_count:
-                item["row"].pack(fill=tk.X, pady=3)
-                opt = question.options[i]
-                item["row"].update_text(opt.text)
-                item["row"].reset()
+                row.pack(fill=tk.X, pady=3)
+                row.update_text(question.options[i].text)
+                row.reset()
             else:
-                item["row"].pack_forget()
+                row.pack_forget()
 
         # 恢复已选状态
         answered_letters = self.exam_session.get_current_selected()
-        for i, item in enumerate(self.exam_option_cards):
-            letter = chr(ord("A") + i)
-            if letter in answered_letters:
-                item["row"].set_selected(True)
+        for i, row in enumerate(self.exam_option_cards):
+            if chr(ord("A") + i) in answered_letters:
+                row.set_selected(True)
 
         # 进度
         progress = self.engine.get_progress()
@@ -430,7 +435,10 @@ class ExamPanel(tk.Frame):
         # P1-6: 切题时增量更新——只刷新旧 current 和新 current 两个按钮，
         # 避免 100~200 个按钮的全量 configure（每次 Tcl IPC）
         current = self.engine.get_current_index()
-        if 0 <= self._last_current_index < len(self.nav_buttons) and self._last_current_index != current:
+        if (
+            0 <= self._last_current_index < len(self.nav_buttons)
+            and self._last_current_index != current
+        ):
             self._update_single_nav_button(self._last_current_index)
         self._update_single_nav_button(current)
         self._last_current_index = current
@@ -448,12 +456,10 @@ class ExamPanel(tk.Frame):
             return
 
         options_count = len(current.options)
-        for i, item in enumerate(self.exam_option_cards):
+        for i, row in enumerate(self.exam_option_cards):
             if i >= options_count:
                 continue
-            letter_i = chr(ord("A") + i)
-            is_selected = letter_i in selected
-            item["row"].set_selected(is_selected)
+            row.set_selected(chr(ord("A") + i) in selected)
 
         # P1-6: 选项选择只改变当前题的已答状态，只需更新当前按钮
         self._update_single_nav_button(self.engine.get_current_index())

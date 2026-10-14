@@ -77,11 +77,8 @@ class ExamSession:
 
     def record_all_answers(self) -> None:
         """在交卷前把所有已选答案写入 QuizEngine。"""
-        original_index = self.engine.get_current_index()
         for idx, selected in self.answers.items():
-            self.engine.set_current_index(idx)
             self.engine.record_exam_answer(idx, selected)
-        self.engine.set_current_index(original_index)
 
     def toggle_mark(self) -> int:
         """切换当前题目的标记状态，返回当前索引。"""

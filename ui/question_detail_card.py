@@ -12,7 +12,7 @@ PracticePanel、ReviewMode 三处复用，消除约 150 行重复样板代码。
 import tkinter as tk
 from typing import Callable
 
-from .theme import theme, font_ui, create_card
+from .theme import theme, autofit_text_height, create_card, font_ui, font_ui_semibold
 from .constants import MAX_OPTIONS, QUESTION_TYPE_MULTIPLE
 from .option_row import OptionRow
 from models import Question
@@ -41,9 +41,7 @@ class QuestionDetailCard(tk.Frame):
     Args:
         parent: 父容器
         on_option_click: 选项点击回调 (letter: str) -> None；None 表示只读
-        question_height: 题干文本框高度（行数）
         option_wraplength: 选项文字换行宽度
-        show_explanation: 是否构建解析文本框
         answer_placeholder: 答案标签初始文本（如 "提交答案后查看解析"）
         inner_padx: 卡片内层水平内边距
         question_inner_pady: 题干卡内层垂直内边距
@@ -57,9 +55,7 @@ class QuestionDetailCard(tk.Frame):
         self,
         parent: tk.Misc,
         on_option_click: Callable[[str], None] | None = None,
-        question_height: int = 4,
         option_wraplength: int = 700,
-        show_explanation: bool = True,
         answer_placeholder: str = "",
         inner_padx: int = 20,
         question_inner_pady: int = 16,
@@ -69,9 +65,7 @@ class QuestionDetailCard(tk.Frame):
     ) -> None:
         super().__init__(parent, bg=theme.BG_PAGE)
         self._on_option_click = on_option_click
-        self._question_height = question_height
         self._option_wraplength = option_wraplength
-        self._show_explanation = show_explanation
         self._answer_placeholder = answer_placeholder
         self._inner_padx = inner_padx
         self._question_inner_pady = question_inner_pady
@@ -99,9 +93,9 @@ class QuestionDetailCard(tk.Frame):
 
         self.question_text = tk.Text(
             q_inner,
-            height=self._question_height,
+            height=4,
             wrap=tk.WORD,
-            font=font_ui(12),
+            font=font_ui(13),
             bg=theme.BG_CARD,
             fg=theme.TEXT_PRIMARY,
             relief=tk.FLAT,
@@ -112,6 +106,10 @@ class QuestionDetailCard(tk.Frame):
         )
         self.question_text.pack(fill=tk.X)
         self.question_text.config(state=tk.DISABLED)
+        # P3: 长题干自适应高度。绑定到 Text 自身的 <Configure>——宽度真实
+        # 到位/变化时必然重算，避免布局早期用病态宽度误算后卡死在高高度
+        q_text = self.question_text
+        self.question_text.bind("<Configure>", lambda _e: autofit_text_height(q_text))
 
         # P2-UX: 窗口缩放时同步更新选项文本换行宽度
         self.bind("<Configure>", self._on_configure)
@@ -146,41 +144,46 @@ class QuestionDetailCard(tk.Frame):
         ans_top = tk.Frame(ans_inner, bg=theme.BG_CARD)
         ans_top.pack(fill=tk.X, pady=(0, 8))
 
+        # 结果横幅：左侧 4px 语义色条 + 文案（set_answer_label 驱动色条）
+        self._answer_bar = tk.Canvas(
+            ans_top, width=4, height=18, bg=theme.BG_CARD, highlightthickness=0, bd=0
+        )
+        self._answer_bar.pack(side=tk.LEFT, padx=(0, 8))
+
         self.answer_label = tk.Label(
             ans_top,
             text=self._answer_placeholder,
-            font=font_ui(11),
+            font=font_ui_semibold(12),
             fg=theme.TEXT_MUTED,
             bg=theme.BG_CARD,
         )
         self.answer_label.pack(side=tk.LEFT)
 
-        if self._show_explanation:
-            exp_container = tk.Frame(ans_inner, bg=theme.BG_CARD)
-            exp_container.pack(fill=tk.BOTH, expand=True)
+        exp_container = tk.Frame(ans_inner, bg=theme.BG_CARD)
+        exp_container.pack(fill=tk.BOTH, expand=True)
 
-            exp_scrollbar = tk.Scrollbar(exp_container)
-            exp_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        exp_scrollbar = tk.Scrollbar(exp_container)
+        exp_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-            self.explanation_text = tk.Text(
-                exp_container,
-                wrap=tk.WORD,
-                font=font_ui(11),
-                bg=theme.BG_CARD,
-                fg=theme.TEXT_SECONDARY,
-                relief=tk.FLAT,
-                padx=0,
-                pady=0,
-                yscrollcommand=exp_scrollbar.set,
-                selectbackground=theme.BG_SELECT,
-                insertbackground=theme.TEXT_PRIMARY,
-            )
-            self.explanation_text.pack(fill=tk.BOTH, expand=True)
-            exp_scrollbar.config(command=self.explanation_text.yview)
-            self.explanation_text.config(state=tk.DISABLED)
+        self.explanation_text = tk.Text(
+            exp_container,
+            wrap=tk.WORD,
+            font=font_ui(11),
+            bg=theme.BG_CARD,
+            fg=theme.TEXT_SECONDARY,
+            relief=tk.FLAT,
+            padx=0,
+            pady=0,
+            yscrollcommand=exp_scrollbar.set,
+            selectbackground=theme.BG_SELECT,
+            insertbackground=theme.TEXT_PRIMARY,
+        )
+        self.explanation_text.pack(fill=tk.BOTH, expand=True)
+        exp_scrollbar.config(command=self.explanation_text.yview)
+        self.explanation_text.config(state=tk.DISABLED)
 
     def _on_configure(self, event: tk.Event) -> None:
-        """窗口 resize 时同步更新选项文本换行宽度，避免内容被截断。"""
+        """窗口 resize 时同步更新选项文本换行宽度（题干高度由其自身 Configure 兜底）。"""
         new_wrap = max(200, event.width - 100)
         for card in self.option_cards:
             card.update_wraplength(new_wrap)
@@ -201,6 +204,8 @@ class QuestionDetailCard(tk.Frame):
             return
 
         self._set_text(self.question_text, f"{question.number}. {question.content}")
+        # P3: 长题干自适应高度，不再被固定 4 行裁切
+        autofit_text_height(self.question_text)
 
         options_count = len(question.options)
         for i, card in enumerate(self.option_cards):
@@ -250,14 +255,18 @@ class QuestionDetailCard(tk.Frame):
             card.reset()
 
     def set_answer_label(self, text: str, fg: str = theme.GREEN) -> None:
-        """更新答案标签文本与颜色。"""
+        """更新答案标签文本与颜色（语义色同步驱动左侧色条）。"""
         if self.answer_label is not None:
             self.answer_label.configure(text=text, fg=fg)
+        if self._answer_bar is not None:
+            self._answer_bar.configure(bg=fg)
 
     def clear_answer_state(self) -> None:
         """重置答案标签为占位文本（muted 色），清空解析。"""
         if self.answer_label is not None:
             self.answer_label.configure(text=self._answer_placeholder, fg=theme.TEXT_MUTED)
+        if self._answer_bar is not None:
+            self._answer_bar.configure(bg=theme.BG_CARD)
         self._set_explanation("")
 
     def set_explanation(self, text: str) -> None:

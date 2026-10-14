@@ -5,7 +5,7 @@ import ttkbootstrap as ttkb
 from tkinter import ttk, messagebox
 from typing import Any, Callable
 
-from .theme import apply_ink_blue_primary, theme
+from .theme import apply_theme_primary, current_theme_mode, set_theme_mode, theme
 
 from .practice_mode import PracticeMode
 from .exam_mode import ExamMode
@@ -66,19 +66,26 @@ class MainWindow(ttkb.Window):
         self._refresh_mastery()
 
     def configure_ui(self) -> None:
+        # 主题模式：启动时从持久化状态恢复（非法值 fail-safe 回浅色），
+        # 必须在创建任何控件之前完成——控件创建时读 Token
+        set_theme_mode(self.app_state.get_theme_mode())
+
         self.configure(bg=theme.BG_PAGE)
 
-        # ttk 控件层主色覆写为墨蓝（theme.py 是 tk.* 控件的取色源，
+        # ttk 控件层主色按当前主题覆写（theme.py 是 tk.* 控件的取色源，
         # ttk 控件取色于 ttkbootstrap 主题定义，须两处同步）
-        apply_ink_blue_primary(self)
-        # journal 主题已应用；此处仅对齐 TFrame/TSeparator 与 tk.Frame 纸面底色
+        apply_theme_primary(self)
+        self._apply_ttk_surface_styles()
+
+    def _apply_ttk_surface_styles(self) -> None:
+        """对齐 ttk 容器样式与当前主题（换肤后必须重跑，见 K2/K15）。"""
         style = ttk.Style()
         style.configure("TFrame", background=theme.BG_PAGE)
         style.configure("TSeparator", background=theme.BORDER)
 
     # -------------------------------------------------------------- 布局
     def create_widgets(self) -> None:
-        # 整体：左侧栏 + 右内容区
+        # 整体：浮动侧栏（页面留白包裹）+ 右内容区
         body = tk.Frame(self, bg=theme.BG_PAGE)
         body.pack(fill=tk.BOTH, expand=True)
 
@@ -91,43 +98,97 @@ class MainWindow(ttkb.Window):
         self.sidebar = Sidebar(
             body,
             nav_defs,
-            on_nav_clicked=self._on_nav_clicked,
+            on_theme_toggle=self.toggle_theme,
+            # 未授权时侧栏显示「输入注册码」（错题计数下方）
+            on_activate_click=(
+                self._show_license_dialog
+                if self.license_status != LicenseStatus.AUTHORIZED
+                else None
+            ),
         )
-        self.sidebar.pack(side=tk.LEFT, fill=tk.Y)
+        self.sidebar.pack(side=tk.LEFT, fill=tk.Y, padx=(16, 0), pady=16)
+        self.sidebar.set_theme_icon(current_theme_mode())
 
         content_wrapper = tk.Frame(body, bg=theme.BG_PAGE)
         content_wrapper.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # 顶部细 header（模式名 + 全局统计）
+        # 顶部细 header（模式名 + 授权状态 + 全局统计）
         total = self.meta.get("total", len(self.questions))
         self.header = Header(
             content_wrapper,
             license_status=self.license_status,
             total_count=total,
             trial_count=len(self.questions),
-            on_activate_click=self._show_license_dialog,
             mode_title="练习",
         )
-        self.header.pack(fill=tk.X, side=tk.TOP)
+        self.header.pack(fill=tk.X, side=tk.TOP, padx=(16, 16), pady=(16, 0))
         # 保持对内部标签的引用，兼容现有测试与外部访问
         self.mode_title = self.header.mode_title
         self.license_status_label = self.header.license_status_label
         self._stats_label = self.header.stats_label
 
         self.content_area = tk.Frame(content_wrapper, bg=theme.BG_PAGE)
-        self.content_area.pack(fill=tk.BOTH, expand=True, padx=24, pady=16)
+        self.content_area.pack(fill=tk.BOTH, expand=True, padx=16, pady=12)
 
     def _show_license_dialog(self) -> None:
         """弹出注册码输入对话框（逻辑已拆分到 LicenseDialog）。"""
         dialog = LicenseDialog(self, self.license_dir)
         dialog.show()
 
-    # -------------------------------------------------------------- 交互
-    def _on_nav_clicked(self, tab_id: str) -> None:
-        """Sidebar 导航点击后的外部回调：同步主窗口状态。"""
-        self._active_nav = tab_id
-        self._update_stats_display()
+    # -------------------------------------------------------------- 双主题
+    def toggle_theme(self) -> None:
+        """浅色 / 深色切换（侧栏底部月亮/太阳按钮）。
 
+        考试进行中切换会丢内存态考试会话，先确认（对标切 tab 守卫）；
+        切换 = 换 Token + 重应用 ttk 主色 + 重建界面 chrome + 持久化。
+        """
+        if self._is_exam_in_progress():
+            if not messagebox.askyesno(
+                "确认切换",
+                "考试正在进行中，切换主题将放弃本次考试。\n\n确定要切换吗？",
+                parent=self,
+            ):
+                return
+        new_mode = set_theme_mode("dark" if current_theme_mode() == "light" else "light")
+        apply_theme_primary(self)
+        self._apply_ttk_surface_styles()
+        self.configure(bg=theme.BG_PAGE)
+        self._rebuild_chrome()
+        if self.sidebar is not None:
+            self.sidebar.set_theme_icon(new_mode)
+        # 持久化（K14：走既有原子写入链路，不新建写盘路径）
+        self.app_state.set_theme_mode(new_mode)
+        if not self.app_state.save_safe():
+            messagebox.showwarning(
+                "保存失败", "主题偏好保存失败，重启后将回到浅色模式。", parent=self
+            )
+
+    def _rebuild_chrome(self) -> None:
+        """销毁并重建侧栏 / 页头 / 内容区，回到切换前的模式。
+
+        练习进度经 app_state 快照自动恢复；考试会话由调用方先行确认放弃。
+        重建后必须重新赋值公开属性（sidebar/header/content_area/current_frame），
+        测试与外部代码持有这些引用。
+        """
+        current_mode = self._active_nav
+        if self.current_frame is not None:
+            self.current_frame.destroy()
+            self.current_frame = None
+        for child in self.winfo_children():
+            child.destroy()
+        self.create_widgets()
+        self._switch_mode_factory(current_mode)()
+
+    def _switch_mode_factory(self, tab_id: str) -> Callable[[], None]:
+        factories: dict[str, Callable[[], None]] = {
+            "practice": self.show_practice_mode,
+            "exam": self.show_exam_mode,
+            "review": self.show_review_mode,
+            "wrong": self.show_wrong_book,
+        }
+        return factories.get(tab_id, self.show_practice_mode)
+
+    # -------------------------------------------------------------- 交互
     def _update_nav_highlight(self) -> None:
         if self.sidebar is None:
             return
@@ -164,6 +225,7 @@ class MainWindow(ttkb.Window):
         wrong_count = self.app_state.wrong_count()
         if self.sidebar is not None:
             self.sidebar.set_mastery(mastery)
+            self.sidebar.set_readiness_stats(coverage, accuracy)
             self.sidebar.set_wrong_indicator(
                 text=f"错题本 {wrong_count} 题" if wrong_count else "错题本为空",
                 fg=theme.RED if wrong_count > 0 else theme.INK_TEXT_MUTED,
@@ -185,7 +247,7 @@ class MainWindow(ttkb.Window):
         # P0-3: timer_running 为 True 表示考试进行中（开始按钮已禁用、计时器在跑）
         return bool(self.current_frame.timer_running)
 
-    def _switch_to(self, mode_title: str, factory: Callable[[], tk.Widget]) -> None:
+    def _switch_to(self, tab_id: str, title: str, factory: Callable[[], tk.Widget]) -> None:
         # P0-3: 考试进行中切 tab 会丢失 answers/marked/时间，先确认
         if self._is_exam_in_progress():
             if not messagebox.askyesno(
@@ -198,7 +260,10 @@ class MainWindow(ttkb.Window):
                     self.sidebar.set_active_nav(self._active_nav)
                 return
         self.clear_content()
-        self._active_nav = mode_title
+        self._active_nav = tab_id
+        # P2: 标题在考试确认通过后才切换——取消路径不会再出现
+        # "顶部标题已换成目标模式、内容仍是考试"的状态不一致
+        self.header.set_mode_title(title)
         self._update_nav_highlight()
         new_frame = factory()
         self.current_frame = new_frame
@@ -207,33 +272,33 @@ class MainWindow(ttkb.Window):
         self._refresh_mastery()
 
     def show_practice_mode(self) -> None:
-        self.header.set_mode_title("练习")
         self._switch_to(
             "practice",
+            "练习",
             lambda: PracticeMode(
                 self.content_area, self.questions, self.data_manager, self.app_state
             ),
         )
 
     def show_exam_mode(self) -> None:
-        self.header.set_mode_title("考试")
         self._switch_to(
             "exam",
+            "考试",
             lambda: ExamMode(self.content_area, self.questions, self.data_manager, self.app_state),
         )
 
     def show_review_mode(self) -> None:
-        self.header.set_mode_title("背题")
         self._switch_to(
             "review",
+            "背题",
             lambda: ReviewMode(
                 self.content_area, self.questions, self.data_manager, self.app_state
             ),
         )
 
     def show_wrong_book(self) -> None:
-        self.header.set_mode_title("错题本")
         self._switch_to(
             "wrong",
+            "错题本",
             lambda: WrongBook(self.content_area, self.questions, self.data_manager, self.app_state),
         )

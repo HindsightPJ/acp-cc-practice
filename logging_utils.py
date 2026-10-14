@@ -23,15 +23,6 @@ def _format_context(context: dict[str, Any] | None) -> str:
     return " | ".join(parts)
 
 
-def log_event(logger: logging.Logger, event: str, **context: Any) -> None:
-    """记录一次结构化事件（非错误）。"""
-    ctx = _format_context(context)
-    if ctx:
-        logger.info("[event=%s] %s", event, ctx)
-    else:
-        logger.info("[event=%s]", event)
-
-
 def log_error(
     logger: logging.Logger,
     message: str,

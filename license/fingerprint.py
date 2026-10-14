@@ -131,6 +131,8 @@ def get_bios_serial() -> str:
     if sys.platform != "win32":
         return ""
     try:
+        # 固定参数、不走 shell、5s 超时；powershell 经 PATH 调用是 Windows 惯例
+        # （B404/B603/B607 为 bandit 对 subprocess 的低危噪音，见 pyproject [tool.bandit] skips）
         result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_BIOS).SerialNumber"],
             capture_output=True,

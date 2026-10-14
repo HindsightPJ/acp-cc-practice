@@ -62,7 +62,6 @@ class LoadSuccess:
     """后台线程加载成功的结果。"""
 
     status: LicenseStatus
-    key: str | None
     license_failed: bool
     questions: list[Question]
     meta: dict[str, Any] | None
@@ -89,8 +88,8 @@ def _reset_ttkbootstrap_style() -> None:
 
 
 def _show_splash(root: tk.Tk) -> None:
-    """在 root 上显示加载中界面。"""
-    from ui.theme import theme, font_ui_semibold
+    """在 root 上显示加载中界面（含窗口居中）。"""
+    from ui.theme import center_window, font_ui_semibold, theme
 
     root.configure(bg=theme.BG_PAGE)
     label = tk.Label(
@@ -101,6 +100,7 @@ def _show_splash(root: tk.Tk) -> None:
         bg=theme.BG_PAGE,
     )
     label.pack(expand=True)
+    center_window(root)
 
 
 def _load_app_data_async(
@@ -126,8 +126,8 @@ def _load_app_data_async(
             return
 
         meta = data_manager.load_meta()
-        result_queue.put(LoadSuccess(status, key, license_failed, questions, meta))
-    except Exception as e:  # pylint: disable=broad-except
+        result_queue.put(LoadSuccess(status, license_failed, questions, meta))
+    except Exception as e:  # noqa: BLE001 - desktop_python.md §二.3：后台线程兜底必须经 queue 传回主线程
         # 兜底：任何未预期异常都通过 queue 传回主线程，避免线程静默退出
         result_queue.put(LoadFailure(f"加载失败: {e}", "unknown"))
 
@@ -146,14 +146,6 @@ def main() -> None:
     splash = ttkb.Window(themename="journal")
     splash.title("ACP 云计算练习")
     splash.geometry("320x160")
-    # 居中显示（基于屏幕尺寸）
-    splash.update_idletasks()
-    screen_w = splash.winfo_screenwidth()
-    screen_h = splash.winfo_screenheight()
-    x = (screen_w - 320) // 2
-    y = (screen_h - 160) // 2
-    splash.geometry(f"320x160+{x}+{y}")
-    splash.overrideredirect(False)  # 保留标题栏，让用户能拖动/关闭
 
     _show_splash(splash)
 

@@ -5,7 +5,6 @@ version = "1.1.0"  # P2-5: 与 acp-cc-practice.spec 的 FileVersion/ProductVersi
 description = "ACP CC 题库练习软件"
 requires-python = ">=3.10"
 dependencies = [
-    "python-docx>=0.8.11,<2.0",
     "cryptography>=41.0.0,<50",
     "ttkbootstrap>=1.10.1,<2.0",
 ]
@@ -34,7 +33,7 @@ include = ["ui*", "license*"]
 # TD-17: pytest 配置
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "author_tools"]
+pythonpath = ["."]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -46,7 +45,7 @@ markers = [
 
 # TD-18: 覆盖率配置
 [tool.coverage.run]
-source = ["quiz_engine", "data_manager", "env_utils", "license", "author_tools"]
+source = ["quiz_engine", "data_manager", "license"]
 omit = ["*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]
@@ -66,20 +65,39 @@ warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
 show_error_codes = true
-exclude = ["build", "dist", "tests"]
+exclude = ["build", "dist", "tests", "scripts"]
 
 # TD-32: ruff 自动化格式化与静态检查
 [tool.ruff]
 target-version = "py310"
 line-length = 100
+# vendored 门禁脚本：由 global-rules skill 分发、哈希被 RULES_MANIFEST 跟踪，
+# 禁本地格式化/改写（会触发 RULES_COPY_DRIFT），lint 归上游 skill 负责
+extend-exclude = ["scripts"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
+select = ["E", "F", "W", "S", "B", "BLE"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "author_tools/*" = ["E402"]
-"tests/*" = ["E402"]
+"tests/*" = ["E402", "S101", "S108", "B017"]
+# PowerShell 经 PATH 调用是 Windows 惯例（fingerprint 采集 BIOS 序列号）
+"license/fingerprint.py" = ["S607"]
+
+# assert 仅用于 mypy 类型收窄（紧邻创建后的不变量断言），禁止用作运行时校验（L1）
+"ui/exam_panel.py" = ["S101"]
+"ui/exam_report_dialog.py" = ["S101"]
+"ui/license_dialog.py" = ["S101"]
+
+# bandit（pre-push 钩子）
+# B101：assert 仅用于 mypy 类型收窄，禁止用作运行时校验（L1，同 ruff S101）
+# B110：来自 vendored 门禁脚本（RULES_MANIFEST 跟踪哈希，禁改）
+# B404/B603/B607：fingerprint.py 的 PowerShell CIM 采集（固定参数、不走 shell、5s 超时），
+#                 bandit 对 list 参数 subprocess 的低危噪音，非本项目威胁模型
+[tool.bandit]
+skips = ["B101", "B110", "B404", "B603", "B607"]
+exclude_dirs = ["tests", "dist", "build"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -162,8 +162,9 @@ class LicenseVerifier:
         try:
             os.replace(self.license_file, backup_path)
             logger.warning("license.dat 已损坏，备份到 %s", backup_path)
-        except OSError:
-            pass
+        except OSError as e:
+            # 备份失败不阻断主流程（随后降级试用），但必须留痕
+            logger.warning("损坏 license.dat 备份失败: %s | path=%s", e, self.license_file)
 
     def save_license(self, license_code: str) -> bool:
         """持久化注册码到 license.dat（TD-08: 原子写入 + P1-6: .bak 备份）。
@@ -181,8 +182,9 @@ class LicenseVerifier:
             if os.path.exists(self.license_file):
                 try:
                     os.replace(self.license_file, bak_file)
-                except OSError:
-                    pass  # 备份失败不阻塞主流程
+                except OSError as backup_err:
+                    # 备份失败不阻塞主流程，但留痕便于排查
+                    logger.warning("license.dat 备份失败: %s", backup_err)
             with open(tmp_file, "w", encoding="utf-8") as f:
                 f.write(license_code)
             os.replace(tmp_file, self.license_file)
@@ -192,12 +194,13 @@ class LicenseVerifier:
             if os.path.exists(tmp_file):
                 try:
                     os.remove(tmp_file)
-                except OSError:
-                    pass
+                except OSError as cleanup_err:
+                    logger.warning("license 临时文件清理失败: %s", cleanup_err)
             # 尝试从 .bak 恢复（保存失败时回滚到旧版本）
             if os.path.exists(bak_file) and not os.path.exists(self.license_file):
                 try:
                     os.replace(bak_file, self.license_file)
-                except OSError:
-                    pass
+                except OSError as restore_err:
+                    # 回滚失败意味着旧注册码可能丢失，必须留痕让用户可排查
+                    logger.error("license.dat 回滚失败: %s | bak=%s", restore_err, bak_file)
             return False

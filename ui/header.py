@@ -1,9 +1,12 @@
-"""顶部 Header 组件：模式标题、授权状态、全局统计、激活按钮。"""
+"""顶部 Header 组件：模式标题、授权状态、全局统计、激活按钮。
+
+2026-10-14 重设计：白底细栏（48px）+ 圆角激活按钮；统计/授权文案
+保持既有格式（测试断言依赖），视觉层级靠字重与明度。
+"""
 
 import tkinter as tk
-from typing import Callable
 
-from .theme import theme, font_ui, font_display
+from .theme import font_display, font_ui, theme
 
 from license import LicenseStatus
 
@@ -11,8 +14,8 @@ from license import LicenseStatus
 class Header(tk.Frame):
     """主窗口顶部 Header。
 
-    负责展示当前模式名称、授权/题库状态、全局练习统计，
-    以及试用版下的「输入注册码」按钮。
+    负责展示当前模式名称、授权/题库状态、全局练习统计。
+    「输入注册码」入口已移至侧栏（错题计数下方），见 Sidebar。
     """
 
     def __init__(
@@ -21,7 +24,6 @@ class Header(tk.Frame):
         license_status: LicenseStatus | None = None,
         total_count: int = 0,
         trial_count: int = 0,
-        on_activate_click: Callable[[], None] | None = None,
         mode_title: str = "练习",
     ) -> None:
         """初始化 Header。
@@ -31,63 +33,37 @@ class Header(tk.Frame):
             license_status: LicenseStatus 枚举值或 None
             total_count: 题库总题数
             trial_count: 试用版可练习题数
-            on_activate_click: 「输入注册码」按钮点击回调
             mode_title: 初始模式标题
         """
-        super().__init__(parent, bg=theme.BG_CARD, height=56)
+        super().__init__(parent, bg=theme.BG_CARD, height=48)
         self.pack_propagate(False)
         self.license_status = license_status
         self.total_count = total_count
         self.trial_count = trial_count
-        self.on_activate_click = on_activate_click
-        self.activate_btn: tk.Button | None = None
 
         self._build()
         self.set_mode_title(mode_title)
 
     def _build(self) -> None:
         inner = tk.Frame(self, bg=theme.BG_CARD)
-        inner.pack(fill=tk.BOTH, expand=True, padx=24)
+        inner.pack(fill=tk.BOTH, expand=True, padx=20)
 
         self.mode_title = tk.Label(
-            inner, text="", font=font_display(16, True), fg=theme.TEXT_PRIMARY, bg=theme.BG_CARD
+            inner, text="", font=font_display(15, True), fg=theme.TEXT_PRIMARY, bg=theme.BG_CARD
         )
-        self.mode_title.pack(side=tk.LEFT, pady=12)
+        self.mode_title.pack(side=tk.LEFT, pady=10)
 
         self.license_status_label = tk.Label(
             inner, text="", font=font_ui(10), fg=theme.TEXT_MUTED, bg=theme.BG_CARD
         )
-        self.license_status_label.pack(side=tk.LEFT, padx=12, pady=12)
+        self.license_status_label.pack(side=tk.LEFT, padx=(12, 0), pady=10)
 
         self.stats_label = tk.Label(
             inner, text="", font=font_ui(10), fg=theme.TEXT_MUTED, bg=theme.BG_CARD
         )
-        self.stats_label.pack(side=tk.RIGHT, pady=12)
-
-        if self.license_status != LicenseStatus.AUTHORIZED:
-            self.activate_btn = tk.Button(
-                inner,
-                text="输入注册码",
-                command=self._on_activate_click,
-                font=font_ui(10),
-                bg=theme.ACCENT,
-                fg="white",
-                relief="flat",
-                padx=12,
-                pady=4,
-                cursor="hand2",
-                activebackground=theme.ACCENT_HOVER,
-                activeforeground="white",
-            )
-            self.activate_btn.pack(side=tk.RIGHT, padx=8, pady=12)
-        else:
-            self.activate_btn = None
+        self.stats_label.pack(side=tk.RIGHT, pady=10)
 
         self._refresh_license_text()
-
-    def _on_activate_click(self) -> None:
-        if self.on_activate_click:
-            self.on_activate_click()
 
     def _refresh_license_text(self) -> None:
         if self.license_status == LicenseStatus.AUTHORIZED:
@@ -109,26 +85,5 @@ class Header(tk.Frame):
             wrong_count: 错题数量
         """
         self.stats_label.configure(
-            text=(
-                f"已练 {practiced} 题  ·  "
-                f"正确率 {accuracy:.0f}%  ·  "
-                f"错题 {wrong_count}"
-            )
+            text=(f"已练 {practiced} 题  ·  正确率 {accuracy:.0f}%  ·  错题 {wrong_count}")
         )
-
-    def set_license_status(
-        self,
-        license_status: LicenseStatus | None,
-        total_count: int | None = None,
-        trial_count: int | None = None,
-    ) -> None:
-        """更新授权状态显示。
-
-        通常用于授权成功后重新设置状态；按钮不会重新创建。
-        """
-        self.license_status = license_status
-        if total_count is not None:
-            self.total_count = total_count
-        if trial_count is not None:
-            self.trial_count = trial_count
-        self._refresh_license_text()

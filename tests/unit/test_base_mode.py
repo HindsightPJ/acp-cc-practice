@@ -3,6 +3,7 @@
 覆盖 BaseMode 提取到基类的防抖保存三件套行为，
 避免 P2-16 类 bug（保存失败时 _pending_save 被提前清空）回归。
 """
+
 import tkinter as tk
 from unittest.mock import MagicMock
 
@@ -27,6 +28,7 @@ class _TestMode(BaseMode):
 
 class _MockAppState:
     """可 patch 为 ui.base_mode.AppState 的轻量类，避免 isinstance 失败。"""
+
     def __init__(self, data_manager, progress):
         self.data_manager = data_manager
         self.progress = progress
@@ -86,7 +88,7 @@ def test_do_save_progress_resets_pending_on_success(mode):
 def test_do_save_progress_keeps_pending_on_failure(monkeypatch, mode):
     """P2-16: 保存失败时 _pending_save 应保持 True，以便下次 flush 重试。"""
     mode.app_state.save_safe.return_value = False
-    monkeypatch.setattr('tkinter.messagebox.showwarning', lambda *a, **k: None)
+    monkeypatch.setattr("tkinter.messagebox.showwarning", lambda *a, **k: None)
 
     mode._pending_save = True
     mode._do_save_progress()
@@ -107,7 +109,7 @@ def test_flush_pending_save_clears_pending_on_success(mode):
 def test_flush_pending_save_keeps_pending_on_failure(monkeypatch, mode):
     """P2-16: flush_pending_save 保存失败时 _pending_save 应保持 True。"""
     mode.app_state.save_safe.return_value = False
-    monkeypatch.setattr('tkinter.messagebox.showwarning', lambda *a, **k: None)
+    monkeypatch.setattr("tkinter.messagebox.showwarning", lambda *a, **k: None)
 
     mode._save_progress_delayed()
     mode.flush_pending_save()

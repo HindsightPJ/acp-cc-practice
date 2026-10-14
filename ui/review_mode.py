@@ -1,6 +1,13 @@
 import tkinter as tk
 from tkinter import messagebox
-from .theme import theme, font_ui, font_ui_semibold, create_primary_button, create_normal_button
+from .theme import (
+    theme,
+    font_ui,
+    font_ui_semibold,
+    create_primary_button,
+    create_normal_button,
+    create_switch,
+)
 
 from quiz_engine import QuizEngine
 from models import Question
@@ -74,20 +81,14 @@ class ReviewMode(BaseMode):
         self.filter_fav_btn.pack(side=tk.LEFT)
 
         self.auto_var = tk.BooleanVar(value=False)
-        auto_check = tk.Checkbutton(
+        create_switch(toolbar.right, self.auto_var, self._toggle_auto_show).pack(side=tk.LEFT)
+        tk.Label(
             toolbar.right,
             text="自动显示答案",
-            variable=self.auto_var,
-            command=self._toggle_auto_show,
-            font=font_ui(10),
+            font=font_ui(11),
             fg=theme.TEXT_SECONDARY,
             bg=theme.BG_PAGE,
-            selectcolor=theme.BG_CARD,
-            activebackground=theme.BG_PAGE,
-            activeforeground=theme.ACCENT,
-            cursor="hand2",
-        )
-        auto_check.pack(side=tk.LEFT, padx=(0, 12))
+        ).pack(side=tk.LEFT, padx=(6, 16))
 
         jump_label = tk.Label(
             toolbar.right, text="跳转", font=font_ui(10), fg=theme.TEXT_MUTED, bg=theme.BG_PAGE
@@ -159,7 +160,7 @@ class ReviewMode(BaseMode):
             text="显示答案 (Space)",
             command=self.toggle_answer,
             bg_color=theme.PURPLE,
-            active_bg="#7c3aed",
+            active_bg=theme.PURPLE_HOVER,
             width=16,
         )
         self.toggle_answer_btn.pack(side=tk.LEFT, padx=(0, 8))
@@ -343,9 +344,7 @@ class ReviewMode(BaseMode):
         if not hasattr(self, "filter_fav_btn"):
             return
         if self.filtering_favorites:
-            self.filter_fav_btn.configure(
-                text="显示全部", fg=theme.ACCENT, bg=theme.ACCENT_LIGHT
-            )
+            self.filter_fav_btn.configure(text="显示全部", fg=theme.ACCENT, bg=theme.ACCENT_LIGHT)
         else:
             self.filter_fav_btn.configure(
                 text="只看收藏", fg=theme.BTN_NORMAL_FG, bg=theme.BTN_NORMAL

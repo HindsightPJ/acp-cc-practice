@@ -2,6 +2,7 @@
 
 覆盖收藏切换、延迟保存、只看收藏筛选模式等子类行为。
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -79,7 +80,7 @@ def test_toggle_favorite_removes_and_refreshes_filter(mode):
 
 def test_filter_favorites_empty_exits_filter(mode, monkeypatch):
     """筛选模式下取消最后一道收藏，应自动退出筛选并恢复全量。"""
-    monkeypatch.setattr('tkinter.messagebox.showinfo', lambda *a, **k: None)
+    monkeypatch.setattr("tkinter.messagebox.showinfo", lambda *a, **k: None)
 
     # 只收藏题 1 并进入筛选
     mode.app_state.toggle_favorite(1)
@@ -96,7 +97,7 @@ def test_filter_favorites_empty_exits_filter(mode, monkeypatch):
 def test_toggle_favorites_filter_no_favorites_shows_info(mode, monkeypatch):
     """没有收藏时进入筛选模式应提示用户且保持非筛选状态。"""
     info_calls = []
-    monkeypatch.setattr('tkinter.messagebox.showinfo', lambda *a, **k: info_calls.append((a, k)))
+    monkeypatch.setattr("tkinter.messagebox.showinfo", lambda *a, **k: info_calls.append((a, k)))
 
     mode.toggle_favorites_filter()
 
@@ -106,23 +107,23 @@ def test_toggle_favorites_filter_no_favorites_shows_info(mode, monkeypatch):
 
 def test_sync_favorite_button_text(mode):
     """收藏按钮文案应随收藏状态变化。"""
-    assert mode.favorite_btn.cget('text') == '收藏'
+    assert mode.favorite_btn.cget("text") == "收藏"
 
     mode.app_state.toggle_favorite(1)
     mode._sync_favorite_button()
 
-    assert '已收藏' in mode.favorite_btn.cget('text')
+    assert "已收藏" in mode.favorite_btn.cget("text")
 
 
 def test_filter_button_text(mode):
     """筛选按钮文案应随筛选状态变化。"""
-    assert mode.filter_fav_btn.cget('text') == '只看收藏'
+    assert mode.filter_fav_btn.cget("text") == "只看收藏"
 
     mode.app_state.toggle_favorite(1)
     mode.app_state.toggle_favorite(2)
     mode.toggle_favorites_filter()
 
-    assert mode.filter_fav_btn.cget('text') == '显示全部'
+    assert mode.filter_fav_btn.cget("text") == "显示全部"
 
 
 def test_toggle_favorite_works_without_data_manager(root):

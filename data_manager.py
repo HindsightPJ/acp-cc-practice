@@ -1,18 +1,12 @@
 from typing import Any, cast
 import os
 import json
-import re
 import logging
 import threading
 from logging_utils import log_error
 from models import Question
 
 logger = logging.getLogger(__name__)
-
-try:
-    from docx import Document
-except ImportError:
-    Document = None  # type: ignore[assignment]
 
 
 class DataLoadError(Exception):
@@ -27,58 +21,22 @@ class DataSaveError(Exception):
     pass
 
 
-# ---------- parse_docx 辅助函数（TD-11: 从 parse_docx 抽取）----------
+def default_progress() -> dict[str, Any]:
+    """progress.json 的默认结构。
 
-
-def _parse_question_header(text: str) -> tuple[int, str] | None:
-    """从题目行解析 (number, content)，非题目行返回 None。"""
-    if not re.match(r"^\d+[\.\、．]", text):
-        return None
-    match = re.match(r"^(\d+)[\.\、．]\s*(.*)$", text)
-    if match:
-        return (int(match.group(1)), match.group(2).strip())
-    return None
-
-
-def _is_option_line(text: str) -> bool:
-    """检测是否为选项行。"""
-    return bool(re.match(r"^[•·]?\s*[A-Fa-f][\.\、\.]", text))
-
-
-def _parse_option(text: str) -> tuple[str, str] | None:
-    """从选项行解析 (letter, text)，解析失败返回 None。"""
-    match = re.match(r"^[•·]\s*([A-Fa-f])[\.\、\.]\s*(.+)$", text)
-    if not match:
-        match = re.match(r"^([A-Fa-f])[\.\、\.]\s*(.+)$", text)
-    if match:
-        return (match.group(1).upper(), match.group(2))
-    return None
-
-
-def _is_answer_line(text: str) -> bool:
-    """检测是否为答案行。"""
-    return "正确答案" in text or "答案" in text
-
-
-def _parse_answer(text: str) -> str | None:
-    """从答案行解析 answer 字符串（如 'ABC'），解析失败返回 None。"""
-    answer_match = re.search(r"([A-Fa-f]+)", text)
-    if answer_match:
-        return answer_match.group(1).upper()
-    return None
-
-
-def _is_explanation_line(text: str) -> bool:
-    """检测是否为解析行。"""
-    return "解析" in text or "解释" in text
-
-
-def _parse_explanation(text: str) -> str | None:
-    """从解析行解析 explanation，解析失败返回 None。"""
-    explanation_match = re.match(r"(?:解析|解释)[：:]\s*(.+)$", text)
-    if explanation_match:
-        return explanation_match.group(1)
-    return None
+    单一来源：load_progress 的损坏回退与 AppState._ensure_defaults 都从这里取，
+    避免两处默认 dict 漂移。
+    """
+    return {
+        "wrong_questions": [],
+        "practice_stats": {"correct": 0, "wrong": 0, "total": 0},
+        "exam_history": [],
+        "favorites": [],
+        # 练习会话快照（进度恢复用）：{queue, index, answers, shuffle}
+        "practice_progress": {},
+        # UI 主题模式（"light" / "dark"，非法值由 AppState fail-safe 回浅色）
+        "theme_mode": "light",
+    }
 
 
 class DataManager:
@@ -105,80 +63,6 @@ class DataManager:
         if not os.path.exists(self.user_data_dir):
             os.makedirs(self.user_data_dir, exist_ok=True)
 
-    def parse_docx(self, docx_path: str) -> list[Question]:
-        """解析Word文档，提取所有题目（TD-11: 检测/解析逻辑已抽取到模块级函数）。"""
-        if Document is None:
-            raise ImportError("请先安装python-docx库: pip install python-docx")
-
-        doc = Document(docx_path)
-        raw_questions: list[dict[str, Any]] = []
-        current_question: dict[str, Any] | None = None
-
-        for para in doc.paragraphs:
-            text = para.text.strip()
-            if not text:
-                continue
-
-            # 检测题目编号 (如 "1." 或 "1、" 或 "1．")
-            header = _parse_question_header(text)
-            if header:
-                if current_question:
-                    raw_questions.append(current_question)
-                current_question = {
-                    "number": header[0],
-                    "content": header[1],
-                    "options": [],
-                    "answer": None,
-                    "type": "single",
-                    "explanation": "",
-                }
-
-            # 如果当前题目内容为空，且该段落不是选项/答案/解析，则作为题目内容
-            elif (
-                current_question
-                and not current_question["content"]
-                and not _is_option_line(text)
-                and not _is_answer_line(text)
-                and not _is_explanation_line(text)
-            ):
-                current_question["content"] = text
-
-            # 检测选项 (A. B. C. D. E. F.) - 支持bullet前缀和Tab分隔格式
-            elif current_question and _is_option_line(text):
-                option = _parse_option(text)
-                if option:
-                    current_question["options"].append({"letter": option[0], "text": option[1]})
-
-            # 检测正确答案（支持多选，如ABC、ABCD）
-            elif current_question and _is_answer_line(text):
-                answer = _parse_answer(text)
-                if answer:
-                    current_question["answer"] = answer
-                    current_question["type"] = "multiple" if len(answer) > 1 else "single"
-
-            # 检测解析
-            elif current_question and _is_explanation_line(text):
-                explanation = _parse_explanation(text)
-                if explanation:
-                    current_question["explanation"] = explanation
-
-        if current_question:
-            raw_questions.append(current_question)
-
-        # 去重：同一题号保留后出现的版本（通常是修正版）
-        seen: dict[int, dict[str, Any]] = {}
-        for q in raw_questions:
-            seen[q["number"]] = q
-        raw_questions = [seen[k] for k in sorted(seen)]
-
-        questions: list[Question] = []
-        for i, q in enumerate(raw_questions):
-            try:
-                questions.append(Question.from_dict(q))
-            except (ValueError, TypeError, KeyError) as e:
-                raise DataLoadError(f"第{i + 1}题解析失败: {e}")
-        return questions
-
     def load_meta(self) -> dict[str, Any] | None:
         """加载 questions_meta.json。
 
@@ -203,16 +87,16 @@ class DataManager:
             with open(trial_path, "r", encoding="utf-8") as f:
                 raw_list = json.load(f)
         except json.JSONDecodeError as e:
-            raise DataLoadError(f"试用题库损坏，请重新下载程序: {e}")
-        except PermissionError:
-            raise DataLoadError("无法读取试用题库，请检查文件权限")
+            raise DataLoadError(f"试用题库损坏，请重新下载程序: {e}") from e
+        except PermissionError as e:
+            raise DataLoadError("无法读取试用题库，请检查文件权限") from e
 
         questions: list[Question] = []
         for i, q in enumerate(raw_list):
             try:
                 questions.append(Question.from_dict(q))
             except (ValueError, TypeError, KeyError) as e:
-                raise DataLoadError(f"第{i + 1}题解析失败: {e}")
+                raise DataLoadError(f"第{i + 1}题解析失败: {e}") from e
         return questions
 
     def load_full_questions(self, key: str) -> list[Question]:
@@ -240,14 +124,14 @@ class DataManager:
         except (ValueError, OSError, json.JSONDecodeError, UnicodeDecodeError, InvalidToken) as e:
             # TD-10: 收窄异常捕获——密钥格式错误(ValueError) / 文件IO(OSError) /
             # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
-            raise DataLoadError(f"题库密文损坏或密钥不匹配: {e}")
+            raise DataLoadError(f"题库密文损坏或密钥不匹配: {e}") from e
 
         questions: list[Question] = []
         for i, q in enumerate(raw_list):
             try:
                 questions.append(Question.from_dict(q))
             except (ValueError, TypeError, KeyError) as e:
-                raise DataLoadError(f"第{i + 1}题解析失败: {e}")
+                raise DataLoadError(f"第{i + 1}题解析失败: {e}") from e
         return questions
 
     def save_progress(self, progress_data: dict[str, Any]) -> None:
@@ -279,7 +163,7 @@ class DataManager:
                     except OSError as restore_err:
                         logger.debug("进度备份恢复失败: %s", restore_err)
                 log_error(logger, "无法保存进度数据", exc=e, progress_file=self.progress_file)
-                raise DataSaveError(f"无法保存进度数据: {e}")
+                raise DataSaveError(f"无法保存进度数据: {e}") from e
 
     def load_progress(self) -> dict[str, Any]:
         """加载学习进度；遇到损坏文件自动备份为 .corrupt-{timestamp} 便于排查。
@@ -301,7 +185,7 @@ class DataManager:
                 self._backup_corrupt_progress()
             except PermissionError as e:
                 log_error(logger, "无法读取进度文件", exc=e, progress_file=self.progress_file)
-                raise DataLoadError("无法读取进度文件，请检查文件权限")
+                raise DataLoadError("无法读取进度文件，请检查文件权限") from e
 
         # progress.json 不存在，尝试从 .bak 恢复（崩溃后场景）
         bak_file = self.progress_file + ".bak"
@@ -320,14 +204,7 @@ class DataManager:
             except (OSError, json.JSONDecodeError) as e:
                 logger.warning("从 .bak 恢复失败: %s", e)
 
-        return {
-            "wrong_questions": [],
-            "practice_stats": {"correct": 0, "wrong": 0, "total": 0},
-            "exam_history": [],
-            "favorites": [],
-            # P2-15: 与 AppState._ensure_defaults 保持一致，避免默认 dict 缺 settings
-            "settings": {},
-        }
+        return default_progress()
 
     def _backup_corrupt_progress(self) -> None:
         """把损坏的 progress.json 改名为带时间戳的 .corrupt 副本，便于事后恢复。"""
@@ -337,5 +214,6 @@ class DataManager:
         backup_path = f"{self.progress_file}.corrupt-{timestamp}"
         try:
             os.replace(self.progress_file, backup_path)
-        except OSError:
-            pass
+        except OSError as e:
+            # 备份失败不阻断主流程（随后返回默认进度），但必须留痕便于排查
+            logger.warning("损坏进度文件备份失败: %s | path=%s", e, self.progress_file)

@@ -25,13 +25,20 @@ env/
 # User data（每台机器首次使用时生成，不入库）
 # 保留 data/ 目录结构，放行加密题库 questions.enc / trial / meta 三个文件
 data/
-!data/.gitkeep
 !data/questions.enc
 !data/questions_trial.json
 !data/questions_meta.json
 
-# 作者侧签发记录（含机器码与备注，敏感，不入库）
-author_tools/issued_licenses.json
+# 作者侧工具与授权脚本（密钥体系 / 题库加密 / 注册码签发，本地保留，绝不上传）
+author_tools/
+tests/unit/test_encrypt_questions.py
+tests/unit/test_generate_license.py
+tests/unit/test_keygen.py
+tests/unit/test_import_docx.py
+tests/unit/test_env_utils.py
+tests/integration/test_cross_machine.py
+tests/integration/test_full_flow.py
+tests/integration/test_key_stability.py
 
 # 环境变量（作者密钥，本地保留，绝不入库）
 .env
@@ -58,6 +65,7 @@ icons/README.md
 
 # 工程化文件（本地保留，不推送到仓库）
 requirements-dev.txt
+desktop_python.md
 .env.example
 
 # AI 工作区与本地文档（本地保留，不入库）
@@ -70,3 +78,7 @@ docs/
 .pytest_cache/
 .coverage
 .coverage.*
+
+# Agent 工作区（记忆/日志，本机状态，不入库）
+.workbuddy/
+

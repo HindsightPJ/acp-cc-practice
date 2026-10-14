@@ -7,7 +7,7 @@ UI 层通过 AppState 读写学习进度，不再直接调用 data_manager.save_
 import logging
 from typing import Any
 
-from data_manager import DataManager, DataSaveError
+from data_manager import DataManager, DataSaveError, default_progress
 
 logger = logging.getLogger(__name__)
 
@@ -19,20 +19,15 @@ class AppState:
     所有修改最终通过 data_manager.save_progress 落盘。
     """
 
-    def __init__(
-        self, data_manager: DataManager, progress: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, data_manager: DataManager, progress: dict[str, Any] | None = None) -> None:
         self._data_manager = data_manager
         self._progress: dict[str, Any] = progress if progress is not None else {}
         self._ensure_defaults()
 
     def _ensure_defaults(self) -> None:
-        """确保进度字典包含所有必需字段。"""
-        self._progress.setdefault("wrong_questions", [])
-        self._progress.setdefault("practice_stats", {"correct": 0, "wrong": 0, "total": 0})
-        self._progress.setdefault("exam_history", [])
-        self._progress.setdefault("favorites", [])
-        self._progress.setdefault("settings", {})
+        """确保进度字典包含所有必需字段（默认结构单一来源：default_progress）。"""
+        for key, value in default_progress().items():
+            self._progress.setdefault(key, value)
 
     # ---------- 练习统计 ----------
     def get_practice_stats(self) -> dict[str, int]:
@@ -114,14 +109,32 @@ class AppState:
         # 仅保留最近 20 条，避免进度文件无限增长
         self._progress["exam_history"] = history[-20:]
 
-    # ---------- 设置 ----------
-    def get_setting(self, key: str, default: Any = None) -> Any:
-        settings = self._progress.setdefault("settings", {})
-        return settings.get(key, default)
+    # ---------- 练习会话快照（进度恢复） ----------
+    def get_practice_progress(self) -> dict[str, Any]:
+        """返回练习会话快照（无/格式异常时返回空 dict）。"""
+        data = self._progress.get("practice_progress")
+        return dict(data) if isinstance(data, dict) else {}
 
-    def set_setting(self, key: str, value: Any) -> None:
-        settings = self._progress.setdefault("settings", {})
-        settings[key] = value
+    def set_practice_progress(self, data: dict[str, Any]) -> None:
+        """写入练习会话快照（随下次 save_safe 一并落盘）。"""
+        self._progress["practice_progress"] = data
+
+    # ---------- UI 主题模式 ----------
+    # 合法值与 ui.constants.THEME_MODES 保持一致；此处内联字面量，
+    # 避免状态层反向依赖 UI 层（ui 包 import 即引入 tkinter）
+    _VALID_THEME_MODES = ("light", "dark")
+
+    def get_theme_mode(self) -> str:
+        """返回主题模式（"light"/"dark"），缺失或非法值 fail-safe 回 "light"。"""
+        mode = self._progress.get("theme_mode", "light")
+        if mode not in self._VALID_THEME_MODES:
+            logger.warning("progress.json 中 theme_mode 非法: %r，回退 light", mode)
+            return "light"
+        return str(mode)
+
+    def set_theme_mode(self, mode: str) -> None:
+        """写入主题模式（随下次 save_safe 一并落盘）。"""
+        self._progress["theme_mode"] = mode
 
     # ---------- 持久化 ----------
     def save(self) -> None:

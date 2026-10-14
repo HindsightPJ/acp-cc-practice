@@ -155,7 +155,6 @@ class ExamMode(BaseMode):
         """构建考试历史卡片，展示最近 20 条考试记录。"""
         history_card, h_inner = create_card(self, inner_padx=20, inner_pady=16)
         history_card.pack(fill=tk.X, pady=(0, 16))
-        self._history_card = history_card
 
         header = tk.Frame(h_inner, bg=theme.BG_CARD)
         header.pack(fill=tk.X, pady=(0, 10))
@@ -404,10 +403,25 @@ class ExamMode(BaseMode):
     # ------------------------------------------------------------------
 
     def submit_exam(self, force: bool = False) -> None:
-        if not force and not messagebox.askyesno(
-            "确认交卷", "确定要交卷吗？\n\n提交后将无法修改答案。", parent=self
-        ):
-            return
+        if not force:
+            # 交卷确认附未答/标记数（mockup 承诺），用户对损失有预期
+            unanswered = marked = 0
+            if self.engine is not None and self.exam_session is not None:
+                total = self.engine.queue_length()
+                unanswered = sum(1 for i in range(total) if not self.exam_session.has_answer(i))
+                marked = sum(1 for i in range(total) if self.exam_session.is_marked(i))
+            detail = ""
+            if unanswered or marked:
+                parts = []
+                if unanswered:
+                    parts.append(f"未答 {unanswered} 题")
+                if marked:
+                    parts.append(f"已标记 {marked} 题")
+                detail = "\n\n" + "、".join(parts) + "。"
+            if not messagebox.askyesno(
+                "确认交卷", f"确定要交卷吗？\n\n提交后将无法修改答案。{detail}", parent=self
+            ):
+                return
 
         self._cancel_all_after_jobs()
         self.timer_running = False
@@ -461,7 +475,8 @@ class ExamMode(BaseMode):
         dialog = ExamReportDialog(self, report, on_add_wrong=self.add_wrong_to_book)
         dialog.show()
 
-    def add_wrong_to_book(self, report: dict[str, Any]) -> None:
+    def add_wrong_to_book(self, report: dict[str, Any]) -> int:
+        """把报告中的错题加入错题本，返回本次新增数量（供报告对话框防重复点击）。"""
         added = 0
         for q in report["wrong_questions"]:
             q_num = q.number
@@ -478,3 +493,4 @@ class ExamMode(BaseMode):
             )
         else:
             messagebox.showinfo("成功", f"已将 {added} 道错题加入错题本！", parent=self)
+        return added
