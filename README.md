@@ -1,8 +1,7 @@
 # ACP 云计算练习
 
-v1.1
-
-一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + PySide6（Qt 6），运行依赖仅 `cryptography` / `PySide6-Essentials` 两个，开箱即用。
+一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。
+基于 Python + PySide6（Qt 6），运行依赖仅 `cryptography` / `PySide6-Essentials` 两个，开箱即用。
 
 ## 免责声明
 
@@ -178,5 +177,3 @@ python main.py
 ## 作者
 
 **逆光溯行** · [GitHub @HindsightPJ](https://github.com/HindsightPJ) · hindsight_pj@qq.com
-
-本项目是作者的第一个 GitHub 项目，基于 vibe-coding 完成。
