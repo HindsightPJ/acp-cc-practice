@@ -2,7 +2,7 @@
 
 v1.1
 
-一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + PySide6（Qt 6，F 方案「时刻表/发牌板」设计语言），运行依赖仅 `cryptography` / `PySide6-Essentials` 两个，开箱即用。
+一个用于备考阿里云 ACP（Alibaba Cloud Professional）云计算认证的桌面练习工具。基于 Python + PySide6（Qt 6），运行依赖仅 `cryptography` / `PySide6-Essentials` 两个，开箱即用。
 
 ## 免责声明
 
@@ -22,24 +22,11 @@ v1.1
 ## 功能
 
 - **练习模式**：逐题作答，提交后即时显示对错与解析，支持单选/多选、键盘快捷键、错题自动入库，进度自动防抖保存、重启续练
-- **考试模式**：模拟真实考试，可选题量与时长，倒计时、题号导航网格（当前/标记/已答四态）、交卷生成成绩报告并可一键加入错题本
+- **考试模式**：模拟真实考试，可选题量与时长，倒计时、题号导航网格（当前/标记/已答四态）、交卷生成成绩报告（错题逐题回顾）并可一键加入错题本
 - **背题模式**：直接显示题干与解析，按 Enter 切换答案显隐，支持收藏题目与「只看收藏」筛选
 - **错题本**：自动收集练习中的错题，可查看详情、专项练习，练习正确后可一键移除已掌握错题
 - **双主题**：浅色「纸面」/ 深色「暖炭」，`Ctrl+T` 一键切换，偏好持久化、重启保持
-- **Frameless 标题栏**：自绘 44px 站牌条（拖拽/双击最大化/8px 边缘 resize），Win10 全版本观感一致
-
-## 设计取向
-
-UI 于 v1.2 采用「F 方案 · 时刻表/车站发牌板」设计语言（设计提案见 `docs/design/`）：
-排版优先、去卡片化、单一强调色——层次靠字号与明度，不靠边框与阴影。
-
-- **双主题语义 Token**：浅色「纸面」（暖灰米 `#f2f0eb`）与深色「暖炭」（`#141417`）两套 17 项语义 Token 共存于 `ui/theme.py`，`set_theme_mode()` 原地换肤，控件零缓存颜色
-- **IKB 克莱因蓝单强调色**：`#002fa7`（深色提亮 `#5272ff`）承担全部「可交互/进行中/正确」语义，F 方案无红绿（正确=蓝、错选=灰）
-- **时刻表排版**：大号题号 + `QUEUE 01/20` 式等宽 meta + 4px 规则线分段；board-nav 用「01/02/03」编号行替代图标侧栏，当前行反白
-- **发牌板行形态**：选项行/答题卡/题号网格全部是行态状态机（idle→selected→ok/wrong），QSS 动态属性驱动（`QFrame[state=...]`），四种模式共用同一 OptionRow
-- **统一取色源**：全部颜色/字体集中在 `ui/theme.py` 的 `build_qss()` 全局样式表，控件代码不写颜色
-- **字体链**：Bahnschrift → Segoe UI → Microsoft YaHei UI 懒加载检测；计时/进度数字用 Cascadia Mono 等宽防抖动
-- **Frameless 主窗口**：自绘标题栏 + `startSystemMove/Resize` 原生手感；对话框沿用系统标题栏
+- **Frameless 标题栏**：自绘标题栏（拖拽/双击最大化/8px 边缘 resize），Win10 全版本观感一致
 
 ## 项目结构
 
@@ -50,12 +37,14 @@ acp-cc-practice/
 ├── data_manager.py          # 题库加载（trial/full 两段式）+ 进度持久化
 ├── models.py                # 数据模型：Question / Option 类型定义
 ├── app_state.py             # 全局状态：错题本、收藏、考试历史、进度持久化
+├── env_utils.py             # 作者侧 .env 密钥读取工具
 ├── logging_utils.py         # 结构化错误日志 + 轮转日志配置
 ├── pyproject.toml           # 项目元数据 + 依赖声明（单一来源）+ 工具配置
 ├── requirements.lock        # 锁定依赖版本（pip-compile 自动生成，可复现安装）
 ├── acp-cc-practice.spec     # PyInstaller 打包配置
 ├── .github/workflows/       # CI（ruff + mypy + 密钥/依赖锁门禁 + pytest）与 Release（构建并签名 EXE）
 ├── .gitignore
+├── LICENSE.md
 ├── license/                 # 授权模块
 │   ├── __init__.py          # LicenseStatus / LicenseError 枚举
 │   ├── fingerprint.py       # 采集机器指纹
@@ -66,12 +55,12 @@ acp-cc-practice/
 │   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
 │   └── questions_meta.json  # 元数据（入库）
-├── tests/                   # 测试套件（325 项，GUI 测试经 offscreen 无头运行）
+├── tests/                   # 测试套件（pytest，GUI 用例经 offscreen 无头运行）
 │   └── unit/                # 单元测试
 └── ui/
     ├── __init__.py
-    ├── main_window.py       # 主窗口：titlebar + 站牌头 + board-nav + 模式页栈 + modeline
-    ├── theme.py             # 设计 Token：17 项语义色双主题 / build_qss 全局样式 / 字体检测
+    ├── main_window.py       # 主窗口：标题栏 + 模式页栈 + 导航/状态条
+    ├── theme.py             # 主题与样式：双主题语义色 / build_qss 全局样式表 / 字体检测
     ├── titlebar.py          # Frameless 标题栏（拖拽/最大化/边缘 resize）
     ├── base_mode.py         # 模式页基类（防抖保存 + state_changed 信号协议）
     ├── base_dialog.py       # 对话框基类（QDialog 薄封装）
@@ -81,7 +70,7 @@ acp-cc-practice/
     ├── exam_mode.py         # 考试模式控制器（设置视图 ⇄ 考试视图、计时、交卷）
     ├── exam_panel.py        # 考试视图（题号导航四态网格、倒计时、统计列）
     ├── exam_session.py      # 考试会话模型（作答状态、标记、计分）
-    ├── exam_report_dialog.py# 考试成绩报告对话框（正确率大数字 + 加入错题本）
+    ├── exam_report_dialog.py# 考试成绩报告对话框（成绩统计 + 错题逐题回顾 + 加入错题本）
     ├── review_mode.py       # 背题模式（收藏 / 只看收藏 / 自动显示答案）
     ├── wrong_book.py        # 错题本（列表 ⇄ 专项练习双视图）
     ├── answer_sheet.py      # 答题卡 + 统计列组件（练习/考试共用）
@@ -169,67 +158,14 @@ python main.py
 - **重装系统/换硬盘会失效**：指纹含系统硬件信息，变更需重新申请注册码
 - **字体依赖系统安装**：Bahnschrift（Win10 1809+ 自带）为首选，旧系统回退 Segoe UI / 微软雅黑
 
-## 发布清单（v1.1）
+## 发布
 
-以下文件应包含在 GitHub 仓库中：
+发布产物作为 GitHub Release 二进制附件提供，不纳入源码仓库：
 
-```
-acp-cc-practice/
-├── .gitignore
-├── .github/workflows/ci.yml      # CI：ruff + mypy + pytest（非 GUI）
-├── .github/workflows/release.yml # Release：构建并签名 EXE
-├── LICENSE.md
-├── README.md
-├── main.py
-├── data_manager.py
-├── quiz_engine.py
-├── models.py
-├── app_state.py
-├── env_utils.py
-├── logging_utils.py
-├── pyproject.toml                # 项目元数据 + 依赖 + 工具配置
-├── requirements.lock             # 锁定依赖版本（pip-compile 生成）
-├── license/
-│   ├── __init__.py
-│   ├── fingerprint.py            # 机器指纹
-│   ├── crypto_utils.py           # PBKDF2 派生
-│   ├── public_key.py
-│   └── verifier.py
-├── data/
-│   ├── questions.enc             # 加密题库
-│   ├── questions_trial.json      # 20 题试用
-│   └── questions_meta.json       # 元数据
-├── tests/
-│   └── unit/                     # 单元测试
-└── ui/
-    ├── __init__.py
-    ├── main_window.py
-    ├── theme.py
-    ├── titlebar.py
-    ├── base_mode.py
-    ├── base_dialog.py
-    ├── practice_mode.py
-    ├── practice_panel.py
-    ├── practice_session.py
-    ├── exam_mode.py
-    ├── exam_panel.py
-    ├── exam_session.py
-    ├── exam_report_dialog.py
-    ├── review_mode.py
-    ├── wrong_book.py
-    ├── answer_sheet.py
-    ├── option_row.py
-    ├── question_detail_card.py
-    └── license_dialog.py
-```
+- `acp-cc-practice.exe`（约 32 MB，内置 PySide6-Essentials 运行时，无 cmd 窗口）— 打包好的可执行文件
+- `acp-cc-practice.exe.sigstore.json` — Sigstore OIDC 签名 bundle
 
-**发布产物**：
-- `dist/acp-cc-practice.exe`（约 45 MB，PySide6-Essentials 运行时，无 cmd 窗口）— 打包好的可执行文件
-- `dist/acp-cc-practice.exe.sigstore.json` — Sigstore OIDC 签名 bundle
-
-二者作为 GitHub Release 二进制附件发布，不纳入源码仓库。
-
-**不入库的文件**：用户运行数据（进度 / 注册码 / 日志）与作者侧本地文件均只留在本机，完整清单见 [.gitignore](.gitignore)。
+用户运行数据（进度 / 注册码 / 日志）与作者侧本地文件（明文题库、签发工具、私钥）均不入库，完整清单见 [.gitignore](.gitignore)。
 
 ## License
 

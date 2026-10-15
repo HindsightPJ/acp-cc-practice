@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .theme import repolish
+
 
 class _DepRow(QFrame):
     """单行发车记录：题号 + 状态字 + 右侧符号。
@@ -63,7 +65,7 @@ class _DepRow(QFrame):
         super().mousePressEvent(event)
 
     def set_state(self, state: str) -> None:
-        """state ∈ ""(待答)/done/now/miss；切换 QSS 属性 + 文案。"""
+        """state ∈ ""(待答)/done/now/miss；切换 QSS 属性 + 文案并 repolish。"""
         text, sym = self._TEXT.get(state, ("待答", "·"))
         if state:
             self.setProperty("state", state)
@@ -71,6 +73,7 @@ class _DepRow(QFrame):
             self.setProperty("state", None)
         self.lbl_st.setText(text)
         self.lbl_sym.setText(sym)
+        repolish(self)
 
 
 class AnswerSheet(QFrame):

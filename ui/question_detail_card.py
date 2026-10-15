@@ -129,6 +129,10 @@ class QuestionDetailCard(QFrame):
         for i, lbl in enumerate(self._meta_labels):
             if i < len(lines):
                 lbl.setText(lines[i])
+                # 多选题标签 ACCENT 变色提醒（QSS qType 属性驱动，换题需 repolish）
+                is_multi = any(t in lines[i] for t in _QUESTION_TYPE_LABELS.values())
+                lbl.setProperty("qType", "multiple" if is_multi else None)
+                repolish(lbl)
                 lbl.setVisible(True)
             else:
                 lbl.setVisible(False)

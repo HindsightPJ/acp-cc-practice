@@ -5,6 +5,7 @@ UI 层通过 AppState 读写学习进度，不再直接调用 data_manager.save_
 """
 
 import logging
+import random
 from typing import Any
 
 from data_manager import DataManager, DataSaveError, default_progress
@@ -108,6 +109,54 @@ class AppState:
         history.append(entry)
         # 仅保留最近 20 条，避免进度文件无限增长
         self._progress["exam_history"] = history[-20:]
+
+    # ---------- 考试卡组（组卷覆盖保证） ----------
+    def draw_exam_questions(self, count: int, all_numbers: list[int]) -> list[int]:
+        """从持久化卡组顺次抽 count 个题号组卷（考试模式覆盖保证）。
+
+        卡组语义：progress.json 持久化一份整库洗牌牌堆，每次考试从牌堆
+        顺次抽 count 张；牌堆耗尽即整库重洗进入下一周期——保证每个周期内
+        全库每题至少出现一次，避免纯随机抽样的"有的题长期不出现"。
+
+        - 同一场考试内绝不重复：中途重洗时排除本场已抽题号
+          （前提 count ≤ 全库题数，调用方保证，此处钳位兜底）
+        - 题库升级/降级（卡组题号不在当前库中）→ 丢弃旧卡组整库重洗
+        - 只改内存，随下次 save_safe 落盘（调用方开考后自行 save_safe）
+
+        Args:
+            count: 组卷题数；超过全库题数时钳位为全库题数
+            all_numbers: 当前题库全部题号（判定题库变化用）
+
+        Returns:
+            本场考试的题号列表（与卡组顺序一致，UI 直接作队列）
+        """
+        bank = list(dict.fromkeys(all_numbers))  # 去重保序，防御异常数据
+        if not bank or count <= 0:
+            return []
+        count = min(count, len(bank))
+
+        deck = self._progress.get("exam_deck")
+        if (
+            not isinstance(deck, list)
+            or not deck
+            or not all(isinstance(n, int) and not isinstance(n, bool) for n in deck)
+            or not set(deck) <= set(bank)
+        ):
+            deck = bank.copy()
+            random.shuffle(deck)
+
+        drawn: list[int] = []
+        while len(drawn) < count:
+            if not deck:
+                # 周期耗尽：整库重洗，排除本场已抽（同场不重复）
+                deck = [n for n in bank if n not in drawn]
+                random.shuffle(deck)
+            take = deck[: count - len(drawn)]
+            drawn.extend(take)
+            deck = deck[len(take) :]
+
+        self._progress["exam_deck"] = deck
+        return drawn
 
     # ---------- 练习会话快照（进度恢复） ----------
     def get_practice_progress(self) -> dict[str, Any]:

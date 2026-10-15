@@ -284,11 +284,27 @@ class QuizEngine:
         seconds = elapsed % 60
 
         stats = self.get_stats()
+        # 错题明细按队列序排列，附用户作答（报告回顾页展示"已选 vs 正确"用）
+        wrong_records: list[dict[str, Any]] = []
+        for idx in sorted(self.answers_record):
+            r = self.answers_record[idx]
+            if r.get("is_correct"):
+                continue
+            queue_index = r.get("queue_index")
+            if queue_index is None or not (0 <= queue_index < len(self.questions_queue)):
+                continue
+            wrong_records.append(
+                {
+                    "question": self.questions_queue[queue_index],
+                    "selected": str(r.get("selected", "")),
+                }
+            )
         return {
             "total_questions": len(self.questions_queue),
             "correct": stats["correct"],
             "wrong": stats["wrong"],
             "accuracy": (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0,
             "time_used": f"{minutes}分{seconds}秒",
-            "wrong_questions": self.get_wrong_answers(),
+            "wrong_questions": [w["question"] for w in wrong_records],
+            "wrong_records": wrong_records,
         }

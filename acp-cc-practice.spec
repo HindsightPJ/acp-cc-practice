@@ -74,10 +74,21 @@ a = Analysis(
         'PySide6.QtMultimedia', 'PySide6.QtMultimediaWidgets',
         'PySide6.QtSql', 'PySide6.QtTest',
         'PySide6.QtNetworkAuth',
+        'PySide6.QtNetwork', 'PySide6.QtSvg',
     ],
     noarchive=False,
     optimize=0,
 )
+# P9-1: 裁剪无用的 Qt 二进制（TD-21 体积优化）
+# - opengl32sw.dll（20.6MB）：软件 OpenGL 渲染回退，纯 Widgets 应用不需要
+# - qdirect2d/qtiff/qjpeg/qwebp：备用平台插件与未使用的图片格式插件（项目仅 ico/png）
+# - tls/networkinformation：QtNetwork 的 TLS 后端与网络可达性探测插件，随 QtNetwork 一起裁剪
+# - qsvgicon/qsvg：SVG 图标插件，项目无 SVG 资源
+_CUT_PATTERNS = (
+    'opengl32sw', 'qdirect2d', 'qtiff', 'qjpeg', 'qwebp',
+    'networkinformation', 'tls\\', 'qsvgicon', 'qsvg',
+)
+a.binaries = [b for b in a.binaries if not any(p in b[0] for p in _CUT_PATTERNS)]
 pyz = PYZ(a.pure)
 
 exe = EXE(

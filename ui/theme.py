@@ -238,6 +238,7 @@ QFrame#qcol { border-right: 1px solid %(LINE_SOFT)s; }
 QFrame#qline { border-bottom: 1px solid %(INK)s; }
 QLabel#qBig { font-family: "%(SANS)s"; font-weight: 600; font-size: 54px; color: %(INK)s; }
 QLabel#qMeta { color: %(INK2)s; font-size: 11px; }
+QLabel#qMeta[qType="multiple"] { color: %(ACCENT)s; font-weight: 600; }
 QLabel#stem { color: %(INK)s; font-size: 16px; }
 
 /* ── 选项 = 发牌板行 ── */
@@ -412,10 +413,20 @@ def apply_qss(app: QApplication, mode: str | None = None) -> None:
 
 
 def repolish(widget: QWidget) -> None:
-    """动态属性变更后重刷 QSS（optRow/depRow 状态切换时调用）。"""
+    """动态属性变更后重刷 QSS（optRow/depRow 状态切换时调用）。
+
+    必须递归刷全部后代：祖先容器的 state 属性同时驱动后代规则
+    （如 QFrame[optRow][state=selected] QLabel 的反白文字），只刷容器
+    本身不会重算子标签命中的祖先属性选择器规则，换肤/切换选中后
+    子标签会停留在上一次全量样式（P9-2 修复的反白文字不同步缺陷）。
+    """
     style = widget.style()
-    style.unpolish(widget)
-    style.polish(widget)
+    stack: list[QWidget] = [widget]
+    while stack:
+        w = stack.pop()
+        style.unpolish(w)
+        style.polish(w)
+        stack.extend(w.findChildren(QWidget))
 
 
 def center_window(window: QWidget) -> None:

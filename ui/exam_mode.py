@@ -154,7 +154,11 @@ class ExamMode(BaseModePage):
 
     # -------------------------------------------------------------- 开考
     def start_exam(self) -> None:
-        """开考：销毁旧 panel（防重复开考泄漏）→ 建引擎/会话/视图 → 计时。"""
+        """开考：销毁旧 panel（防重复开考泄漏）→ 建引擎/会话/视图 → 计时。
+
+        组卷走 AppState 持久化卡组（draw_exam_questions）：每次考试从
+        整库洗牌牌堆顺次抽题，耗尽重洗，保证周期内全库覆盖。
+        """
         self._timer.stop()
         self.timer_running = False
         if self.panel is not None:
@@ -168,9 +172,16 @@ class ExamMode(BaseModePage):
             QMessageBox.critical(self, "错误", "请输入有效的数值！")
             return
 
-        self.engine = QuizEngine(self.questions)
-        self.engine.start_exam_mode(question_count=question_count)
+        # 卡组抽题 → 按题号组队列（队列顺序即卡组顺序，不再二次洗牌）
+        by_number = {q.number: q for q in self.questions}
+        drawn = self.app_state.draw_exam_questions(question_count, list(by_number))
+        self.engine = QuizEngine([by_number[n] for n in drawn])
+        self.engine.start_exam_mode(question_count=len(drawn), shuffle=False)
         self.exam_session = ExamSession(self.engine)
+        if not self.app_state.save_safe():
+            QMessageBox.warning(
+                self, "保存失败", "考试卡组进度保存失败，请检查磁盘空间或文件权限。"
+            )
 
         self.exam_total_seconds = duration * 60
         self.time_remaining = self.exam_total_seconds

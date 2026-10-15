@@ -7,11 +7,12 @@
 from unittest.mock import MagicMock
 
 import pytest
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QLabel, QMessageBox
 
+from app_state import AppState
 from models import Option, Question
-from quiz_engine import QuizEngine
 from ui.exam_mode import ExamMode
+from ui.option_row import OptionRow
 
 pytestmark = pytest.mark.gui
 
@@ -32,30 +33,25 @@ def make_question(number: int, q_type: str = "single", answer: str = "A") -> Que
     )
 
 
-class _MockAppState:
-    """最小 AppState 替代（ExamMode 触及的接口子集）。"""
+class _FakeDataManager:
+    def __init__(self) -> None:
+        self.saved: dict | None = None
 
-    def __init__(self):
+    def save_progress(self, progress: dict) -> None:
+        self.saved = progress
+
+
+class _MockAppState(AppState):
+    """内存版 AppState：卡组/历史/错题走真实逻辑，save_safe 打桩防落盘。"""
+
+    def __init__(self) -> None:
+        super().__init__(_FakeDataManager(), {})
         self.save_safe = MagicMock(return_value=True)
-        self._history: list[dict] = []
-        self._wrong: set[int] = set()
-
-    def add_exam_history(self, entry):
-        self._history.append(entry)
-
-    def get_exam_history(self):
-        return list(self._history)
-
-    def is_wrong_question(self, q_num):
-        return q_num in self._wrong
-
-    def add_wrong_question(self, q_num):
-        self._wrong.add(q_num)
 
 
 @pytest.fixture
 def mode(qtbot, monkeypatch):
-    """已静音弹窗的 ExamMode；考试抽题固定不 shuffle，combo 换小额选项。"""
+    """已静音弹窗的 ExamMode；卡组预置 [1,2,3] 保证题序确定。"""
     # 报告对话框为模态 exec，无头进程会永久阻塞 → 类级替换为捕获回调
     reports: list[dict] = []
     monkeypatch.setattr(ExamMode, "_show_exam_report", lambda self, report: reports.append(report))
@@ -64,19 +60,14 @@ def mode(qtbot, monkeypatch):
     monkeypatch.setattr("ui.exam_mode._COUNT_OPTIONS", ("1", "2", "3"))
     monkeypatch.setattr("ui.exam_mode._DURATION_OPTIONS", ("1", "30"))
 
-    original_start_exam_mode = QuizEngine.start_exam_mode
-
-    def _deterministic_start(self, question_count=100, shuffle=True):
-        original_start_exam_mode(self, question_count=question_count, shuffle=False)
-
-    monkeypatch.setattr(QuizEngine, "start_exam_mode", _deterministic_start)
-
     questions = [
         make_question(1),
         make_question(2),
         make_question(3, q_type="multiple", answer="AC"),
     ]
-    m = ExamMode(questions, _MockAppState())
+    app_state = _MockAppState()
+    app_state._progress["exam_deck"] = [1, 2, 3]  # 预置牌堆 → 抽题顺序确定
+    m = ExamMode(questions, app_state)
     qtbot.addWidget(m)
     return m
 
@@ -324,3 +315,78 @@ def test_nav_count_reflects_answered(mode):
     mode._select_option_by_letter("A")
 
     assert mode.nav_count() == "1/3"
+
+
+# ---------- 考试报告对话框（P9-3 逐题回顾） ----------
+
+
+def _report_with_two_wrong() -> dict:
+    q1 = make_question(7, answer="A")
+    q2 = make_question(8, q_type="multiple", answer="AC")
+    return {
+        "total_questions": 4,
+        "correct": 2,
+        "wrong": 2,
+        "accuracy": 50.0,
+        "time_used": "1分30秒",
+        "wrong_questions": [q1, q2],
+        "wrong_records": [
+            {"question": q1, "selected": "B"},
+            {"question": q2, "selected": "A"},
+        ],
+    }
+
+
+def _option_cards(dlg) -> dict[str, object]:
+    body = dlg._detail_scroll.widget()
+    return {card.letter: card for card in body.findChildren(OptionRow)}
+
+
+def test_report_dialog_walkthrough_states(qtbot):
+    """报告错题逐题回顾：逐字母四象限判定 + 题型标签。"""
+    from ui.exam_report_dialog import ExamReportDialog
+
+    dlg = ExamReportDialog(None, _report_with_two_wrong())
+    qtbot.addWidget(dlg)
+
+    # 第一条错题（题7 单选，用户选 B，正确答案 A）
+    cards = _option_cards(dlg)
+    assert dlg._nav_pos.text() == "错题 1 / 2"
+    assert cards["B"].property("state") == "selected"
+    assert cards["B"].mark_label.text() == "已选 ✗"
+    assert cards["A"].property("state") == "ok"
+    assert cards["A"].mark_label.text() == "未选 ✓"
+    assert cards["C"].property("state") == "wrong"
+    assert dlg._prev_btn.isEnabled() is False
+    assert dlg._next_btn.isEnabled() is True
+
+    # 翻到第二条错题（题8 多选，正确答案 AC；用户只选了 A）
+    dlg._go_next_wrong()
+    cards = _option_cards(dlg)
+    assert dlg._nav_pos.text() == "错题 2 / 2"
+    assert cards["A"].property("state") == "selected"
+    assert cards["A"].mark_label.text() == "已选 ✓"  # 选对：逐字母判定
+    assert cards["C"].property("state") == "ok"  # 漏选的正确项
+    assert cards["C"].mark_label.text() == "未选 ✓"
+    assert cards["B"].property("state") == "wrong"
+    assert cards["B"].mark_label.text() == "— 未选"
+    assert dlg._next_btn.isEnabled() is False
+    assert dlg._prev_btn.isEnabled() is True
+
+    # 题型标签：题8 为多选题，meta 行 qType 变色
+    body = dlg._detail_scroll.widget()
+    multi_lbl = next(lbl for lbl in body.findChildren(QLabel) if lbl.text() == "多选题")
+    assert multi_lbl.property("qType") == "multiple"
+
+
+def test_report_dialog_all_correct_has_no_walkthrough(qtbot):
+    """全对报告不出现回顾区。"""
+    from ui.exam_report_dialog import ExamReportDialog
+
+    report = _report_with_two_wrong()
+    report["wrong_questions"] = []
+    report["wrong_records"] = []
+    dlg = ExamReportDialog(None, report)
+    qtbot.addWidget(dlg)
+    assert not hasattr(dlg, "_prev_btn")
+    assert dlg.findChildren(OptionRow) == []

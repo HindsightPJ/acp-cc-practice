@@ -78,6 +78,70 @@ def test_wrong_count_dedup(app_state):
     assert app_state.wrong_count() == 1
 
 
+# ---------- 考试卡组（draw_exam_questions） ----------
+
+
+def test_draw_exam_deck_first_draw_consumes_head(app_state):
+    """预置牌堆时按顺序从头部抽取，余牌保留。"""
+    app_state._progress["exam_deck"] = [5, 3, 8, 1, 9]
+    drawn = app_state.draw_exam_questions(2, [1, 3, 5, 8, 9])
+    assert drawn == [5, 3]
+    assert app_state._progress["exam_deck"] == [8, 1, 9]
+
+
+def test_draw_exam_deck_covers_all_within_cycle(app_state, monkeypatch):
+    """连续抽题一个周期后全库每题至少出现一次（卡组核心保证）。"""
+    bank = list(range(1, 21))  # 20 题
+    seen: set[int] = set()
+    for _ in range(8):  # 每次抽 3，8 次远超一个周期
+        seen.update(app_state.draw_exam_questions(3, bank))
+    assert seen == set(bank)
+
+
+def test_draw_exam_deck_no_dup_within_single_draw(app_state):
+    """单次抽题（含周期边界重洗）内不出现重复题号。"""
+    bank = list(range(1, 11))
+    for _ in range(30):  # 多轮抽牌，覆盖多次周期边界
+        drawn = app_state.draw_exam_questions(4, bank)
+        assert len(drawn) == 4
+        assert len(set(drawn)) == 4
+
+
+def test_draw_exam_deck_resets_on_bank_change(app_state):
+    """题库升级/降级（旧牌堆题号不在新库）→ 整库重洗，不抽到已删题。"""
+    app_state._progress["exam_deck"] = [1, 2, 99]  # 99 已从新库删除
+    drawn = app_state.draw_exam_questions(2, [1, 2, 3])
+    assert set(drawn) <= {1, 2, 3}
+
+
+def test_draw_exam_deck_count_clamped_to_bank(app_state):
+    """抽题数超过全库时钳位为全库题数。"""
+    drawn = app_state.draw_exam_questions(50, [1, 2, 3])
+    assert len(drawn) == 3
+
+
+def test_draw_exam_deck_empty_bank_returns_empty(app_state):
+    """空题库返回空列表不抛异常。"""
+    assert app_state.draw_exam_questions(5, []) == []
+
+
+def test_draw_exam_deck_seeded_order_without_prefill(app_state, monkeypatch):
+    """无预置牌堆时自动整库洗牌建堆：抽满一个周期仍是全库覆盖。"""
+    fixed_order = [3, 1, 2]
+
+    class _Seq:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def __call__(self, items: list[int]) -> None:
+            items[:] = fixed_order.copy()
+            self.calls += 1
+
+    monkeypatch.setattr("app_state.random.shuffle", _Seq())
+    bank = [1, 2, 3]
+    assert app_state.draw_exam_questions(3, bank) == [3, 1, 2]
+
+
 def test_wrong_count_after_remove(app_state):
     """移除错题后 wrong_count 反映数量。"""
     app_state.add_wrong_question(1)

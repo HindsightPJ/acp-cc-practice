@@ -30,8 +30,10 @@ from .theme import repolish
 
 # mark 文案（mockup 语义：选中行反白、正确答案蓝标、未选行灰标）
 _MARK_SELECTED = "已选"
-_MARK_CORRECT = "✓ 正确答案"
-_MARK_WRONG_PICKED = "已选 ✗"
+_MARK_CORRECT = "✓ 正确答案"  # 背题模式（无作答）高亮正确答案用
+_MARK_PICKED_OK = "已选 ✓"  # 多选逐字母判定：选对
+_MARK_MISSED_OK = "未选 ✓"  # 多选逐字母判定：漏选
+_MARK_WRONG_PICKED = "已选 ✗"  # 多选逐字母判定：错选
 _MARK_UNSELECTED = "— 未选"
 
 
@@ -98,17 +100,22 @@ class OptionRow(QFrame):
         self._set_state("selected" if selected else None, _MARK_SELECTED if selected else "")
 
     def set_result(self, is_correct: bool, is_selected_answer: bool) -> None:
-        """提交后标记结果态（四象限，对齐 mockup proposal_F_transit）。
+        """提交后标记结果态（四象限，逐字母判定，对齐 mockup proposal_F_transit）。
 
-        - (True, True)   → 选对：反白 + ✓ 正确答案
-        - (True, False)  → 正确答案但没选：字母转蓝 + ✓ 正确答案
-        - (False, True)  → 选错：仍反白（保留"被点过"视觉）+ 已选 ✗
+        Args:
+            is_correct: 该字母是否属于正确答案
+            is_selected_answer: 该字母是否被用户选中
+
+        四象限文案：
+        - (True, True)   → 选对：反白 + 已选 ✓
+        - (True, False)  → 漏选：字母转蓝 + 未选 ✓
+        - (False, True)  → 错选：仍反白（保留"被点过"视觉）+ 已选 ✗
         - (False, False) → 未选的干扰项：整行灰 + — 未选
         """
         if is_correct and is_selected_answer:
-            self._set_state("selected", _MARK_CORRECT)
+            self._set_state("selected", _MARK_PICKED_OK)
         elif is_correct:
-            self._set_state("ok", _MARK_CORRECT)
+            self._set_state("ok", _MARK_MISSED_OK)
         elif is_selected_answer:
             self._set_state("selected", _MARK_WRONG_PICKED)
         else:
