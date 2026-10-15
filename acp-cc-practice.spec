@@ -24,12 +24,12 @@ version_info = VSVersionInfo(
             StringTable('040904B0', [
                 StringStruct('CompanyName', 'HindsightPJ'),
                 StringStruct('FileDescription', 'ACP 云计算练习软件'),
-                StringStruct('FileVersion', '1.1.0'),
+                StringStruct('FileVersion', '1.2.0'),
                 StringStruct('InternalName', 'acp-cc-practice'),
                 StringStruct('LegalCopyright', '© 2026 HindsightPJ'),
                 StringStruct('OriginalFilename', 'acp-cc-practice.exe'),
                 StringStruct('ProductName', 'ACP 云计算练习'),
-                StringStruct('ProductVersion', '1.1.0'),
+                StringStruct('ProductVersion', '1.2.0'),
             ])
         ]),
         VarFileInfo([VarStruct('Translation', [0x409, 1200])])

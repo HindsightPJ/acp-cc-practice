@@ -68,11 +68,8 @@ requirements-dev.txt
 desktop_python.md
 .env.example
 
-# AI 工作区与本地文档（本地保留，不入库；README 预览截图除外）
+# AI 工作区（本地保留，不入库）
 .ai_context/
-docs/*
-!docs/ui_light.png
-!docs/ui_dark.png
 
 # 测试与工具缓存
 .ruff_cache/
