@@ -89,11 +89,10 @@ def test_license_btn_authorized_disabled(qtbot, tmp_path):
 
 
 def test_show_mode_switches_all_pages(window):
-    """四模式切换：nav 反白、titlebar tag、modeline 联动。"""
-    for key, _no, _name, tag in NAV_DEFS:
+    """四模式切换：nav 反白、modeline 联动（titlebar tag 已按验收决策移除）。"""
+    for key, _no, _name, _tag in NAV_DEFS:
         window.show_mode(key)
         assert window.stack.currentIndex() == [d[0] for d in NAV_DEFS].index(key)
-        assert window.titlebar._tag.text() == tag
         btn = window._nav_buttons[key][0]
         assert btn.isChecked() is True
         assert window.modeline.text()

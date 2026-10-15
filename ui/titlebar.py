@@ -10,7 +10,7 @@
 
 用法（main_window 接入）：
     setup_frameless(self)                       # 去 frame + 边缘 resize
-    root_layout.addWidget(TitleBar(tag="PRACTICE"))  # 站牌条置顶
+    root_layout.addWidget(TitleBar())          # 站牌条置顶
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from .theme import THEME_DARK
 
-BRAND_TEXT = "ACP·云计算题库"
+BRAND_TEXT = "ACP·云计算"
 
 _TITLEBAR_HEIGHT = 44
 _BTN_WIDTH = 50
@@ -46,12 +46,11 @@ _EDGE_CURSORS: tuple[tuple[int, Qt.CursorShape], ...] = (
 
 
 class TitleBar(QFrame):
-    """站牌条标题栏：brand + tag + 窗口按钮，空白菜区可拖拽移动窗口。"""
+    """站牌条标题栏：brand + 窗口按钮，空白菜区可拖拽移动窗口。"""
 
     def __init__(
         self,
         parent: QWidget | None = None,
-        tag: str = "",
         on_theme_toggle: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(parent)
@@ -67,12 +66,6 @@ class TitleBar(QFrame):
         brand.setObjectName("tbBrand")
         layout.addWidget(brand)
 
-        self._tag = QLabel("", self)
-        self._tag.setObjectName("tbTag")
-        self._tag.setVisible(False)
-        layout.addWidget(self._tag)
-        self.set_tag(tag)
-
         layout.addStretch(1)
 
         # 主题切换钮（浅色显 ☾ = 点击入夜；深色显 ☀），无回调则不创建
@@ -86,12 +79,6 @@ class TitleBar(QFrame):
         self._btn_close = self._make_btn("✕", "close", self._close_window)
         # close 按钮挂专用 role，QSS 的 [role="close"]:hover 红底规则生效
         self._btn_close.setProperty("role", "close")
-
-    def set_tag(self, text: str) -> None:
-        """设置模式 tag（如 PRACTICE / EXAM），空串隐藏。"""
-        normalized = text.strip()
-        self._tag.setText(normalized.upper())
-        self._tag.setVisible(bool(normalized))
 
     def set_theme_icon(self, mode: str) -> None:
         """按当前主题模式更新切换钮符号（☾=当前浅色 / ☀=当前深色）。"""

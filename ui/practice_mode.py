@@ -9,8 +9,6 @@ tkinter 版重写。视图渲染全部委托 PracticePanel；本类只负责：
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QFrame,
-    QHBoxLayout,
     QMessageBox,
     QVBoxLayout,
     QWidget,
@@ -50,16 +48,9 @@ class PracticeMode(BaseModePage):
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
 
-        # 顶部工具行：随机出题开关（F 方案方角复选框，QSS QCheckBox 语义类）
-        tools = QFrame()
-        th = QHBoxLayout(tools)
-        th.setContentsMargins(30, 14, 30, 0)
-        th.setSpacing(0)
-        th.addStretch(1)
+        # "随机出题"入驻动作条最左（用户验收决策：原独立工具行视觉孤立）
         self.shuffle_check = QCheckBox("随机出题")
         self.shuffle_check.toggled.connect(self._on_shuffle_toggled)
-        th.addWidget(self.shuffle_check)
-        v.addWidget(tools)
 
         # P0 修复沿用：on_submit/on_navigate 必须接线，否则防抖保存永不触发
         self.panel = PracticePanel(
@@ -71,6 +62,9 @@ class PracticeMode(BaseModePage):
             on_restart=self.start_new_session,
         )
         v.addWidget(self.panel, 1)
+
+        # 复选框插到动作条最左（QSS QFrame#actionsBar QCheckBox 补左边距）
+        self.panel.actions_bar_layout.insertWidget(0, self.shuffle_check)
 
     # -------------------------------------------------------------- 钩子
     def _on_answer_submitted(self) -> None:

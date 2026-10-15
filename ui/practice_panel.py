@@ -31,8 +31,8 @@ from .question_detail_card import QuestionDetailCard, type_label
 
 # scol 统计列在窗口宽度低于该值时隐藏（TASK_PLAN §6.4 默认决策）
 SCOL_MIN_WIDTH = 900
-# actionsBar 按钮比例（mockup：上一题 1 / 提交 1 / 下一题 go 1.4，重启 0.7）
-_STRETCH_RESTART, _STRETCH_NAV, _STRETCH_SUBMIT, _STRETCH_GO = 7, 10, 10, 14
+# actionsBar 按钮等宽（用户验收决策：不做 mockup 的 go 1.4 加宽）
+_STRETCH_RESTART, _STRETCH_NAV, _STRETCH_SUBMIT, _STRETCH_GO = 1, 1, 1, 1
 
 
 def _make_action_button(text: str, kbd: str = "", go: bool = False) -> QPushButton:
@@ -145,6 +145,10 @@ class PracticePanel(QFrame):
         bh.addWidget(self.next_btn, _STRETCH_GO)
 
         v.addWidget(bar)
+        # 供宿主模式页追加动作条控件（如练习页的"随机出题"复选框）；
+        # 布局单存一份：QLayout 基类 stub 无 insertWidget，QBoxLayout 才有
+        self.actions_bar = bar
+        self.actions_bar_layout = bh
 
     # -------------------------------------------------------------- 渲染
     def load_current_question(self) -> None:

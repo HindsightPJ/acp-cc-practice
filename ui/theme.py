@@ -188,10 +188,6 @@ QFrame#windowRoot { border: 1px solid %(PANEL_BORDER)s; }
 /* ── Frameless 标题栏（情况③：44px 站牌条）── */
 QFrame#titlebar { background: %(BG)s; border-bottom: 1px solid %(TITLEBAR_LINE)s; }
 QLabel#tbBrand { font-family: "%(SANS)s"; font-weight: 600; font-size: 15px; color: %(INK)s; }
-QLabel#tbTag {
-    color: %(INK3)s; border: 1px solid %(LINE)s;
-    padding: 2px 8px; font-size: 10px;
-}
 QPushButton[role="win"] {
     background: transparent; border: none; color: %(INK2)s;
     font-size: 11px; width: 50px;
@@ -242,7 +238,7 @@ QFrame#qcol { border-right: 1px solid %(LINE_SOFT)s; }
 QFrame#qline { border-bottom: 1px solid %(INK)s; }
 QLabel#qBig { font-family: "%(SANS)s"; font-weight: 600; font-size: 54px; color: %(INK)s; }
 QLabel#qMeta { color: %(INK2)s; font-size: 11px; }
-QLabel#stem { color: %(INK)s; font-size: 14px; }
+QLabel#stem { color: %(INK)s; font-size: 16px; }
 
 /* ── 选项 = 发牌板行 ── */
 QFrame#opts { border-top: 1px solid %(INK)s; }
@@ -298,12 +294,14 @@ QPushButton[actBtn="true"]:pressed { background: %(LINE)s; }
 QPushButton[actBtn="true"]:disabled { color: %(INK3)s; }
 QPushButton[actBtn="true"] QLabel { background: transparent; }
 QLabel[kbdHint] { font-family: "%(MONO)s"; font-size: 10px; color: %(INK3)s; }
-QPushButton#goBtn { background: %(ACCENT)s; color: %(ON_ACCENT)s; border: none; font-size: 13px; font-weight: 600; }
+QPushButton#goBtn { background: %(ACCENT)s; color: %(ON_ACCENT)s; border: none; font-size: 13px; font-weight: 600; padding: 13px; }
 QPushButton#goBtn:hover { background: %(ACCENT_DEEP)s; }
 QPushButton#goBtn:pressed { background: %(ACCENT_DEEP)s; }
 QPushButton#goBtn:disabled { background: %(LINE)s; color: %(INK2)s; }
 QPushButton#goBtn QLabel { background: transparent; color: %(ON_ACCENT)s; }
 QPushButton#goBtn QLabel[kbdHint] { color: %(ON_ACCENT_MUTED)s; }
+/* 随机出题等复选框入驻动作条：左侧留出站牌边距 */
+QFrame#actionsBar QCheckBox { margin-left: 30px; }
 
 /* ── modeline（底部状态行）── */
 QLabel#modeline {

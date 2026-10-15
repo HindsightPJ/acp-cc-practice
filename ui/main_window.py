@@ -43,8 +43,7 @@ from .theme import (
     repolish,
     set_theme_mode,
 )
-from .titlebar import TitleBar, setup_frameless
-
+from .titlebar import BRAND_TEXT, TitleBar, setup_frameless
 from app_state import AppState
 from data_manager import DataManager
 from license import LicenseStatus
@@ -64,7 +63,6 @@ NAV_DEFS: tuple[tuple[str, str, str, str], ...] = (
     ("wrong", "04", "错题本", "WRONGBOOK"),
 )
 
-_BRAND = "ACP·云计算题库"
 _SUB = "阿里云专业认证\n每日练习"
 
 
@@ -138,7 +136,7 @@ class MainWindow(QMainWindow):
         v.setContentsMargins(1, 1, 1, 1)  # 让 windowRoot 的 1px 分界线可见
         v.setSpacing(0)
 
-        self.titlebar = TitleBar(tag=NAV_DEFS[0][3], on_theme_toggle=self.toggle_theme)
+        self.titlebar = TitleBar(on_theme_toggle=self.toggle_theme)
         self.titlebar.set_theme_icon(current_theme_mode())
         v.addWidget(self.titlebar)
 
@@ -164,7 +162,7 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(34, 20, 34, 14)
         h.setSpacing(22)
 
-        brand = QLabel(_BRAND)
+        brand = QLabel(BRAND_TEXT)
         brand.setObjectName("brand")
         h.addWidget(brand)
 
@@ -224,7 +222,9 @@ class MainWindow(QMainWindow):
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             inner = QHBoxLayout(btn)
-            inner.setContentsMargins(0, 0, 0, 0)
+            # QSS padding 对按钮内子布局不可靠（实测 6.12 数字会贴死右缘
+            # 被邻行编号压住），边距在此显式声明
+            inner.setContentsMargins(18, 10, 18, 10)
             inner.setSpacing(10)
             lbl_no = QLabel(no)
             lbl_no.setProperty("navNo", True)
@@ -274,8 +274,6 @@ class MainWindow(QMainWindow):
             for lbl in (lbl_no, lbl_nm, lbl_cnt):
                 lbl.setProperty("navActive", active)
                 repolish(lbl)
-        tag = NAV_DEFS[index][3]
-        self.titlebar.set_tag(tag)
         self._refresh_nav_counts()
         self._update_modeline(key)
 
