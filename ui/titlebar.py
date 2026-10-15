@@ -15,15 +15,25 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QObject, Qt
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QIcon, QMouseEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from .theme import THEME_DARK
 
 BRAND_TEXT = "ACP·云计算"
+
+
+def _app_icon_path() -> Path | None:
+    """应用图标路径（frozen: _MEIPASS；dev: 仓库根），缺失返回 None。"""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    candidate = base / "icons" / "icon.ico"
+    return candidate if candidate.exists() else None
+
 
 _TITLEBAR_HEIGHT = 44
 _BTN_WIDTH = 50
@@ -62,9 +72,21 @@ class TitleBar(QFrame):
         layout.setSpacing(14)
         self._layout = layout
 
-        brand = QLabel(BRAND_TEXT, self)
-        brand.setObjectName("tbBrand")
-        layout.addWidget(brand)
+        # 品牌区：圆角方形应用图标 + 「ACP·云计算」（图标缺失时静默降级为纯文字）
+        icon_path = _app_icon_path()
+        if icon_path is not None:
+            icon_label = QLabel(self)
+            icon_label.setObjectName("tbIcon")
+            # 40px 物理 2x 采样 → 20px 逻辑尺寸，1x / HiDPI 都清晰
+            pixmap = QIcon(str(icon_path)).pixmap(40, 40)
+            pixmap.setDevicePixelRatio(2.0)
+            icon_label.setPixmap(pixmap)
+            icon_label.setFixedSize(20, 20)
+            layout.addWidget(icon_label, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        self.brand = QLabel(BRAND_TEXT, self)
+        self.brand.setObjectName("tbBrand")
+        layout.addWidget(self.brand)
 
         layout.addStretch(1)
 

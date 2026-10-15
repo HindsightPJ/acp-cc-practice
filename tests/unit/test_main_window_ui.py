@@ -66,6 +66,25 @@ def test_main_window_can_instantiate(window):
     assert window.modeline.text()
 
 
+def test_titlebar_brand_icon(window):
+    """标题栏品牌区左侧有应用图标（圆角方形 ICO），窗口图标（任务栏）已设置。"""
+    from PySide6.QtWidgets import QLabel
+
+    assert not window.windowIcon().isNull()
+    labels = [lbl for lbl in window.titlebar.findChildren(QLabel) if lbl.objectName() == "tbIcon"]
+    assert len(labels) == 1
+    assert not labels[0].pixmap().isNull()
+    assert window.titlebar.brand.text() == "ACP·云计算"
+    # 图标在品牌文字左侧（按布局 item 序，离屏不 show 时不依赖几何坐标）
+    lay = window.titlebar._layout
+    order = [
+        lay.itemAt(i).widget().objectName()
+        for i in range(lay.count())
+        if lay.itemAt(i).widget() is not None
+    ]
+    assert order.index("tbIcon") < order.index("tbBrand")
+
+
 def test_license_btn_trial_state(window):
     """试用模式：授权按钮可点、文案引导输入注册码。"""
     assert window.license_btn.isEnabled()
