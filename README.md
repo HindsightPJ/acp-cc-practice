@@ -36,20 +36,20 @@ acp-cc-practice/
 ├── data_manager.py          # 题库加载（trial/full 两段式）+ 进度持久化
 ├── models.py                # 数据模型：Question / Option 类型定义
 ├── app_state.py             # 全局状态：错题本、收藏、考试历史、进度持久化
-├── env_utils.py             # 作者侧 .env 密钥读取工具
-├── logging_utils.py         # 结构化错误日志 + 轮转日志配置
+├── logging_utils.py         # 结构化错误日志 + 轮转日志配置（ACP_LOG_LEVEL 可提级）
 ├── pyproject.toml           # 项目元数据 + 依赖声明（单一来源）+ 工具配置
 ├── requirements.lock        # 锁定依赖版本（pip-compile 自动生成，可复现安装）
 ├── acp-cc-practice.spec     # PyInstaller 打包配置
-├── .github/workflows/       # CI（ruff + mypy + 密钥/依赖锁门禁 + pytest）与 Release（构建并签名 EXE）
+├── .github/workflows/       # CI（ruff + mypy + bandit + pip-audit + 密钥/依赖锁门禁 + pytest）与 Release（构建并签名 EXE）
 ├── .gitignore
 ├── LICENSE.md
+├── scripts/                 # 质量门禁脚本（密钥扫描 / 依赖锁校验 / 门禁存在性自检）
 ├── license/                 # 授权模块
 │   ├── __init__.py          # LicenseStatus / LicenseError 枚举
 │   ├── fingerprint.py       # 采集机器指纹
 │   ├── crypto_utils.py      # PBKDF2 派生（客户端与作者侧共用）
 │   ├── public_key.py        # 内置公钥（可公开）
-│   └── verifier.py          # 验证注册码 + license.dat 持久化
+│   └── verifier.py          # 验证注册码
 ├── data/                    # 数据目录
 │   ├── questions.enc        # 加密题库（868 题，入库）
 │   ├── questions_trial.json # 试用题库（前 20 题明文，入库）
@@ -130,13 +130,11 @@ python main.py
 | `questions_trial.json` | `data/` | ✓ 入库 | 试用题库（前 20 题明文），无需授权即可加载 |
 | `questions_meta.json` | `data/` | ✓ 入库 | 元数据（total / trial_count / version），UI 显示总量用 |
 | `progress.json` | `data/` | ✗ 排除 | 学习进度（错题本、练习统计、考试历史、收藏），**首次使用时自动生成**，原子写入，损坏自动备份 |
-| `license.dat` | `data/` | ✗ 排除 | 用户本地注册码（机器绑定），首次授权后生成 |
 | `app.log` | `data/` | ✗ 排除 | 运行日志（WARNING 级别，排错用） |
-| `.env` | 项目根 | ✗ 排除 | 作者密钥，**本地保留，绝不入库** |
 
 **加载顺序**：
-1. 检查 `license.dat` → 验证注册码 → 解锁 `questions.enc`（868 题）
-2. 无授权或验证失败 → 加载 `questions_trial.json`（20 题试用）
+1. 已授权 → 解锁 `questions.enc`（868 题）
+2. 未授权或验证失败 → 加载 `questions_trial.json`（20 题试用）
 
 **进度持久化**：`progress.json` 在每次练习结束时自动保存到用户数据目录（打包后为 exe 同级 `data/`），重启程序不会丢失。
 
@@ -155,6 +153,7 @@ python main.py
 - **授权仅支持 Windows**：机器指纹基于 Windows 系统信息，非 Windows 平台降级试用（20 题）
 - **离线授权无过期机制**：注册码永久有效，作者可轮换密钥让所有已签发注册码失效
 - **重装系统/换硬盘会失效**：指纹含系统硬件信息，变更需重新申请注册码
+- **机器绑定是威慑而非屏障**：客户端离线授权的固有上限——本机管理员可伪造指纹维度，也可在已授权机器上从进程内存提取题库密钥。设计目标是把随意共享的成本提到不合理水平，而非对抗有意绕过
 - **字体依赖系统安装**：Bahnschrift（Win10 1809+ 自带）为首选，旧系统回退 Segoe UI / 微软雅黑
 
 ## 发布
@@ -164,7 +163,7 @@ python main.py
 - `acp-cc-practice.exe`（约 32 MB，内置 PySide6-Essentials 运行时，无 cmd 窗口）— 打包好的可执行文件
 - `acp-cc-practice.exe.sigstore.json` — Sigstore OIDC 签名 bundle
 
-用户运行数据（进度 / 注册码 / 日志）与作者侧本地文件（明文题库、签发工具、私钥）均不入库，完整清单见 [.gitignore](.gitignore)。
+用户运行数据（进度 / 日志）与作者侧本地文件均不入库，完整清单见 [.gitignore](.gitignore)。
 
 ## License
 
