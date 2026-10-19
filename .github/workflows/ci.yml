@@ -41,6 +41,9 @@ jobs:
           pip install -r requirements.lock
           pip install -e . --no-deps
           pip install pip-audit
+          # runner 预装 setuptools 含已知 CVE（PYSEC-2026-3447，fix 83.0.0）；
+          # 它是构建引导件、不在 lock 内，升级后过 pip-audit
+          pip install "setuptools>=83.0.0"
 
       - name: Ruff check
         run: ruff check .
