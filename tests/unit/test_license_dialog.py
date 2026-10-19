@@ -1,21 +1,24 @@
-"""license_dialog.py 模块级纯逻辑单元测试（TD-11 拆分配套）。
+"""license_dialog.py 单元测试。
 
-仅测试从 _show_license_dialog 抽取出的纯逻辑函数：
-  - _get_license_error_message: 错误码 → 用户可读消息
-  - _verify_and_save_license: 验证注册码 + 持久化
-
-UI 构建部分（tk.Toplevel/Label/Text 等）不在此测试范围。
+覆盖：
+- _get_license_error_message: 错误码 → 用户可读消息
+- _verify_and_save_license: 生产路径全链路（显式 machine_code → 验证 → 落盘）
+- LicenseDialog 对话框流：输入 → 验证 → 轮询回调 → accept 关闭
 """
 
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
+from PySide6.QtWidgets import QDialog
 
 from ui.license_dialog import (
+    LicenseDialog,
     _get_license_error_message,
     _verify_and_save_license,
     _LICENSE_ERROR_MESSAGES,
 )
 from license import LicenseStatus, LicenseError
+from conftest import _make_license  # noqa: I001,E402 - pytest 路径注入使然
 
 
 # ---------- _get_license_error_message 测试 ----------
@@ -122,3 +125,115 @@ def test_verify_and_save_no_key_authorized():
         success, msg, should_close = _verify_and_save_license("code", "/tmp/data")
     assert success is False
     assert should_close is False
+
+
+# ---------- M13: 生产路径全链路（真实密码学链 + 显式 machine_code） ----------
+# 此前的测试全部 mock 掉 verify，且从不传 machine_code——生产路径
+# _verify_and_save_license(code, dir, machine_code) 的复用分支从未被执行。
+
+
+def test_verify_and_save_full_chain_authorized(tmp_path, patch_public_key, setup_keys):
+    """真实签名注册码 + 显式 machine_code → 验证通过并落盘 license.dat。"""
+    code = _make_license("a" * 64, setup_keys["k"], setup_keys["private_hex"])
+
+    ok, msg, close = _verify_and_save_license(code, str(tmp_path), machine_code="a" * 64)
+
+    assert ok is True
+    assert close is True
+    assert "授权成功" in msg
+    assert (tmp_path / "license.dat").read_text(encoding="utf-8") == code
+
+
+def test_verify_and_save_full_chain_wrong_machine(tmp_path, patch_public_key, setup_keys):
+    """真实签名注册码 + 错误 machine_code → WRONG_MACHINE，不落盘。"""
+    code = _make_license("a" * 64, setup_keys["k"], setup_keys["private_hex"])
+
+    ok, msg, close = _verify_and_save_license(code, str(tmp_path), machine_code="b" * 64)
+
+    assert ok is False
+    assert close is False
+    assert "不属于本机" in msg
+    assert not (tmp_path / "license.dat").exists()
+
+
+def test_verify_and_save_full_chain_save_failure(
+    tmp_path, patch_public_key, setup_keys, monkeypatch
+):
+    """真实验证成功但落盘失败 → 明确提示写权限问题。"""
+    from license.verifier import LicenseVerifier
+
+    code = _make_license("a" * 64, setup_keys["k"], setup_keys["private_hex"])
+    monkeypatch.setattr(LicenseVerifier, "save_license", lambda self, code: False)
+
+    ok, msg, close = _verify_and_save_license(code, str(tmp_path), machine_code="a" * 64)
+
+    assert ok is False
+    assert close is False
+    assert "保存到本地失败" in msg
+
+
+# ---------- M13: 对话框流（输入 → 验证 → 轮询回调 → accept） ----------
+
+
+def _make_dialog(qtbot, tmp_path, verify_and_save):
+    dlg = LicenseDialog(None, str(tmp_path), "a" * 64, verify_and_save=verify_and_save)
+    qtbot.addWidget(dlg)
+    return dlg
+
+
+def test_dialog_full_flow_accepts(qtbot, tmp_path, monkeypatch):
+    """验证成功 → 轮询取回结果 → 弹成功框 → accept 关闭（返回 Accepted）。"""
+    calls: list[str] = []
+
+    def fake_verify(code, license_dir, machine_code):
+        calls.append(code)
+        return (True, "授权成功！请重启程序加载完整题库。", True)
+
+    dlg = _make_dialog(qtbot, tmp_path, fake_verify)
+    dlg._license_entry.setPlainText("TEST-CODE")
+
+    # worker 线程同步化：start() 即执行 target，结果确定入队，消除轮询竞态
+    monkeypatch.setattr(
+        "ui.license_dialog.threading.Thread",
+        lambda target, daemon, name: SimpleNamespace(start=lambda: target()),
+    )
+    dlg._on_verify()
+    dlg._poll_verify_result()
+
+    assert calls == ["TEST-CODE"]
+    assert dlg.result() == QDialog.DialogCode.Accepted
+
+
+def test_dialog_full_flow_reject_keeps_open(qtbot, tmp_path, monkeypatch):
+    """验证失败 → 弹失败框、按钮恢复、对话框不关闭。"""
+    dlg = _make_dialog(
+        qtbot, tmp_path, lambda code, d, m: (False, "注册码无效，请联系作者。", False)
+    )
+    dlg._license_entry.setPlainText("BAD-CODE")
+    monkeypatch.setattr(
+        "ui.license_dialog.threading.Thread",
+        lambda target, daemon, name: SimpleNamespace(start=lambda: target()),
+    )
+
+    dlg._on_verify()
+    dlg._poll_verify_result()
+
+    assert dlg._verify_btn.isEnabled() is True
+    assert dlg.result() != QDialog.DialogCode.Accepted
+
+
+def test_dialog_empty_input_warns_without_thread(qtbot, tmp_path, monkeypatch):
+    """空输入 → warning 弹窗、不启动验证线程。"""
+    thread_calls: list[object] = []
+    monkeypatch.setattr(
+        "ui.license_dialog.threading.Thread",
+        lambda target, daemon, name: (
+            thread_calls.append(target) or SimpleNamespace(start=lambda: None)
+        ),
+    )
+    dlg = _make_dialog(qtbot, tmp_path, lambda code, d, m: (True, "", True))
+
+    dlg._on_verify()
+
+    assert thread_calls == []
+    assert dlg.result() != QDialog.DialogCode.Accepted

@@ -55,6 +55,59 @@ def test_save_safe_logs_warning_on_failure(app_state, caplog):
     assert any("保存学习进度失败" in record.message for record in caplog.records)
 
 
+def test_save_safe_typeerror_returns_false(app_state):
+    """H3: save 抛 TypeError（progress_data 含不可序列化对象，data_manager
+    漏捕时逃逸到本层）时 save_safe 也返回 False，不穿透到调用方。"""
+    app_state._data_manager.save_progress = MagicMock(side_effect=TypeError("not serializable"))
+    assert app_state.save_safe() is False
+
+
+# ---------- H2: progress.json 脏字段类型防护 ----------
+
+
+_DIRTY_FIELD_CASES = [
+    ("wrong_questions", 5),
+    ("wrong_questions", "12"),
+    ("favorites", 5),
+    ("exam_history", 5),
+    ("practice_stats", "abc"),
+    ("practice_stats", [1, 2]),
+    ("practice_progress", [1, 2]),
+]
+
+
+@pytest.mark.parametrize("field,bad_value", _DIRTY_FIELD_CASES)
+def test_dirty_progress_field_type_reset_at_construction(field, bad_value):
+    """progress.json 字段类型异常 → 构造期重置为默认值并留痕。
+
+    H2: 此前仅 theme_mode 有 fail-safe，其余 8 个字段零校验——错误类型会
+    延迟到 UI 回调深处炸出裸 TypeError/AttributeError（如对 str 执行 append）。
+    """
+    from data_manager import default_progress
+
+    progress = default_progress()
+    progress[field] = bad_value
+    state = AppState(MagicMock(), progress=progress)
+
+    assert state._progress[field] == default_progress()[field]
+
+
+def test_dirty_progress_accessors_do_not_raise():
+    """脏字段重置后，全部访问器可用（不再依赖调用方自己兜底）。"""
+    from data_manager import default_progress
+
+    progress = default_progress()
+    progress["wrong_questions"] = 5
+    progress["favorites"] = "abc"
+    state = AppState(MagicMock(), progress=progress)
+
+    assert state.get_wrong_questions() == []
+    assert state.wrong_count() == 0
+    assert state.get_favorites() == []
+    state.add_wrong_question(3)  # 重置后为 list，不会炸 TypeError
+    assert state.is_wrong_question(3) is True
+
+
 # ---------- P1-1: count 方法测试 ----------
 
 
@@ -171,20 +224,15 @@ def test_favorites_count_after_toggle(app_state):
     assert app_state.favorites_count() == 1
 
 
-def test_exam_history_count_empty(app_state):
-    """空考试历史时 exam_history_count 返回 0。"""
-    assert app_state.exam_history_count() == 0
+def test_exam_history_capped_at_20_keeps_newest(app_state):
+    """考试历史超过 20 条时仅保留最新 20 条。
 
-
-def test_exam_history_count_after_add(app_state):
-    """添加考试历史后 exam_history_count 反映数量。"""
-    app_state.add_exam_history({"date": "2026-01-01", "correct": 80})
-    app_state.add_exam_history({"date": "2026-01-02", "correct": 90})
-    assert app_state.exam_history_count() == 2
-
-
-def test_exam_history_count_capped_at_20(app_state):
-    """考试历史超过 20 条时 exam_history_count 反映截断后的数量。"""
+    截断语义断言到具体条目：写反成保留最旧 20 条也能被发现（此前只断言
+    count == 20，方向性错误测试照样绿）。
+    """
     for i in range(25):
         app_state.add_exam_history({"date": f"2026-01-{i:02d}", "correct": i})
-    assert app_state.exam_history_count() == 20
+    history = app_state.get_exam_history()
+    assert len(history) == 20
+    assert history[0]["date"] == "2026-01-05"  # 最旧 5 条被截掉
+    assert history[-1]["date"] == "2026-01-24"

@@ -10,6 +10,8 @@ from quiz_engine import QuizEngine
 from app_state import AppState
 from models import Question
 
+from .selection import toggle_letter
+
 # 与 models.Question.type 字段值保持一致（原 ui/constants.py，就近内联）
 QUESTION_TYPE_SINGLE = "single"
 
@@ -64,16 +66,12 @@ class PracticeSession:
         if card_idx >= options_count:
             return
 
-        if self.current_question_type == QUESTION_TYPE_SINGLE:
-            # 单选题：只选中当前选项
-            self.selected_answers = [letter]
-        else:
-            # 多选题：切换当前选项
-            if letter in self.selected_answers:
-                self.selected_answers.remove(letter)
-            else:
-                self.selected_answers.append(letter)
-                self.selected_answers.sort()
+        # 单选/多选切换语义与考试对齐（ui/selection.toggle_letter）：
+        # 单选可再次点击取消，多选对称差切换
+        is_multiple = self.current_question_type != QUESTION_TYPE_SINGLE
+        self.selected_answers = sorted(
+            toggle_letter(set(self.selected_answers), letter, is_multiple)
+        )
 
     def is_option_selected(self, letter: str) -> bool:
         """检查选项是否被选中。"""
@@ -160,10 +158,6 @@ class PracticeSession:
             self._shuffle = bool(state.get("shuffle", False))
             return True
         return False
-
-    def get_progress(self) -> dict[str, Any]:
-        """获取当前练习进度。"""
-        return self.engine.get_progress()
 
     def get_stats(self) -> dict[str, Any]:
         """获取当前练习统计。"""

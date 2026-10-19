@@ -284,10 +284,15 @@ def test_on_letter_ignored_in_settings_view(mode):
 
 
 def test_on_submit_has_no_semantics(mode):
-    """考试模式 Enter 无提交动作（交卷仅按钮触发，防误交卷）。"""
+    """考试模式 Enter 无提交语义（交卷仅按钮触发，防误交卷）。
+
+    协议实现方式：ExamMode 不定义 on_submit，主窗口经 getattr 鸭子路由
+    自动跳过（定义空方法只为文档意图，属死代码）。
+    """
     _start(mode, count="2", duration="30")
 
-    mode.on_submit()
+    # ExamMode 不实现 on_submit；主窗口 getattr 鸭子路由遇缺失自动跳过
+    assert getattr(mode, "on_submit", None) is None
 
     assert len(mode.app_state.get_exam_history()) == 0
     assert mode.timer_running is True
@@ -302,6 +307,63 @@ def test_on_prev_next_route_in_exam_view(mode):
 
     mode.on_prev()
     assert mode.engine.get_current_index() == 0
+
+
+# ---------- H1 回归：交卷确认框与倒计时竞态 ----------
+
+
+def test_submit_exam_confirmation_pauses_timer(mode, monkeypatch):
+    """确认框（模态嵌套事件循环）期间停表：嵌套循环里 tick 到点不得先行
+    自动交卷——否则用户点"是"后外层继续执行 → 历史重复入库 + 双报告。"""
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    _start(mode, count="1", duration="1")
+    monkeypatch.setattr(mode.engine, "get_exam_elapsed_seconds", lambda: 3600)
+
+    nested_ticks: list[int] = []
+
+    def question_stub(*args, **kwargs):
+        # 复现竞态触发条件：确认框打开期间若 timer 仍活跃，嵌套事件循环会
+        # 派发超时 → _on_timer_tick → submit_exam(force=True) 先行交卷
+        if mode._timer.isActive():
+            mode._on_timer_tick()
+            nested_ticks.append(1)
+        return QMessageBox.StandardButton.No
+
+    monkeypatch.setattr(QMessageBox, "question", question_stub)
+
+    mode.submit_exam()
+
+    assert nested_ticks == []  # 修复后确认框期间 timer 已停
+    assert len(mode.app_state.get_exam_history()) == 0
+    # 取消交卷：考试仍在进行 → 恢复计时
+    assert mode.timer_running is True
+    assert mode._timer.isActive()
+
+    # 测试卫生：本用例把引擎耗时 mock 成已过期（time_remaining=0），恢复的
+    # 1s tick 会在后续用例的事件循环里触发真实自动交卷，打到已销毁的 panel
+    # （shiboken RuntimeError）。生产场景下过期 tick 必在 1s 内触发，无此风险
+    mode._timer.stop()
+
+
+# ---------- M8 回归：考试计时跨模式页停/恢复 ----------
+
+
+def test_hide_pauses_timer_and_show_resumes(mode):
+    """切到其他模式页（hideEvent）停表；切回（showEvent）恢复并补刷新。
+
+    注意：从未 show 过的 widget 调 hide() 不会派发 hideEvent，故先 show。
+    """
+    _start(mode, count="1", duration="30")
+    mode.show()
+    assert mode._timer.isActive()
+
+    mode.hide()
+    assert not mode._timer.isActive()
+    assert mode.timer_running is True  # 语义保留：考试仍在进行，仅停 tick
+
+    mode.show()
+    assert mode._timer.isActive()
+    assert mode.panel._time_text is not None
 
 
 # ---------- 导航计数 ----------

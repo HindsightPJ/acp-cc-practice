@@ -10,6 +10,7 @@ BIOS 序列号获取失败时用空字符串，其他三维度仍有效。
 """
 
 import hashlib
+import ctypes  # noqa: I001 - 模块级导入：非 win32 平台不触 windll（M18 跨平台测试可整体替换本属性）
 import socket
 import subprocess
 import sys
@@ -68,8 +69,6 @@ def get_volume_serial(drive: str = "C:\\") -> str:
     """
     if sys.platform != "win32":
         raise UnsupportedOSError(f"当前平台 {sys.platform} 不支持授权，仅支持 Windows")
-
-    import ctypes  # pylint: disable=import-outside-toplevel
 
     volume_serial = ctypes.c_uint32(0)
     max_component = ctypes.c_uint32(0)

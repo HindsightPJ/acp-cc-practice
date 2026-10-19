@@ -222,8 +222,8 @@ class ExamPanel(QFrame):
     def _update_stats_col(self) -> None:
         """统计列：剩余时间（缓存值）+ 已答 + 标记数。"""
         total = self.engine.queue_length()
-        answered = sum(1 for i in range(total) if self.exam_session.has_answer(i))
-        marked = sum(1 for i in range(total) if self.exam_session.is_marked(i))
+        answered = self.exam_session.answered_count()
+        marked = self.exam_session.marked_count()
         self.stats_col.set_stats(
             [
                 ("剩余时间", self._time_text, ""),
@@ -236,9 +236,7 @@ class ExamPanel(QFrame):
         """刷新倒计时（engine 显式接口计算，避免 tick 漂移）。"""
         minutes, seconds = divmod(max(0, time_remaining), 60)
         self._time_text = f"{minutes:02d}:{seconds:02d}"
-        if self.stats_col._blocks:
-            _k, v_lbl, _u = self.stats_col._blocks[0]
-            v_lbl.setText(self._time_text)
+        self.stats_col.update_value(0, self._time_text)
 
     def _handle_option_click(self, letter: str) -> None:
         if self._on_select_option is not None:

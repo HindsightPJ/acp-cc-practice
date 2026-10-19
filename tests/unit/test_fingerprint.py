@@ -2,12 +2,14 @@
 
 import hashlib
 import sys
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 import pytest
 
 from license.fingerprint import (
     get_machine_guid,
+    get_volume_serial,
     compute_machine_code,
     get_machine_code_or_none,
     get_bios_serial,
@@ -33,6 +35,64 @@ def test_get_machine_guid_non_windows(monkeypatch):
     monkeypatch.setattr("sys.platform", "linux")
     with pytest.raises(UnsupportedOSError):
         get_machine_guid()
+
+
+# ---------- M18: get_volume_serial ctypes 链路（此前全 mock 跳过、CI 结构性失明） ----------
+
+
+class _FakeUInt32:
+    def __init__(self, v: int = 0) -> None:
+        self.value = v
+
+
+def _fake_ctypes(success: bool, serial: int = 0xA1B2C3D4):
+    """跨平台 ctypes 替身：GetVolumeInformationW 按入参决定成败。
+
+    fingerprint 自 2026-10-19 起模块级导入 ctypes，测试可整体替换该属性，
+    使 Windows 专属链路在 ubuntu CI 上真实执行（替代结构性跳过）。
+    """
+
+    def fake_get_volume_info(drive, a, b, vol_ref, c, d, e, f):
+        if success:
+            vol_ref.value = serial
+            return 1
+        return 0
+
+    return SimpleNamespace(
+        c_uint32=_FakeUInt32,
+        c_wchar_p=lambda s: s,
+        create_unicode_buffer=lambda n: "",
+        windll=SimpleNamespace(
+            kernel32=SimpleNamespace(GetVolumeInformationW=fake_get_volume_info)
+        ),
+        byref=lambda x: x,
+    )
+
+
+def test_get_volume_serial_success(monkeypatch):
+    """ctypes 调用链真实执行（桩替换模块属性）：成功读出 8 字符大写 hex。"""
+    from license import fingerprint
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(fingerprint, "ctypes", _fake_ctypes(success=True))
+    assert get_volume_serial() == "A1B2C3D4"
+
+
+def test_get_volume_serial_api_failure_raises_oserror(monkeypatch):
+    """GetVolumeInformationW 返回 0 → OSError（此前零覆盖的失败路径）。"""
+    from license import fingerprint
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(fingerprint, "ctypes", _fake_ctypes(success=False))
+    with pytest.raises(OSError):
+        get_volume_serial()
+
+
+def test_get_volume_serial_still_guards_non_windows(monkeypatch):
+    """平台守卫先于 ctypes 调用：非 win32 仍抛 UnsupportedOSError。"""
+    monkeypatch.setattr(sys, "platform", "linux")
+    with pytest.raises(UnsupportedOSError):
+        get_volume_serial()
 
 
 def test_compute_machine_code_is_sha256_hex():

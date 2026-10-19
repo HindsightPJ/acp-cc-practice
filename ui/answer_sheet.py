@@ -36,6 +36,7 @@ class _DepRow(QFrame):
     def __init__(self, queue_index: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.queue_index = queue_index
+        self._state = ""
         self.setProperty("depRow", True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -65,7 +66,15 @@ class _DepRow(QFrame):
         super().mousePressEvent(event)
 
     def set_state(self, state: str) -> None:
-        """state ∈ ""(待答)/done/now/miss；切换 QSS 属性 + 文案并 repolish。"""
+        """state ∈ ""(待答)/done/now/miss；切换 QSS 属性 + 文案并 repolish。
+
+        状态未变化时短路：翻题会对整张答题卡逐行 set_state，868 题全库
+        队列下每次导航约 3500 次 setProperty + repolish（递归 unpolish/polish
+        整棵子树），而未变化的行占 99% 以上。
+        """
+        if state == self._state:
+            return
+        self._state = state
         text, sym = self._TEXT.get(state, ("待答", "·"))
         if state:
             self.setProperty("state", state)
@@ -79,7 +88,7 @@ class _DepRow(QFrame):
 class AnswerSheet(QFrame):
     """答题卡 = 发车时刻表（qcol 右邻列）。
 
-    set_rows(full_rebuild) + update_row(index, state) 两档更新：
+    build_rows(total) 按队列重建行；update_no/update_row 增量更新：
     题目总数不变时用增量更新避免整列重建。
     """
 
@@ -138,14 +147,6 @@ class AnswerSheet(QFrame):
         if 0 <= index < len(self._rows):
             self._rows[index].set_state(state)
 
-    def set_rows(self, states: list[str], current: int = -1) -> None:
-        """全量刷新状态（切页回来时同步用）。"""
-        for i, row in enumerate(self._rows):
-            if i == current:
-                row.set_state("now")
-            else:
-                row.set_state(states[i] if i < len(states) else "")
-
 
 class StatColumn(QFrame):
     """统计列（最右列，<900px 由宿主隐藏）：k 标签 + 大号数字 + 单位。"""
@@ -190,3 +191,13 @@ class StatColumn(QFrame):
             v_lbl.setText(v_text)
             unit_lbl.setText(unit_text)
             unit_lbl.setVisible(bool(unit_text))
+
+    def update_value(self, index: int, text: str) -> None:
+        """更新指定统计块的数值文本（倒计时秒级刷新用）。
+
+        存在的理由：调用方（ExamPanel.update_timer_display）此前直接解包
+        _blocks 私有结构改标签——块顺序一调整即静默刷错位置，且私有访问
+        使封装契约失效。
+        """
+        if 0 <= index < len(self._blocks):
+            self._blocks[index][1].setText(text)

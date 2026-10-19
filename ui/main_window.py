@@ -76,6 +76,7 @@ class MainWindow(QMainWindow):
         license_status: LicenseStatus | None = None,
         meta: dict[str, Any] | None = None,
         license_dir: str | None = None,
+        progress: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
         setup_frameless(self)  # 必须在 show() 之前
@@ -86,8 +87,12 @@ class MainWindow(QMainWindow):
 
         self.questions: list[Question] = questions
         self.data_manager = data_manager
-        # TD-30：AppState 封装进度，UI 不直接操作原始 dict
-        self.app_state = AppState(data_manager, data_manager.load_progress())
+        # TD-30：AppState 封装进度，UI 不直接操作原始 dict。
+        # progress 由调用方单次解析后传入（消除 main/此处双解析）；未传入时
+        # 兜底加载，保持测试与直接构造的兼容
+        self.app_state = AppState(
+            data_manager, progress if progress is not None else data_manager.load_progress()
+        )
         self.license_status = license_status
         self.meta = meta or {}
         # license.dat 持久化目录：打包后必须写到 exe 同级 data/（非 _MEIPASS）

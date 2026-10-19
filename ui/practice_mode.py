@@ -48,9 +48,9 @@ class PracticeMode(BaseModePage):
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
 
-        # "随机出题"入驻动作条最左（用户验收决策：原独立工具行视觉孤立）
+        # "随机出题"入驻动作条最左（用户验收决策：原独立工具行视觉孤立）。
+        # 无需连接 toggled：start_new_session 直接读 isChecked()
         self.shuffle_check = QCheckBox("随机出题")
-        self.shuffle_check.toggled.connect(self._on_shuffle_toggled)
 
         # P0 修复沿用：on_submit/on_navigate 必须接线，否则防抖保存永不触发
         self.panel = PracticePanel(
@@ -119,10 +119,6 @@ class PracticeMode(BaseModePage):
         self.panel.reset_session(shuffle=new_shuffle)
         self._save_progress_delayed()
         self.state_changed.emit()
-
-    def _on_shuffle_toggled(self, checked: bool) -> None:
-        """复选框切换仅在"重新开始"时生效（与 tkinter 版语义一致）。"""
-        _ = checked  # 状态由 start_new_session 读取；此处仅占位接信号
 
     # -------------------------------------------------------------- 主窗口协议
     def on_letter(self, letter: str) -> None:

@@ -191,7 +191,6 @@ class WrongBookPage(BaseModePage):
 
     def _on_practice_finished(self) -> None:
         """错题队列完成：统计 + 询问移除答对题 + 回列表。"""
-        _ = self.app_state.get_practice_stats()  # 占位读取，实际用 engine 统计
         if self.practice_engine is None:
             return
         report = self.practice_engine.get_stats()
@@ -208,7 +207,7 @@ class WrongBookPage(BaseModePage):
             for num in self.practice_engine.get_correct_question_numbers():
                 self.app_state.remove_wrong_question(num)
             if not self.app_state.save_safe():
-                QMessageBox.warning(self, "保存失败", self._save_failure_message)
+                self._warn_save_failed()
 
         self._back_to_list()
         self.state_changed.emit()
@@ -238,34 +237,47 @@ class WrongBookPage(BaseModePage):
             return
         self.app_state.set_wrong_questions([])
         if not self.app_state.save_safe():
-            QMessageBox.warning(self, "保存失败", self._save_failure_message)
+            self._warn_save_failed()
         self._refresh_table()
         self.state_changed.emit()
 
     # -------------------------------------------------------------- 主窗口协议
+    def _current_practice_panel(self) -> PracticePanel | None:
+        """练习视图当前 panel；非练习视图返回 None。
+
+        按控件身份判断而非 stack 索引：布局索引靠 deleteLater 的清理时序
+        勉强维持，旁边增加常驻子页即会让快捷键静默失效。
+        """
+        if self.panel is not None and self.stack.currentWidget() is self.panel:
+            return self.panel
+        return None
+
     def on_letter(self, letter: str) -> None:
         """练习视图中 A-D → 选项点击；列表视图无语义。"""
-        if self.stack.currentIndex() == 1 and self.panel is not None and self.practice_session:
-            if not self.practice_session.is_answered:
-                self.panel.handle_option_click(letter)
+        panel = self._current_practice_panel()
+        if panel is not None and self.practice_session and not self.practice_session.is_answered:
+            panel.handle_option_click(letter)
 
     def on_submit(self) -> None:
-        if self.stack.currentIndex() == 1 and self.panel is not None:
-            self.panel.submit_answer()
+        panel = self._current_practice_panel()
+        if panel is not None:
+            panel.submit_answer()
 
     def on_prev(self) -> None:
-        if self.stack.currentIndex() == 1 and self.panel is not None:
-            self.panel.prev_question()
+        panel = self._current_practice_panel()
+        if panel is not None:
+            panel.prev_question()
 
     def on_next(self) -> None:
-        if self.stack.currentIndex() == 1 and self.panel is not None:
-            self.panel.next_question()
+        panel = self._current_practice_panel()
+        if panel is not None:
+            panel.next_question()
 
     def nav_count(self) -> str:
         return str(self.app_state.wrong_count())
 
     def modeline_text(self) -> str:
-        if self.stack.currentIndex() == 1 and self.practice_engine is not None:
+        if self._current_practice_panel() is not None and self.practice_engine is not None:
             return (
                 f"WRONGBOOK · 错题练习 第 {self.practice_engine.get_current_index() + 1}"
                 f"/{self.practice_engine.queue_length()} 题"

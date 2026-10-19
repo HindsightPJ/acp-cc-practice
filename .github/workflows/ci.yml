@@ -36,9 +36,11 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          # 运行依赖经 -e . 从 pyproject.toml 安装（单一来源，
-          # 避免硬编码清单与 pyproject 漂移导致 ModuleNotFoundError）
-          pip install -e . mypy ruff pytest pytest-cov pytest-qt
+          # dev 工具经 requirements.lock 精确锁定安装（H8：原先 pip install 最新版
+          # 与本机 lock 脱节，CI 不可复现）；运行依赖 -e . 从 pyproject 装保证包发现
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+          pip install pip-audit
 
       - name: Ruff check
         run: ruff check .
@@ -48,21 +50,30 @@ jobs:
         env:
           MYPYPATH: "."
 
+      # H8：bandit 此前只挂本地 pre-push，绕过钩子即绕过扫描——CI 补第二道
+      - name: Bandit security scan
+        run: bandit -c pyproject.toml -r .
+
+      # H8：pyproject 声称的 pip-audit CVE 门禁（P7）此前无任何接线
+      - name: Pip audit (CVE gate)
+        run: pip-audit --skip-editable
+
       # 本地 pre-commit 之外的第二道安检：防钩子未激活时密钥/依赖锁漏过公开仓库
-      # （两个脚本纯标准库，CI 无需额外依赖；3.10 兼容——无 tomllib）
+      # （三个脚本纯标准库，CI 无需额外依赖；3.10 兼容——无 tomllib）
       - name: Check secrets
         run: python scripts/check_secrets.py .
 
       - name: Check deps lock
         run: python scripts/check_deps_lock.py .
 
-      # GUI 测试随全量套件在 offscreen 平台运行（conftest.py 顶层设环境变量，
-      # 先于任何 QApplication 创建）；显式置空 addopts 保持 CI 输出可控
-      - name: Pytest
-        run: pytest tests/ -q --tb=short -o addopts=""
+      # H7：门禁存在性自检（此前本脚本自己从未被任何入口调用）
+      - name: Check gates present
+        run: python scripts/check_gates_present.py .
 
-      - name: Coverage
-        run: pytest tests/ -q --tb=short -o addopts="" --cov=quiz_engine --cov=data_manager --cov=license --cov-fail-under=70
+      # GUI 测试随全量套件在 offscreen 平台运行（conftest.py 顶层设环境变量，
+      # 先于任何 QApplication 创建）；覆盖率与测试合并为一步（原先全量跑两遍）
+      - name: Pytest with coverage
+        run: pytest tests/ -q --tb=short -o addopts="" --cov --cov-fail-under=80
 
       - name: Stop Xvfb
         if: always()

@@ -7,6 +7,8 @@ P3: 将 ExamMode 中分散的选项选择、答案记录逻辑集中到这里，
 from quiz_engine import QuizEngine
 from models import Question
 
+from .selection import toggle_letter
+
 # 与 models.Question.type 字段值保持一致（原 ui/constants.py，就近内联）
 QUESTION_TYPE_MULTIPLE = "multiple"
 
@@ -56,18 +58,9 @@ class ExamSession:
             return None
 
         current_idx = self.get_current_index()
-        current = set(self.answers.get(current_idx, ""))
-
-        if self.is_multiple_choice():
-            if letter in current:
-                current.discard(letter)
-            else:
-                current.add(letter)
-        else:
-            if letter in current and len(current) == 1:
-                current = set()
-            else:
-                current = {letter}
+        current = toggle_letter(
+            set(self.answers.get(current_idx, "")), letter, self.is_multiple_choice()
+        )
 
         selected = "".join(sorted(current))
         if selected:
@@ -94,6 +87,14 @@ class ExamSession:
     def has_answer(self, idx: int) -> bool:
         """指定索引的题目是否已作答。"""
         return idx in self.answers
+
+    def answered_count(self) -> int:
+        """已答数量（单一来源：此前编排/面板三处各写一遍 sum(...) 扫描）。"""
+        return len(self.answers)
+
+    def marked_count(self) -> int:
+        """标记数量（单一来源，同上）。"""
+        return len(self.marked)
 
     def is_marked(self, idx: int) -> bool:
         """指定索引的题目是否已标记。"""

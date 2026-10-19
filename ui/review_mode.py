@@ -210,7 +210,9 @@ class ReviewMode(BaseModePage):
     def _jump_from_input(self) -> None:
         """跳转输入框：1-based 题号 → 队列索引。"""
         text = self.jump_edit.text().strip()
-        if not text.isdigit():
+        # isdigit() 对上标数字（"²"）等 Unicode Digit 为 True 但 int() 抛
+        # ValueError——异常会穿透 returnPressed 信号槽；限定 ASCII 数字
+        if not (text.isascii() and text.isdigit()):
             self.jump_edit.clear()
             return
         target = int(text) - 1

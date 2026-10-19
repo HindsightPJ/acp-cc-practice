@@ -129,8 +129,13 @@ class QuestionDetailCard(QFrame):
         for i, lbl in enumerate(self._meta_labels):
             if i < len(lines):
                 lbl.setText(lines[i])
-                # 多选题标签 ACCENT 变色提醒（QSS qType 属性驱动，换题需 repolish）
-                is_multi = any(t in lines[i] for t in _QUESTION_TYPE_LABELS.values())
+                # 多选题标签 ACCENT 变色提醒（QSS qType 属性驱动，换题需 repolish）。
+                # 双重确认：题型确为 multiple 且该行确实在描述题型——修复原纯子串
+                # 反推的脆弱性（单选题配了含"多选题"的文案会误变色），同时保留
+                # 调用方自定义 meta（错题本"多选题 · 题号 8"）的变色行为
+                is_multi = question.type == "multiple" and any(
+                    t in lines[i] for t in _QUESTION_TYPE_LABELS.values()
+                )
                 lbl.setProperty("qType", "multiple" if is_multi else None)
                 repolish(lbl)
                 lbl.setVisible(True)
@@ -177,11 +182,6 @@ class QuestionDetailCard(QFrame):
         for i, card in enumerate(self.option_cards):
             letter = chr(ord("A") + i)
             card.set_result(letter in correct_set, letter in selected_set)
-
-    def reset_options(self) -> None:
-        """重置所有选项状态为 idle。"""
-        for card in self.option_cards:
-            card.reset()
 
     # ------------------------------------------------------------ 解析块
     def set_verdict(self, text: str, ok: bool) -> None:

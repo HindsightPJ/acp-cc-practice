@@ -50,8 +50,11 @@ markers = [
 ]
 
 # TD-18: 覆盖率配置
+# 2026-10-19 审核修复：原 source 只含 quiz_engine/data_manager/license 三个
+# 92% 已达标模块，ui/app_state/main 这些真实短板（27%~59%）不在度量范围，
+# --cov-fail-under=70 形同虚设；扩为全部生产模块（实测 TOTAL 85%）。
 [tool.coverage.run]
-source = ["quiz_engine", "data_manager", "license"]
+source = ["quiz_engine", "data_manager", "license", "ui", "app_state", "main", "models", "logging_utils"]
 omit = ["*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]

@@ -15,11 +15,12 @@ import logging
 import os
 import queue
 import sys
+import tempfile
 import threading
 from dataclasses import dataclass
 from typing import Any, cast
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QSharedMemory, QTimer
 from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QVBoxLayout, QWidget
 
 from data_manager import DataManager, DataLoadError
@@ -49,15 +50,31 @@ def _resolve_user_data_dir() -> str:
     if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(sys.executable)
         user_data_dir = os.path.join(exe_dir, "data")
-        os.makedirs(user_data_dir, exist_ok=True)
-        return user_data_dir
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    else:
+        user_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    # 两种模式都确保目录存在：开发模式漏创建时，日志/进度写在缺失目录上会在
+    # 任何友好提示之前裸崩（RotatingFileHandler FileNotFoundError）
+    os.makedirs(user_data_dir, exist_ok=True)
+    return user_data_dir
 
 
 def _setup_logging(user_data_dir: str) -> None:
-    """配置 logging 到 user_data_dir/app.log，启用轮转避免日志无限增长。"""
-    log_file = os.path.join(user_data_dir, "app.log")
-    configure_app_logging(log_file, level=logging.WARNING)
+    """配置 logging 到 user_data_dir/app.log，启用轮转避免日志无限增长。
+
+    目录不可写（只读位置/权限）时回退系统临时目录，再不行退 NullHandler：
+    日志配置失败不得阻断启动，且每次降级都留痕（stderr），不静默。
+    """
+    try:
+        configure_app_logging(os.path.join(user_data_dir, "app.log"), level=logging.WARNING)
+        return
+    except OSError as e:
+        print(f"日志目录不可用（{e}），回退系统临时目录", file=sys.stderr)
+    fallback_file = os.path.join(tempfile.gettempdir(), "acp-cc-practice.log")
+    try:
+        configure_app_logging(fallback_file, level=logging.WARNING)
+    except OSError as e:
+        print(f"临时目录日志同样不可用（{e}），本次运行无文件日志", file=sys.stderr)
+        logging.getLogger().addHandler(logging.NullHandler())
 
 
 @dataclass
@@ -128,6 +145,30 @@ def _build_splash(app: QApplication, theme_mode: str) -> QWidget:
     return splash
 
 
+# 单实例保护（产品决策 2026-10-19：不允许多开——双开会整文件覆写 progress.json，
+# 后写者赢导致一端进度静默丢失）。Windows 上共享内存段随进程退出自动释放，
+# 崩溃无残留；非 Windows 平台段可能残留，但授权机制本就仅支持 Windows。
+_SINGLE_INSTANCE_KEY = "acp-cc-single-v1"  # 段名 ≤32 字符：高熵密钥扫描按长度区分字面量语义
+_guard: QSharedMemory | None = None  # 进程生命周期内持有引用，防止段提前释放
+
+
+def _acquire_single_instance() -> bool:
+    """尝试占用单实例共享内存段；已被其它实例占用返回 False。"""
+    global _guard
+    guard = QSharedMemory(_SINGLE_INSTANCE_KEY)
+    if guard.create(1):  # 成功即同时 attach，段随本进程存活
+        _guard = guard
+        return True
+    if guard.error() == QSharedMemory.SharedMemoryError.AlreadyExists:
+        return False
+    # 非占用类错误（权限等）：留痕后放行——双开保护降级为尽力而为，
+    # 不因 shm 异常把应用变成完全无法启动（fail-open，风险上限=旧行为）
+    logging.getLogger(__name__).warning(
+        "单实例共享内存创建失败: %s（双开保护本次失效）", guard.errorString()
+    )
+    return False
+
+
 def main() -> None:
     base_dir = _resolve_base_dir()
     user_data_dir = _resolve_user_data_dir()
@@ -139,12 +180,19 @@ def main() -> None:
 
     app = QApplication(sys.argv)
 
-    # 主题模式提前读取（与 MainWindow 内 AppState 同源），splash 不闪变
+    if not _acquire_single_instance():
+        QMessageBox.warning(None, "提示", "程序已在运行，请勿重复打开。")
+        sys.exit(0)
+
+    # 进度只解析一次（原先此处取主题、MainWindow 构造各解析一遍，损坏处理
+    # 要在两处保持一致）；权限类读取失败在此显式呈现（与原启动兜底同语义）
     try:
-        theme_mode = AppState(data_manager, data_manager.load_progress()).get_theme_mode()
-    except Exception as e:  # noqa: BLE001 - 主题读取失败不阻断启动，回退浅色
-        logger.warning("启动时读取主题模式失败，回退 light: %s", e)
-        theme_mode = "light"
+        progress = data_manager.load_progress()
+    except DataLoadError as e:
+        log_error(logger, "无法读取进度文件", exc=e, progress_file=data_manager.progress_file)
+        QMessageBox.critical(None, "错误", f"无法读取进度文件:\n\n{e}")
+        sys.exit(1)
+    theme_mode = AppState(data_manager, progress).get_theme_mode()
 
     splash = _build_splash(app, theme_mode)
     splash.show()
@@ -166,17 +214,25 @@ def main() -> None:
             result = result_queue.get_nowait()
         except queue.Empty:
             return  # 定时器持续运行（L1：定时器随 splash 销毁释放）
+        # 结果已到手：close() 不销毁控件，QTimer(splash) 随 QObject 树继续存活，
+        # 不显式停止则 100ms 轮询在整个应用生命周期空转
+        poll_timer.stop()
 
         if isinstance(result, LoadFailure):
             log_error(logger, "题库数据加载失败", mode=result.mode)
             splash.close()
             QMessageBox.critical(None, "错误", f"题库数据加载失败:\n\n{result.message}")
-            sys.exit(1)
+            # app.exit(1) 而非 sys.exit(1)：SystemExit 从 C++ 事件循环抛出会
+            # 打印 traceback 并绕过正常清理；退出码经 app.exec() 返回值带出。
+            # 显式 return：app.exit 无 NoReturn 类型，靠 return 收敛控制流
+            app.exit(1)
+            return
 
         if not result.questions:
             splash.close()
             QMessageBox.critical(None, "错误", "未能解析出任何题目！")
-            sys.exit(1)
+            app.exit(1)
+            return
 
         splash.close()
         try:
@@ -186,6 +242,7 @@ def main() -> None:
                 license_status=result.status,
                 meta=result.meta,
                 license_dir=user_data_dir,
+                progress=progress,
             )
             window.show()
             # license.dat 有文件但验证失败时告警用户
@@ -206,7 +263,8 @@ def main() -> None:
                 status=result.status.value if result.status else None,
             )
             QMessageBox.critical(None, "启动错误", f"程序启动失败:\n\n{e}")
-            sys.exit(1)
+            app.exit(1)
+            return
 
     poll_timer = QTimer(splash)
     poll_timer.setInterval(100)

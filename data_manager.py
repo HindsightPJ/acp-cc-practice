@@ -34,6 +34,9 @@ def default_progress() -> dict[str, Any]:
         "favorites": [],
         # 练习会话快照（进度恢复用）：{queue, index, answers, shuffle}
         "practice_progress": {},
+        # 考试卡组（组卷覆盖保证用的整库洗牌牌堆），旧版 progress.json 缺此键
+        # 时由 AppState._ensure_defaults 补齐
+        "exam_deck": [],
         # UI 主题模式（"light" / "dark"，非法值由 AppState fail-safe 回浅色）
         "theme_mode": "light",
     }
@@ -53,8 +56,6 @@ class DataManager:
         self.data_dir: str = os.path.join(base_dir, "data")  # 只读题库目录
         # user_data_dir: 可写用户数据目录，默认 = data_dir（开发模式）
         self.user_data_dir: str = user_data_dir or self.data_dir
-        # questions.json（docx 解析后的明文缓存）写到可写目录
-        self.questions_file: str = os.path.join(self.user_data_dir, "questions.json")
         self.questions_enc_file: str = os.path.join(self.data_dir, "questions.enc")
         self.progress_file: str = os.path.join(self.user_data_dir, "progress.json")
         self._save_lock = threading.Lock()
@@ -74,9 +75,14 @@ class DataManager:
             return None
         try:
             with open(meta_path, "r", encoding="utf-8") as f:
-                return cast(dict[str, Any], json.load(f))
-        except (json.JSONDecodeError, OSError):
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError, ValueError):
+            # UnicodeDecodeError 非 JSONDecodeError 子类，漏捕会让纯展示用的
+            # 可选元数据阻断整个启动（调用点在内层 try 之外）
             return None
+        # cast 只是对 mypy 的谎言：根节点为 list/str 时 main_window 的 meta.get
+        # 会在 slot 内炸 AttributeError——可选文件损坏不得升级为启动失败
+        return data if isinstance(data, dict) else None
 
     def load_trial_questions(self) -> list[Question]:
         """加载 questions_trial.json（前 20 题明文）。"""
@@ -90,6 +96,11 @@ class DataManager:
             raise DataLoadError(f"试用题库损坏，请重新下载程序: {e}") from e
         except PermissionError as e:
             raise DataLoadError("无法读取试用题库，请检查文件权限") from e
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            raise DataLoadError(f"试用题库读取失败，请重新下载程序: {e}") from e
+
+        if not isinstance(raw_list, list):
+            raise DataLoadError("试用题库格式不正确，请重新下载程序")
 
         questions: list[Question] = []
         for i, q in enumerate(raw_list):
@@ -126,6 +137,9 @@ class DataManager:
             # 解密失败(InvalidToken) / JSON损坏(JSONDecodeError) / 编码错误(UnicodeDecodeError)
             raise DataLoadError(f"题库密文损坏或密钥不匹配: {e}") from e
 
+        if not isinstance(raw_list, list):
+            raise DataLoadError("题库密文格式不正确，请重新下载程序")
+
         questions: list[Question] = []
         for i, q in enumerate(raw_list):
             try:
@@ -149,8 +163,15 @@ class DataManager:
                         logger.debug("进度备份失败: %s", backup_err)
                 with open(tmp_file, "w", encoding="utf-8") as f:
                     json.dump(progress_data, f, ensure_ascii=False, indent=2)
+                    # flush + fsync：os.replace 只保证元数据原子，不保证数据落盘；
+                    # 掉电时半写文件会被 load_progress 判损坏而静默重置
+                    f.flush()
+                    os.fsync(f.fileno())
                 os.replace(tmp_file, self.progress_file)
-            except (PermissionError, OSError) as e:
+            except (PermissionError, OSError, TypeError, ValueError) as e:
+                # TypeError/ValueError：progress_data 含不可序列化对象或循环引用时，
+                # json.dump 抛出的异常不在 OSError 族——漏捕会跳过整个清理分支，
+                # 留下"progress.json 已移入 .bak（缺失态）+ tmp 残留"的中间态
                 if os.path.exists(tmp_file):
                     try:
                         os.remove(tmp_file)

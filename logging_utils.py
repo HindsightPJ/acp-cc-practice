@@ -5,7 +5,7 @@
 """
 
 import logging
-import traceback
+import os
 from typing import Any
 
 
@@ -31,21 +31,28 @@ def log_error(
 ) -> None:
     """记录带上下文的错误日志。
 
-    若传入异常对象，会追加异常类型与堆栈；否则仅记录 message + context。
+    若传入异常对象，追加异常类型与堆栈（exc_info 渲染完整堆栈，故不再
+    内联一行摘要——同一条异常渲染两次是日志噪声）；否则仅记录 message + context。
     """
     ctx = _format_context(context)
     full_msg = f"{message} | {ctx}" if ctx else message
     if exc is not None:
-        tb = traceback.format_exception_only(type(exc), exc)[-1].strip()
-        full_msg = f"{full_msg} | exc={tb}"
         logger.error(full_msg, exc_info=exc)
     else:
         logger.error(full_msg)
 
 
 def configure_app_logging(log_path: str, level: int = logging.WARNING) -> None:
-    """统一配置应用日志：输出到轮转文件，默认 WARNING 级别。"""
+    """统一配置应用日志：输出到轮转文件，默认 WARNING 级别。
+
+    ACP_LOG_LEVEL 环境变量可临时提级（如 DEBUG 排查备份链断裂问题）——
+    默认 WARNING 下 logger.debug 的留痕永不落盘，排错时无从下手。
+    """
     from logging.handlers import RotatingFileHandler
+
+    env_level = os.environ.get("ACP_LOG_LEVEL", "").strip().upper()
+    if env_level:
+        level = getattr(logging, env_level, level)
 
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     file_handler = RotatingFileHandler(

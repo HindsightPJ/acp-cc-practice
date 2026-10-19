@@ -143,22 +143,6 @@ class QuizEngine:
         if self.current_index >= len(self.questions_queue):
             self.current_index = max(0, len(self.questions_queue) - 1)
 
-    def get_wrong_answers(self) -> list[Question]:
-        """获取所有错误答案的题目。
-
-        依赖 answers_record 中记录的 queue_index 反查 questions_queue，
-        避免跳跃答题时索引错位。
-        """
-        wrong = []
-        for r in self.answers_record.values():
-            if r.get("is_correct"):
-                continue
-            idx = r.get("queue_index")
-            if idx is None or not (0 <= idx < len(self.questions_queue)):
-                continue
-            wrong.append(self.questions_queue[idx])
-        return wrong
-
     def get_correct_question_numbers(self) -> set[int]:
         """获取本次练习/考试中答对的题号集合（P1-4: 供 WrongBook 移除已掌握错题用）。
 

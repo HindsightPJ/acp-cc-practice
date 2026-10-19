@@ -101,6 +101,45 @@ def test_first_submission_increments_stats(session, app_state):
     assert stats["correct"] == 1
 
 
+# ---------- M11: 选项切换语义与考试对齐（ui/selection.toggle_letter） ----------
+
+
+def test_single_choice_reclick_deselects(session):
+    """单选重复点击同一字母 = 取消。
+
+    M11 修复前练习侧为保持选中（用户无法取消选择），与考试侧语义漂移；
+    两侧现共用 ui/selection.toggle_letter，语义单一来源。
+    """
+    session.get_question_type(session.engine.get_current_question())  # 题1 = single
+    session.handle_option_click("A", 4)
+    assert session.selected_answers == ["A"]
+
+    session.handle_option_click("A", 4)
+    assert session.selected_answers == []
+
+
+def test_single_choice_switch_replaces(session):
+    """单选点其他字母 = 改选（非累加）。"""
+    session.get_question_type(session.engine.get_current_question())
+    session.handle_option_click("A", 4)
+    session.handle_option_click("B", 4)
+    assert session.selected_answers == ["B"]
+
+
+def test_multi_choice_toggle_matches_exam_semantics(session):
+    """多选对称差切换：A→AC→C（与 ExamSession 语义一致）。"""
+    session.get_question_type(session.engine.get_current_question())  # 题1 single
+    session.engine.set_current_index(2)  # 题3 = multiple
+    session.get_question_type(session.engine.get_current_question())
+
+    session.handle_option_click("A", 4)
+    session.handle_option_click("C", 4)
+    assert session.selected_answers == ["A", "C"]
+
+    session.handle_option_click("A", 4)
+    assert session.selected_answers == ["C"]
+
+
 def test_first_wrong_submission_adds_wrong_question(session, app_state):
     """首次提交答错应加入错题本。"""
     session.get_question_type(session.engine.get_current_question())

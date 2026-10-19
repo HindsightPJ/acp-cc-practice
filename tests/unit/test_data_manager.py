@@ -102,7 +102,8 @@ def test_load_full_questions_wrong_k(setup_data_dir):
     write_enc(data_dir, qs, real_key)
     wrong_key = Fernet.generate_key().decode()
     dm = DataManager(base_dir=str(tmp_path))
-    with pytest.raises(Exception):
+    # 收紧：原 pytest.raises(Exception) 会放过 KeyError/AttributeError 等实现错误
+    with pytest.raises(DataLoadError, match="密钥不匹配"):
         dm.load_full_questions(wrong_key)
 
 
@@ -407,3 +408,85 @@ def test_save_progress_failure_restores_from_bak(tmp_path, monkeypatch):
     assert progress_file.exists()
     restored = json.loads(progress_file.read_text(encoding="utf-8"))
     assert restored["wrong_questions"] == [2]
+
+
+# ---------- H3: save_progress 异常类型收窄 ----------
+
+
+def test_save_progress_unserializable_raises_and_restores(tmp_path):
+    """H3: progress_data 含不可序列化对象 → DataSaveError。
+
+    修复前 json.dump 的 TypeError 不在捕获元组，异常会跳过整个清理分支，
+    留下"progress.json 已移入 .bak（缺失态）+ tmp 残留"的中间态。
+    """
+    user_data_dir = tmp_path / "data"
+    user_data_dir.mkdir()
+    progress_file = user_data_dir / "progress.json"
+    old_progress = {
+        "wrong_questions": [1],
+        "practice_stats": {"correct": 1, "wrong": 0, "total": 1},
+    }
+    progress_file.write_text(json.dumps(old_progress, ensure_ascii=False), encoding="utf-8")
+
+    dm = DataManager(base_dir=str(tmp_path))
+    with pytest.raises(DataSaveError):
+        dm.save_progress({"practice_progress": {"obj": object()}})
+
+    assert not (user_data_dir / "progress.json.tmp").exists()
+    assert progress_file.exists()
+    assert json.loads(progress_file.read_text(encoding="utf-8"))["wrong_questions"] == [1]
+
+
+# ---------- M1: load_meta 根节点类型 / 编码容错 ----------
+
+
+def test_load_meta_non_dict_root_returns_none(setup_data_dir):
+    """M1: meta 根节点为 list/str → None（可选文件损坏不得升级为启动失败）。"""
+    tmp_path, data_dir = setup_data_dir
+    (data_dir / "questions_meta.json").write_text("[1, 2]", encoding="utf-8")
+    dm = DataManager(base_dir=str(tmp_path))
+    assert dm.load_meta() is None
+
+
+def test_load_meta_non_utf8_returns_none(setup_data_dir):
+    """M1: meta 非 UTF-8 → None（UnicodeDecodeError 不在原捕获元组，会阻断启动）。"""
+    tmp_path, data_dir = setup_data_dir
+    (data_dir / "questions_meta.json").write_bytes(b'\xff\xfe{"total": 1}')
+    dm = DataManager(base_dir=str(tmp_path))
+    assert dm.load_meta() is None
+
+
+# ---------- M2: 题库根节点类型校验 ----------
+
+
+def test_load_trial_non_list_root_raises(setup_data_dir):
+    """M2: trial 根节点为 dict → DataLoadError（不再裸 AttributeError）。"""
+    tmp_path, data_dir = setup_data_dir
+    (data_dir / "questions_trial.json").write_text('{"not": "a list"}', encoding="utf-8")
+    dm = DataManager(base_dir=str(tmp_path))
+    with pytest.raises(DataLoadError, match="格式不正确"):
+        dm.load_trial_questions()
+
+
+def test_load_full_non_list_root_raises(setup_data_dir):
+    """M2: 加密全库根节点为 dict → DataLoadError（解析循环不再漏出裸异常）。"""
+    tmp_path, data_dir = setup_data_dir
+    key = Fernet.generate_key().decode()
+    (data_dir / "questions.enc").write_bytes(Fernet(key.encode()).encrypt(b'{"not": "a list"}'))
+    dm = DataManager(base_dir=str(tmp_path))
+    with pytest.raises(DataLoadError, match="格式不正确"):
+        dm.load_full_questions(key)
+
+
+# ---------- M7: options 结构校验 ----------
+
+
+def test_load_trial_options_non_list_raises(setup_data_dir):
+    """M7: options 非数组 → DataLoadError（不再静默替换为空选项的僵尸题）。"""
+    tmp_path, data_dir = setup_data_dir
+    qs = make_questions(1)
+    qs[0]["options"] = {"A": "a"}
+    write_trial(data_dir, qs)
+    dm = DataManager(base_dir=str(tmp_path))
+    with pytest.raises(DataLoadError):
+        dm.load_trial_questions()

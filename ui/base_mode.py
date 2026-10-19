@@ -50,13 +50,18 @@ class BaseModePage(QFrame):
         self._pending_save = True
         self._save_timer.start(SAVE_DEBOUNCE_MS)
 
+    def _warn_save_failed(self, message: str | None = None) -> None:
+        """保存失败提示单一出口：默认用 _save_failure_message（子类扩展点），
+        多对象场景（如考试历史/错题本）可传整条定制文案。"""
+        QMessageBox.warning(self, "保存失败", message or self._save_failure_message)
+
     def _do_save_progress(self) -> None:
         """防抖计时到期执行实际保存。"""
         # 先保存成功再清标记：失败时保留待存状态，后续操作可重试
         if self.app_state.save_safe():
             self._pending_save = False
         else:
-            QMessageBox.warning(self, "保存失败", self._save_failure_message)
+            self._warn_save_failed()
 
     def flush_pending_save(self) -> None:
         """切页 / 关窗前强制保存延迟的进度，避免数据丢失。
@@ -70,11 +75,7 @@ class BaseModePage(QFrame):
         if self.app_state.save_safe():
             self._pending_save = False
         else:
-            QMessageBox.warning(
-                self,
-                "保存失败",
-                f"{self._save_failure_message}\n\n本次进度可能未落盘。",
-            )
+            self._warn_save_failed(f"{self._save_failure_message}\n\n本次进度可能未落盘。")
 
     # -------------------------------------------------------------- 主窗口协议
     def nav_count(self) -> str | None:

@@ -91,7 +91,10 @@ _DARK_TOKENS: dict[str, str] = {
 # 模块级单例：所有 UI 组件共享同一 Theme 实例
 theme = Theme()
 
-# 当前主题模式（"light" / "dark"），set_theme_mode 维护
+# 当前主题模式（"light" / "dark"），set_theme_mode 维护。
+# 权威源是 AppState.theme_mode（随进度持久化）；本模块全局仅是应用内缓存，
+# 供 current_theme_mode() 快速读取——单实例桌面应用下二者同步，测试若直接
+# 改动本变量须自行还原，否则会污染后续用例
 _current_mode: str = THEME_LIGHT
 
 # 浅色快照（dataclass 默认值），供 set_theme_mode 切回浅色使用

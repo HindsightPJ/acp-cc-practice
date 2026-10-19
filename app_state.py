@@ -4,6 +4,7 @@ UI 层通过 AppState 读写学习进度，不再直接调用 data_manager.save_
 也不再直接访问原始 progress dict。
 """
 
+import copy
 import logging
 import random
 from typing import Any
@@ -26,9 +27,22 @@ class AppState:
         self._ensure_defaults()
 
     def _ensure_defaults(self) -> None:
-        """确保进度字典包含所有必需字段（默认结构单一来源：default_progress）。"""
+        """确保进度字典包含所有必需字段（默认结构单一来源：default_progress）。
+
+        progress.json 位于用户可写目录，手改 / 旧版本写入 / 磁盘 bit-rot 都可能
+        落进错误类型的字段。此处与 theme_mode 的 fail-safe 同源：类型不符即重置
+        为默认值并留痕，避免错误类型延迟到 UI 回调深处才炸出裸 AttributeError。
+        """
         for key, value in default_progress().items():
-            self._progress.setdefault(key, value)
+            current = self._progress.get(key)
+            if not isinstance(current, type(value)):
+                if current is not None:
+                    logger.warning(
+                        "progress.json 字段 %s 类型异常（%s），已重置为默认值",
+                        key,
+                        type(current).__name__,
+                    )
+                self._progress[key] = value
 
     # ---------- 练习统计 ----------
     def get_practice_stats(self) -> dict[str, int]:
@@ -74,16 +88,6 @@ class AppState:
         """返回收藏数量（P1-1: O(1) 读取，避免仅为取长度而 O(N) 浅拷贝）。"""
         return len(self._progress.get("favorites", []))
 
-    def add_favorite(self, q_num: int) -> None:
-        favorites = self._progress.setdefault("favorites", [])
-        if q_num not in favorites:
-            favorites.append(q_num)
-
-    def remove_favorite(self, q_num: int) -> None:
-        favorites = self._progress.get("favorites", [])
-        if q_num in favorites:
-            favorites.remove(q_num)
-
     def toggle_favorite(self, q_num: int) -> bool:
         """切换收藏状态，返回切换后是否已收藏。"""
         favorites = self._progress.setdefault("favorites", [])
@@ -98,11 +102,9 @@ class AppState:
 
     # ---------- 考试历史 ----------
     def get_exam_history(self) -> list[dict[str, Any]]:
-        return list(self._progress.get("exam_history", []))
-
-    def exam_history_count(self) -> int:
-        """返回考试历史记录数（P1-1: O(1) 读取，避免仅为取长度而 O(N) 浅拷贝）。"""
-        return len(self._progress.get("exam_history", []))
+        """返回考试历史深拷贝——条目含嵌套 dict，浅拷贝会让调用方的修改
+        直接污染待持久化状态。"""
+        return copy.deepcopy(self._progress.get("exam_history", []))
 
     def add_exam_history(self, entry: dict[str, Any]) -> None:
         history = self._progress.setdefault("exam_history", [])
@@ -160,9 +162,12 @@ class AppState:
 
     # ---------- 练习会话快照（进度恢复） ----------
     def get_practice_progress(self) -> dict[str, Any]:
-        """返回练习会话快照（无/格式异常时返回空 dict）。"""
+        """返回练习会话快照深拷贝（无/格式异常时返回空 dict）。
+
+        快照含嵌套 answers dict，浅拷贝会让调用方修改污染待持久化状态。
+        """
         data = self._progress.get("practice_progress")
-        return dict(data) if isinstance(data, dict) else {}
+        return copy.deepcopy(data) if isinstance(data, dict) else {}
 
     def set_practice_progress(self, data: dict[str, Any]) -> None:
         """写入练习会话快照（随下次 save_safe 一并落盘）。"""
@@ -170,7 +175,7 @@ class AppState:
 
     # ---------- UI 主题模式 ----------
     # 合法值与 ui.constants.THEME_MODES 保持一致；此处内联字面量，
-    # 避免状态层反向依赖 UI 层（ui 包 import 即引入 tkinter）
+    # 避免状态层反向依赖 UI 层
     _VALID_THEME_MODES = ("light", "dark")
 
     def get_theme_mode(self) -> str:
@@ -182,7 +187,13 @@ class AppState:
         return str(mode)
 
     def set_theme_mode(self, mode: str) -> None:
-        """写入主题模式（随下次 save_safe 一并落盘）。"""
+        """写入主题模式（随下次 save_safe 一并落盘）。
+
+        写入端校验：非法值直接拒绝，不落盘等下次启动再靠读取端回退
+        （与 get_theme_mode 的 fail-safe 对称）。
+        """
+        if mode not in self._VALID_THEME_MODES:
+            raise ValueError(f"非法主题模式: {mode!r}，可选 {self._VALID_THEME_MODES}")
         self._progress["theme_mode"] = mode
 
     # ---------- 持久化 ----------
@@ -199,6 +210,6 @@ class AppState:
         try:
             self.save()
             return True
-        except (OSError, ValueError, DataSaveError) as e:
+        except (OSError, ValueError, TypeError, DataSaveError) as e:
             logger.warning("保存学习进度失败: %s", e)
             return False

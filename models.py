@@ -41,6 +41,10 @@ class Question:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Question":
         raw_options = data.get("options", []) or []
+        # 非法结构必须显式失败：静默替换为空选项会留下"题目在但不可作答"的
+        # 僵尸题且无任何提示（fail-open）；由 DataManager 转 DataLoadError 友好文案
+        if not isinstance(raw_options, list):
+            raise ValueError("options 必须为数组")
         options = [
             Option.from_dict(opt) if isinstance(opt, dict) else Option("", "")
             for opt in raw_options
@@ -57,15 +61,3 @@ class Question:
             type=q_type,
             explanation=str(data.get("explanation", "")),
         )
-
-    @property
-    def option_letters(self) -> list[str]:
-        """返回所有选项字母列表。"""
-        return [opt.letter for opt in self.options if opt.letter]
-
-    def get_option_text(self, letter: str) -> str:
-        """根据字母获取选项文本。"""
-        for opt in self.options:
-            if opt.letter == letter.upper():
-                return opt.text
-        return ""

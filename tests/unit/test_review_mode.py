@@ -178,6 +178,19 @@ def test_jump_from_input_invalid_is_noop(mode):
     assert mode.jump_edit.text() == ""
 
 
+def test_jump_from_input_rejects_unicode_digit(mode):
+    """M10: 上标数字（"²"）isdigit() 为 True 但 int() 抛 ValueError。
+
+    修复前异常穿透 returnPressed 信号槽（PySide6 只打印 traceback，
+    用户操作无响应反馈）；限定 ASCII 数字后非法输入清空、不跳转。
+    """
+    mode.jump_edit.setText("²")
+    mode._jump_from_input()
+
+    assert mode.engine.get_current_index() == 0
+    assert mode.jump_edit.text() == ""
+
+
 def test_next_prev_nav(mode):
     """→/← 翻题与边界。"""
     mode.on_next()

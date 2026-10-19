@@ -80,5 +80,6 @@ desktop_python.md
 .trae-html-share-packages/
 
 # Agent 工作区（记忆/日志，本机状态，不入库）
+.codebuddy/
 .workbuddy/
 

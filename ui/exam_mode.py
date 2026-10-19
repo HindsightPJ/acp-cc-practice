@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -45,6 +46,10 @@ _HISTORY_COLUMNS = ("日期", "题数", "正确", "错误", "正确率", "用时
 class ExamMode(BaseModePage):
     """考试模式编排层。"""
 
+    # 保存失败提示（基类扩展点）：考试历史/错题本两个特殊对象的文案
+    # 在调用点显式传入 _warn_save_failed
+    _save_failure_message = "考试进度保存失败，请检查磁盘空间或文件权限。"
+
     def __init__(
         self,
         questions: list[Question],
@@ -68,6 +73,23 @@ class ExamMode(BaseModePage):
         self._build_ui()
 
     # -------------------------------------------------------------- UI
+    def hideEvent(self, event: QHideEvent) -> None:
+        """切到其他模式页时停表。
+
+        不停则归零瞬间会在当前可见的其他模式页上弹"时间到"并执行完整交卷
+        （报告对话框压在背题/练习页上）——用户以为考试挂起，实际已被评分。
+        剩余时间由 engine 墙钟计算，停 tick 不会造成计时不准。
+        """
+        if self.timer_running:
+            self._timer.stop()
+        super().hideEvent(event)
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if self.timer_running:
+            self._timer.start()
+            self._on_timer_tick()  # 立即补刷新剩余时间显示
+
     def _build_ui(self) -> None:
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
@@ -179,9 +201,7 @@ class ExamMode(BaseModePage):
         self.engine.start_exam_mode(question_count=len(drawn), shuffle=False)
         self.exam_session = ExamSession(self.engine)
         if not self.app_state.save_safe():
-            QMessageBox.warning(
-                self, "保存失败", "考试卡组进度保存失败，请检查磁盘空间或文件权限。"
-            )
+            self._warn_save_failed("考试卡组进度保存失败，请检查磁盘空间或文件权限。")
 
         self.exam_total_seconds = duration * 60
         self.time_remaining = self.exam_total_seconds
@@ -276,11 +296,14 @@ class ExamMode(BaseModePage):
     def submit_exam(self, force: bool = False) -> None:
         """交卷：确认（附未答/标记数）→ 记录 → 评分 → 历史 + 报告 → 重置。"""
         if not force:
+            # 确认框是模态嵌套事件循环：不停表则 tick 到点会在嵌套循环内先行
+            # 自动交卷（历史/报告各写一份），用户点"是"后外层继续执行 → 重复交卷
+            self._timer.stop()
             unanswered = marked = 0
             if self.engine is not None and self.exam_session is not None:
                 total = self.engine.queue_length()
-                unanswered = sum(1 for i in range(total) if not self.exam_session.has_answer(i))
-                marked = sum(1 for i in range(total) if self.exam_session.is_marked(i))
+                unanswered = total - self.exam_session.answered_count()
+                marked = self.exam_session.marked_count()
             detail = ""
             if unanswered or marked:
                 parts = []
@@ -297,6 +320,10 @@ class ExamMode(BaseModePage):
                 QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
+                # 取消：仅当考试仍在进行（panel 未销毁）时恢复计时
+                if self.panel is not None:
+                    self.timer_running = True
+                    self._timer.start()
                 return
 
         self._timer.stop()
@@ -331,7 +358,7 @@ class ExamMode(BaseModePage):
             }
         )
         if not self.app_state.save_safe():
-            QMessageBox.warning(self, "保存失败", "考试历史保存失败，请检查磁盘空间或文件权限。")
+            self._warn_save_failed("考试历史保存失败，请检查磁盘空间或文件权限。")
 
     def _show_exam_report(self, report: dict[str, Any]) -> None:
         """报告展示：ExamReportDialog（F 语言），含"加入错题本"回调。"""
@@ -347,33 +374,32 @@ class ExamMode(BaseModePage):
                 self.app_state.add_wrong_question(q.number)
                 added += 1
         if added and not self.app_state.save_safe():
-            QMessageBox.warning(self, "保存失败", "错题本保存失败，请检查磁盘空间或文件权限。")
+            self._warn_save_failed("错题本保存失败，请检查磁盘空间或文件权限。")
         self.state_changed.emit()
         return added
 
     # -------------------------------------------------------------- 主窗口协议
     def on_letter(self, letter: str) -> None:
-        """快捷键 A-D → 选项切换（考试可改答案，无 is_answered 限制）。"""
-        if self.stack.currentIndex() == 1:
+        """快捷键 A-D → 选项切换（考试可改答案，无 is_answered 限制）。
+
+        考试页不实现 on_submit（Enter 无提交语义，交卷仅按钮触发，防误交卷）：
+        主窗口经 getattr 鸭子路由，缺失方法自动跳过。
+        """
+        if self.panel is not None and self.stack.currentWidget() is self.panel:
             self._select_option_by_letter(letter)
 
-    def on_submit(self) -> None:
-        """考试模式 Enter 无提交语义（交卷仅按钮触发，防误交卷）。"""
-
     def on_prev(self) -> None:
-        if self.stack.currentIndex() == 1:
+        if self.panel is not None and self.stack.currentWidget() is self.panel:
             self._exam_prev_question()
 
     def on_next(self) -> None:
-        if self.stack.currentIndex() == 1:
+        if self.panel is not None and self.stack.currentWidget() is self.panel:
             self._exam_next_question()
 
     def nav_count(self) -> str | None:
         """board-nav 计数：考试中显示已答/总数，否则 None（缺省 '—'）。"""
         if self.engine is not None and self.exam_session is not None and self.panel is not None:
-            total = self.engine.queue_length()
-            answered = sum(1 for i in range(total) if self.exam_session.has_answer(i))
-            return f"{answered}/{total}"
+            return f"{self.exam_session.answered_count()}/{self.engine.queue_length()}"
         return None
 
     def modeline_text(self) -> str | None:
