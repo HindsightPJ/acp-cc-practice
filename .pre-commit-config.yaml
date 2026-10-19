@@ -2,7 +2,8 @@
 # local hooks 直接调用 PATH 上的可执行文件：ruff / bandit 装在系统 Python 3.14（Scripts 已在 PATH）。
 # 不写死 `python -m xxx`：本机默认 python 是 WorkBuddy 托管 3.13（无这些工具），写死会误判。
 # check_secrets / check_deps_lock 纯标准库，任何 python3 可跑。
-# 版本对齐：ruff 与 requirements.lock 的 dev 钉同版（0.15.20）；pre-commit / bandit 尚未进 lock [DECISION_REQUIRED]。
+# 版本对齐：ruff 与 requirements.lock 的 dev 钉同版（0.15.20）；bandit 已入 lock
+# （2026-10-19）；pre-commit 自身尚未进 lock [DECISION_REQUIRED]。
 repos:
   - repo: local
     hooks:

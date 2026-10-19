@@ -38,7 +38,7 @@ acp-cc-practice/
 ├── app_state.py             # 全局状态：错题本、收藏、考试历史、进度持久化
 ├── logging_utils.py         # 结构化错误日志 + 轮转日志配置（ACP_LOG_LEVEL 可提级）
 ├── pyproject.toml           # 项目元数据 + 依赖声明（单一来源）+ 工具配置
-├── requirements.lock        # 锁定依赖版本（pip-compile 自动生成，可复现安装）
+├── requirements.lock        # 锁定依赖版本（uv pip compile --python-version 3.10 生成，与 CI 目标版本对齐，可复现安装）
 ├── acp-cc-practice.spec     # PyInstaller 打包配置
 ├── .github/workflows/       # CI（ruff + mypy + bandit + pip-audit + 密钥/依赖锁门禁 + pytest）与 Release（构建并签名 EXE）
 ├── .gitignore
